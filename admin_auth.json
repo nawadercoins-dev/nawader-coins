@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "username": "admin",
-  "salt": "79034896f941ce36465b50eb04ec6588",
-  "iterations": 260000,
-  "hash": "3104216833e4d5e0f038ddd6faf3d161a425bcb7a7faf6b05afd1c1deb0bb5bf",
-  "created": "2026-08-12T12:52:58.256822",
-  "source": "ADMIN_PASSWORD/default-recovery"
-}

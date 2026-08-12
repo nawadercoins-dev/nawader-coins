@@ -617,33 +617,19 @@ def analyze_image(url):
 def _pbkdf2(password, salt_hex, iterations=260000):
     return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), bytes.fromhex(salt_hex), iterations).hex()
 
-def _configured_admin_password():
-    # Render/production can override this with ADMIN_PASSWORD.
-    # The approved recovery default is 12345678 so local and Render logins stay in sync.
-    return str(os.environ.get('ADMIN_PASSWORD') or '12345678')
-
 def ensure_admin_auth():
-    password=_configured_admin_password()
     cfg=load_json(AUTH_FILE,{})
-    iterations=260000
-    valid=False
     if isinstance(cfg,dict) and cfg.get('salt') and cfg.get('hash'):
-        try:
-            got=_pbkdf2(password,cfg['salt'],int(cfg.get('iterations') or iterations))
-            valid=secrets.compare_digest(got,str(cfg.get('hash') or '')) and str(cfg.get('username') or 'admin')=='admin'
-        except Exception:
-            valid=False
-    if valid:
         return cfg, None
+    password=secrets.token_urlsafe(12)
     salt=secrets.token_hex(16)
-    cfg={'version':2,'username':'admin','salt':salt,'iterations':iterations,'hash':_pbkdf2(password,salt,iterations),'created':datetime.datetime.now().isoformat(),'source':'ADMIN_PASSWORD/default-recovery'}
+    cfg={'version':1,'username':'admin','salt':salt,'iterations':260000,'hash':_pbkdf2(password,salt,260000),'created':datetime.datetime.now().isoformat()}
     save_json(AUTH_FILE,cfg)
     try:
         with open(ADMIN_CREDENTIALS,'w',encoding='utf-8') as f:
             f.write('دخول إدارة نوادر العملات\n')
             f.write('اسم المستخدم: admin\n')
-            f.write('كلمة المرور: '+password+'\n\n')
-            f.write('يمكن تغييرها لاحقًا عبر متغير ADMIN_PASSWORD في Render.\n')
+            f.write('كلمة المرور الأولية: '+password+'\n\n')
             f.write('احتفظ بهذا الملف في جهاز الإدارة ولا تشاركه مع العملاء.\n')
     except Exception: pass
     return cfg, password
@@ -1416,24 +1402,16 @@ class H(SimpleHTTPRequestHandler):
         self.sendj({'error':'not found'},404)
 
 os.chdir(ROOT); backup_data('startup')
-# تشغيل آمن: تأكد من وجود ملفات الواجهات الأساسية قبل بدء الخدمة.
-_required_runtime_files=[
-    os.path.join(ADMIN_DIR,'index.html'), os.path.join(ADMIN_DIR,'app.js'), os.path.join(ADMIN_DIR,'styles.css'),
-    os.path.join(PUBLIC_DIR,'public_home.html'), os.path.join(PUBLIC_DIR,'public_auction.html'), os.path.join(PUBLIC_DIR,'public_market.html')
-]
-_missing_runtime=[p for p in _required_runtime_files if not os.path.isfile(p)]
-if _missing_runtime:
-    raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.0.23-ADMIN-RECOVERY'
+VERSION='4.0.19'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
     except Exception: return '127.0.0.1'
 
 def make_server():
-    preferred=int(os.environ.get('PORT') or os.environ.get('KHAZINA_PORT','8080'))
+    preferred=int(os.environ.get('KHAZINA_PORT','8080'))
     for port in range(preferred,preferred+10):
         try: return ThreadingHTTPServer(('0.0.0.0',port),H),port
         except OSError as e:
