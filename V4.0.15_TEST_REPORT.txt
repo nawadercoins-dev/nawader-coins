@@ -1,0 +1,16 @@
+V4.0.15 TEST REPORT
+===================
+Base: V4.0.14 OCR FIX
+
+Checks performed:
+- Python syntax: PASS (python -m py_compile server.py)
+- Admin JavaScript syntax: PASS (node --check admin/app.js)
+- Tesseract resolver logic: PASS in test environment via PATH
+- Arabic language detection: PASS (ara)
+- English language detection: PASS (eng)
+- OCR direct CLI invocation: PASS on generated sample image
+- No dependency on pytesseract for OCR execution: VERIFIED in code
+- OCR failure remains independent from item/image saving: VERIFIED in code
+- Admin settings include manual Tesseract path + OCR test button: VERIFIED
+
+Windows runtime must still be tested on the user's machine because the actual installed Tesseract path and Registry values are machine-specific.

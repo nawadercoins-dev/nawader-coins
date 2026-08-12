@@ -1,0 +1,15 @@
+V3.9.5 TEST REPORT
+==================
+Python syntax: PASS
+Admin JavaScript syntax: PASS
+Duplicate HTML IDs: PASS (none)
+Backup create function vs V3.9.4: IDENTICAL
+Backup restore function vs V3.9.4: IDENTICAL
+Restore user-provided V2-format full backup: PASS (9 items / 61 images)
+Create new full backup after restore: PASS
+Restore newly-created full backup: PASS
+New V3.9.5 stores included in full backup once initialized: PASS
+Legacy-ended auctions do not create retroactive dues: PASS
+Overdue due detection helper: PASS
+Notification storage helper: PASS
+Permission storage helper: PASS

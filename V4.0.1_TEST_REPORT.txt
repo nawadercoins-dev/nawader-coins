@@ -1,0 +1,14 @@
+V4.0.1 TEST REPORT
+==================
+PASS: Python syntax compile server.py
+PASS: JavaScript syntax admin/app.js
+PASS: JavaScript syntax public/public_auction.js
+PASS: JavaScript syntax public/visitor.js
+PASS: HTTP /api/version returns 4.0.1
+PASS: Admin login and authenticated API
+PASS: Market request creates unified order after acceptance
+PASS: Order transitions through paid/preparing/ready_to_ship/shipped/received/completed
+PASS: Completed order is archived, not deleted
+PASS: Auction winner creates due + linked unified order
+PASS: Overdue unpaid auction due blocks new bid with HTTP 403 and clear Arabic message
+PASS: Test data removed before packaging

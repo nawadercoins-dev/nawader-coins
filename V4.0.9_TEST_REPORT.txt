@@ -1,0 +1,14 @@
+V4.0.9 AUCTION IMAGE VIEWER — BUILT FROM V4.0.8
+================================================
+[PASS] Base archive verified as V4.0.8 SPECIAL NUMBERS RELIABLE SAVE
+[PASS] Python server syntax compile
+[PASS] JavaScript auction viewer syntax check
+[PASS] Auction front/back images open full-screen viewer
+[PASS] Zoom in / zoom out controls present
+[PASS] Rotate left / rotate right controls present
+[PASS] Center and 100% reset controls present
+[PASS] Dragging and touch pinch logic present
+[PASS] Previous / next image navigation present
+[PASS] Opening viewer does not alter auction timer or bidding data
+[PASS] V4.0.8 server-side special-number save verification preserved
+[PASS] server.py differs from V4.0.8 only in version identifiers

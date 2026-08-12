@@ -1,0 +1,21 @@
+نوادر العملات — V4.0.22R1 TEST REPORT
+Base: V4.0.21_RECORD_CLASSIFICATION
+
+PASS: Python syntax (server.py)
+PASS: JavaScript syntax (admin/app.js)
+PASS: Admin login redirects successfully to /admin
+PASS: Authenticated /admin HTTP 200
+PASS: /api/items HTTP 200
+PASS: /api/orders HTTP 200
+PASS: /api/market/requests HTTP 200
+PASS: /api/subscriptions HTTP 200
+PASS: /api/settings/public HTTP 200
+PASS: No duplicate HTML element IDs
+PASS: Market page no longer contains the prominent "فتح السوق للزوار" control
+PASS: Finance includes gross profit, charity allocation, final net-profit card IDs
+PASS: Orders contain 13 filtering states/buttons with counters
+PASS: Rejected market-request rendering includes item image fallback; new market requests snapshot images
+PASS: Ended-auction refresh explicitly reloads current items and shows refresh feedback
+PASS: Classification UI override is scoped to record/market filters
+
+Important: This build is reconstructed directly from V4.0.21; it is not based on any failed V4.0.22-series package.

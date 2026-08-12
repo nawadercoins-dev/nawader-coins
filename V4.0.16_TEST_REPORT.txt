@@ -1,0 +1,16 @@
+V4.0.16 TEST REPORT
+===================
+Base: V4.0.15 OCR ENV FIX
+
+Checks performed:
+[OK] Python syntax: server.py
+[OK] JavaScript syntax: admin/app.js
+[OK] Version bumped to 4.0.16
+[OK] Arabic/Persian digit normalization
+[OK] UAE: country + 10 dirhams by Arabic words + year + serial suggestion
+[OK] Saudi Arabia: country + 5 riyals by Arabic words + year + serial
+[OK] Syria: country + 5000 lira numeric + year + serial
+[OK] Prevent false Egypt match inside Arabic word "مصرف"
+[OK] High-confidence auto-fill policy keeps existing user-entered values
+[OK] Medium-confidence values require explicit user acceptance
+[OK] OCR saving remains independent from collectible/image saving

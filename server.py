@@ -1,0 +1,1447 @@
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
+import json, os, threading, shutil, datetime, atexit, re, secrets, mimetypes, socket, webbrowser, time, io, hashlib, hmac, zipfile, tempfile, subprocess, glob
+
+ROOT=os.path.dirname(os.path.abspath(__file__))
+ADMIN_DIR=os.path.join(ROOT,'admin')
+PUBLIC_DIR=os.path.join(ROOT,'public')
+SHARED_DIR=os.path.join(ROOT,'shared')
+DATA=os.path.join(ROOT,'khazina_shared_data.json')
+PEOPLE=os.path.join(ROOT,'auction_participants.json')
+BIDS=os.path.join(ROOT,'auction_bids.json')
+NEGOTIATIONS=os.path.join(ROOT,'auction_negotiations.json')
+MARKET_REQUESTS=os.path.join(ROOT,'market_requests.json')
+SUBSCRIPTIONS=os.path.join(ROOT,'subscription_ledger.json')
+SAVE_AUDIT=os.path.join(ROOT,'save_audit.json')
+SETTINGS=os.path.join(ROOT,'platform_settings.json')
+NOTIFICATIONS=os.path.join(ROOT,'notifications.json')
+AUCTION_DUES=os.path.join(ROOT,'auction_dues.json')
+USER_PERMISSIONS=os.path.join(ROOT,'user_permissions.json')
+OPERATIONS_LOG=os.path.join(ROOT,'operations_log.json')
+ORDERS=os.path.join(ROOT,'orders_shipping.json')
+COLLECTIBLE_SUBMISSIONS=os.path.join(ROOT,'collectible_submissions.json')
+AUTH_FILE=os.path.join(ROOT,'admin_auth.json')
+ADMIN_CREDENTIALS=os.path.join(ROOT,'بيانات_دخول_الإدارة.txt')
+ADMIN_SESSIONS={}
+SESSION_TTL_SECONDS=12*60*60
+LOCK=threading.Lock()
+BACKUP_DIR=os.path.join(ROOT,'backups')
+UPLOAD_DIR=os.path.join(ROOT,'uploads')
+os.makedirs(UPLOAD_DIR,exist_ok=True)
+
+def backup_data(reason='auto'):
+    if not os.path.exists(DATA): return None
+    try:
+        os.makedirs(BACKUP_DIR,exist_ok=True)
+        stamp=datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+        dst=os.path.join(BACKUP_DIR,f'khazina_{reason}_{stamp}.json')
+        shutil.copy2(DATA,dst)
+        files=sorted((os.path.join(BACKUP_DIR,x) for x in os.listdir(BACKUP_DIR) if x.endswith('.json')), key=os.path.getmtime, reverse=True)
+        for old in files[30:]:
+            try: os.remove(old)
+            except OSError: pass
+        return dst
+    except Exception as e:
+        print('Backup warning:',e); return None
+
+def load_json(path, default):
+    if not os.path.exists(path): return default
+    try:
+        with open(path,'r',encoding='utf-8') as f: return json.load(f)
+    except Exception: return default
+
+def save_json(path,obj):
+    tmp=path+'.tmp'
+    with open(tmp,'w',encoding='utf-8') as f:
+        json.dump(obj,f,ensure_ascii=False); f.flush(); os.fsync(f.fileno())
+    os.replace(tmp,path)
+
+def load(): return load_json(DATA,{'items':[]}).get('items',[])
+def load_people(): return load_json(PEOPLE,{'participants':[]}).get('participants',[])
+def load_bids(): return load_json(BIDS,{'bids':[]}).get('bids',[])
+def load_negotiations(): return load_json(NEGOTIATIONS,{'negotiations':[]}).get('negotiations',[])
+def load_market_requests(): return load_json(MARKET_REQUESTS,{'requests':[]}).get('requests',[])
+def load_subscriptions(): return load_json(SUBSCRIPTIONS,{'subscriptions':[]}).get('subscriptions',[])
+def load_notifications(): return load_json(NOTIFICATIONS,{'notifications':[]}).get('notifications',[])
+def load_auction_dues(): return load_json(AUCTION_DUES,{'dues':[]}).get('dues',[])
+def load_user_permissions(): return load_json(USER_PERMISSIONS,{'users':{}}).get('users',{})
+def load_operations_log(): return load_json(OPERATIONS_LOG,{'events':[]}).get('events',[])
+def load_orders(): return load_json(ORDERS,{'orders':[]}).get('orders',[])
+def load_collectible_submissions(): return load_json(COLLECTIBLE_SUBMISSIONS,{'submissions':[]}).get('submissions',[])
+def load_save_audit(): return load_json(SAVE_AUDIT,{'events':[]}).get('events',[])
+def append_save_audit(event):
+    rows=load_save_audit(); rows.append(event); rows=rows[-500:]; save_json(SAVE_AUDIT,{'events':rows})
+def append_operation(action, details=None, actor='الإدارة'):
+    rows=load_operations_log(); rows.append({'id':'op-'+secrets.token_hex(6),'action':str(action),'details':details or {},'actor':actor,'created':datetime.datetime.now().isoformat()}); rows=rows[-2000:]; save_json(OPERATIONS_LOG,{'events':rows})
+
+def add_notification(recipient_type, recipient_id, category, title, message, item_id='', action_url=''):
+    rows=load_notifications()
+    row={'id':'nt-'+secrets.token_hex(6),'recipientType':recipient_type,'recipientId':str(recipient_id or ''),'category':category,'title':title,'message':message,'itemId':str(item_id or ''),'actionUrl':action_url,'read':False,'created':datetime.datetime.now().isoformat()}
+    rows.append(row); rows=rows[-4000:]; save_json(NOTIFICATIONS,{'notifications':rows}); return row
+
+def participant_permissions(pid):
+    defaults={'sellerEndedAuctions':False,'sellerMarket':False,'marketSupervision':False,'auctionSupervision':False,'ordersView':False,'ordersManage':False}
+    x=load_user_permissions().get(str(pid),{})
+    defaults.update(x if isinstance(x,dict) else {})
+    return defaults
+
+def item_title(i):
+    return str(i.get('marketTitle') or ((i.get('country') or '')+' — '+(i.get('denomination') or ''))).strip(' —') or 'مقتنى'
+
+
+ORDER_FLOW=['new','awaiting_payment','paid','preparing','ready_to_ship','shipped','received','completed']
+ORDER_EXCEPTION={'stalled','cancelled','returned'}
+def storage_location(item):
+    return {'warehouse':item.get('warehouse',''),'cabinet':item.get('cabinet',''),'shelf':item.get('shelf',''),'box':item.get('box',''),'album':item.get('album',''),'pocket':item.get('pocket','')}
+
+def order_from_auction(due,item,person):
+    return {'id':'ord-'+secrets.token_hex(6),'orderNumber':'NW-'+datetime.datetime.now().strftime('%y%m%d')+'-'+secrets.token_hex(3).upper(),'source':'auction','sourceId':due.get('id'),'auctionRound':due.get('auctionRound'),'participantId':due.get('participantId'),'customerName':person.get('name',''),'customerPhone':person.get('phone',''),'status':'awaiting_payment','paymentStatus':'unpaid','created':datetime.datetime.now().isoformat(),'updated':datetime.datetime.now().isoformat(),'subtotal':float(due.get('amount') or 0),'buyerFee':0,'total':float(due.get('amount') or 0),'items':[{'itemId':item.get('id'),'title':item_title(item),'quantity':1,'unitPrice':float(due.get('amount') or 0),'total':float(due.get('amount') or 0),'images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'storage':storage_location(item)}],'shippingCompany':'','trackingNumber':'','history':[{'status':'awaiting_payment','at':datetime.datetime.now().isoformat(),'note':'تم إنشاء الطلب تلقائيًا من فوز المزاد'}],'archived':False}
+
+def create_order_for_due(due):
+    orders=load_orders(); existing=next((o for o in orders if o.get('source')=='auction' and str(o.get('sourceId'))==str(due.get('id'))),None)
+    if existing: return existing
+    item=next((i for i in load() if str(i.get('id'))==str(due.get('itemId'))),{})
+    person=next((x for x in load_people() if str(x.get('id'))==str(due.get('participantId'))),{})
+    row=order_from_auction(due,item,person); orders.append(row); save_json(ORDERS,{'orders':orders}); due['orderId']=row['id']; return row
+
+def create_order_for_market(req):
+    orders=load_orders(); existing=next((o for o in orders if o.get('source')=='market' and str(o.get('sourceId'))==str(req.get('id'))),None)
+    if existing: return existing
+    item=next((i for i in load() if str(i.get('id'))==str(req.get('itemId'))),{})
+    subtotal=float(req.get('offeredAmount') or req.get('listedAmount') or 0); fee=float(req.get('buyerFeeAmount') or 0)
+    row={'id':'ord-'+secrets.token_hex(6),'orderNumber':'NW-'+datetime.datetime.now().strftime('%y%m%d')+'-'+secrets.token_hex(3).upper(),'source':'market','sourceId':req.get('id'),'participantId':str(req.get('participantId') or ''),'customerName':req.get('name',''),'customerPhone':req.get('phone',''),'status':'awaiting_payment','paymentStatus':'unpaid','created':datetime.datetime.now().isoformat(),'updated':datetime.datetime.now().isoformat(),'subtotal':subtotal,'buyerFee':fee,'total':float(req.get('buyerTotal') or subtotal+fee),'items':[{'itemId':item.get('id'),'title':req.get('itemTitle') or item_title(item),'quantity':int(req.get('quantity') or 1),'unitPrice':float(req.get('unitPrice') or 0),'total':subtotal,'images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'storage':storage_location(item),'selectedSerials':list(req.get('selectedSerials') or [])}],'shippingCompany':'','trackingNumber':'','history':[{'status':'awaiting_payment','at':datetime.datetime.now().isoformat(),'note':'تم إنشاء الطلب من السوق العام'}],'archived':False}
+    orders.append(row); save_json(ORDERS,{'orders':orders}); req['orderId']=row['id']; return row
+
+def update_order_status(order,status,note=''):
+    if status not in ORDER_FLOW and status not in ORDER_EXCEPTION: raise ValueError('حالة الطلب غير صالحة')
+    now=datetime.datetime.now().isoformat(); order['status']=status; order['updated']=now
+    order.setdefault('history',[]).append({'status':status,'at':now,'note':note})
+    if status=='paid': order['paymentStatus']='paid'; order['paidAt']=now
+    if status=='shipped': order['shippedAt']=now
+    if status=='received': order['receivedAt']=now
+    if status=='completed': order['completedAt']=now; order['archived']=True; order['archivedAt']=now
+
+def ensure_dues_tracking_start():
+    st=load_settings(); raw=str(st.get('duesTrackingStartedAt') or '').strip()
+    if raw:
+        try: return datetime.datetime.fromisoformat(raw)
+        except Exception: pass
+    now=datetime.datetime.now(); st['duesTrackingStartedAt']=now.isoformat(); save_json(SETTINGS,st); return now
+
+def ensure_auction_outcomes():
+    """Create winner dues/notifications once for ended successful auction rounds. Safe to call repeatedly."""
+    now=datetime.datetime.now(); tracking_start=ensure_dues_tracking_start(); items=load(); bids=load_bids(); dues=load_auction_dues(); due_keys={(str(x.get('itemId')),int(x.get('auctionRound') or 1)) for x in dues}
+    changed=False
+    for item in items:
+        if not (item.get('forAuction') and item.get('auctionApproved')): continue
+        endraw=str(item.get('auctionEnd') or '').strip()
+        if not endraw: continue
+        try: enddt=datetime.datetime.fromisoformat(endraw)
+        except Exception: continue
+        if enddt>now: continue
+        rnd=int(item.get('auctionRound') or 1); key=(str(item.get('id')),rnd)
+        if key in due_keys: continue
+        rb=[b for b in bids if str(b.get('itemId'))==str(item.get('id')) and int(b.get('auctionRound') or 1)==rnd]
+        if not rb: continue
+        top=max(rb,key=lambda b: float(b.get('amount') or 0)); amount=float(top.get('amount') or 0); target=auction_target(item)
+        if target>0 and amount+1e-9<target: continue
+        migrated=enddt<tracking_start
+        deadline=(now+datetime.timedelta(hours=24)) if migrated else (enddt+datetime.timedelta(hours=24))
+        due={'id':'due-'+secrets.token_hex(6),'itemId':str(item.get('id')),'itemTitle':item_title(item),'auctionRound':rnd,'participantId':str(top.get('participantId') or ''),'amount':amount,'status':'unpaid','auctionEndedAt':enddt.isoformat(),'paymentDeadline':deadline.isoformat(),'created':now.isoformat(),'reconciled':bool(migrated)}
+        dues.append(due); due_keys.add(key); changed=True
+        order=create_order_for_due(due)
+        item['auctionOutcome']='sold'; item['auctionWinnerParticipantId']=due['participantId']; item['auctionWinningAmount']=amount; item['auctionOrderId']=order.get('id'); item['auctionOutcomeAt']=now.isoformat(); item['updated']=int(now.timestamp()*1000)
+        add_notification('participant',due['participantId'],'auction','🎉 مبارك، لقد فزت بالمزاد!',f"تم إرساء مزاد {due['itemTitle']} عليك بقيمة {amount:g} ر.س. يرجى إكمال السداد خلال 24 ساعة.",due['itemId'],'/account')
+        add_notification('participant',due['participantId'],'order','📦 تم إنشاء طلب الفوز',f"تم إنشاء الطلب {order.get('orderNumber')} وبدأت مرحلة بانتظار السداد.",due['itemId'],'/account')
+        add_notification('admin','','auction','فائز جديد بالمزاد',f"انتهى مزاد {due['itemTitle']} بفوز مشارك بقيمة {amount:g} ر.س.",due['itemId'],'/admin')
+    if changed:
+        save_json(AUCTION_DUES,{'dues':dues})
+        save(items)
+    return dues
+
+def overdue_due_for(pid):
+    now=datetime.datetime.now(); dues=ensure_auction_outcomes()
+    for x in dues:
+        if str(x.get('participantId'))!=str(pid) or x.get('status')!='unpaid': continue
+        try:
+            if datetime.datetime.fromisoformat(str(x.get('paymentDeadline')))<=now: return x
+        except Exception: pass
+    return None
+
+def load_settings():
+    defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':False,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','duesTrackingStartedAt':''}
+    x=load_json(SETTINGS,defaults.copy())
+    defaults.update(x if isinstance(x,dict) else {})
+    return defaults
+
+BACKUP_FILES=[
+    ('khazina_shared_data.json',DATA),('auction_participants.json',PEOPLE),
+    ('auction_bids.json',BIDS),('auction_negotiations.json',NEGOTIATIONS),
+    ('market_requests.json',MARKET_REQUESTS),('subscription_ledger.json',SUBSCRIPTIONS),('save_audit.json',SAVE_AUDIT),('platform_settings.json',SETTINGS),
+    ('notifications.json',NOTIFICATIONS),('auction_dues.json',AUCTION_DUES),('user_permissions.json',USER_PERMISSIONS),('operations_log.json',OPERATIONS_LOG),('orders_shipping.json',ORDERS),('collectible_submissions.json',COLLECTIBLE_SUBMISSIONS)
+]
+
+def create_full_backup_bytes():
+    mem=io.BytesIO()
+    with zipfile.ZipFile(mem,'w',compression=zipfile.ZIP_DEFLATED) as z:
+        manifest={'format':'khazina-full-backup','version':2,'created':datetime.datetime.now().isoformat(),'includes':['data','participants','bids','negotiations','market_requests','orders_shipping','collectible_submissions','subscriptions','settings','uploads']}
+        z.writestr('manifest.json',json.dumps(manifest,ensure_ascii=False,indent=2))
+        for arc,path in BACKUP_FILES:
+            if os.path.exists(path): z.write(path,'data/'+arc)
+        if os.path.isdir(UPLOAD_DIR):
+            for name in os.listdir(UPLOAD_DIR):
+                src=os.path.join(UPLOAD_DIR,name)
+                if os.path.isfile(src): z.write(src,'uploads/'+name)
+    return mem.getvalue()
+
+def restore_full_backup_bytes(raw):
+    if not raw or len(raw)>2*1024*1024*1024: raise ValueError('حجم ملف النسخة الاحتياطية غير صالح')
+    os.makedirs(BACKUP_DIR,exist_ok=True)
+    stamp=datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    with open(os.path.join(BACKUP_DIR,f'before_restore_{stamp}.khzbackup'),'wb') as f: f.write(create_full_backup_bytes())
+    with zipfile.ZipFile(io.BytesIO(raw),'r') as z:
+        names=set(z.namelist())
+        if 'manifest.json' not in names: raise ValueError('الملف ليس نسخة خزينة كاملة')
+        manifest=json.loads(z.read('manifest.json').decode('utf-8'))
+        if manifest.get('format')!='khazina-full-backup': raise ValueError('صيغة النسخة الاحتياطية غير معروفة')
+        for arc,path in BACKUP_FILES:
+            member='data/'+arc
+            if member in names: save_json(path,json.loads(z.read(member).decode('utf-8')))
+        tmpdir=tempfile.mkdtemp(prefix='khazina_restore_',dir=ROOT)
+        try:
+            new_upload=os.path.join(tmpdir,'uploads'); os.makedirs(new_upload,exist_ok=True)
+            for member in names:
+                if not member.startswith('uploads/') or member.endswith('/'): continue
+                rel=member[len('uploads/'):]
+                if not rel or '/' in rel or '\\' in rel or rel in ('.','..'): continue
+                with open(os.path.join(new_upload,rel),'wb') as f: f.write(z.read(member))
+            old_upload=UPLOAD_DIR+'_old_restore'
+            if os.path.exists(old_upload): shutil.rmtree(old_upload,ignore_errors=True)
+            if os.path.exists(UPLOAD_DIR): os.replace(UPLOAD_DIR,old_upload)
+            os.replace(new_upload,UPLOAD_DIR)
+            shutil.rmtree(old_upload,ignore_errors=True)
+        finally: shutil.rmtree(tmpdir,ignore_errors=True)
+    return {'ok':True,'items':len(load()),'images':len([x for x in os.listdir(UPLOAD_DIR) if os.path.isfile(os.path.join(UPLOAD_DIR,x))])}
+
+def save(items):
+    backup_data('before_save')
+    save_json(DATA,{'version':3,'items':items})
+    backup_data('after_save')
+
+def sig(i):
+    serial=str(i.get('serial','')).strip()
+    if serial: return 'S|'+serial+'|'+str(i.get('country',''))+'|'+str(i.get('denomination',''))+'|'+str(i.get('year',''))
+    keys=['country','denomination','year','type','condition','quantity','warehouse','cabinet','shelf','box','album','pocket','purchase','shipping','other','expectedPrice','notes']
+    return 'E|'+'|'.join(str(i.get(k,'')) for k in keys)
+
+def auction_target(i):
+    # Compatibility: older versions used auctionStartPrice as the reserve/target.
+    # The achieved target is one riyal above that old value, matching the approved auction rule.
+    if i.get('auctionTargetPrice') not in (None,''): return float(i.get('auctionTargetPrice') or 0)
+    old=float(i.get('auctionStartPrice') or 0)
+    return old+1 if old>0 else 0
+
+def public_item(i):
+    # The reserve amount remains confidential. Public UI receives only a coarse state
+    # (below/met/none) so the current-price card can change color without exposing the target.
+    round_no=int(i.get('auctionRound') or 1)
+    bids=[b for b in load_bids() if b.get('itemId')==i.get('id') and int(b.get('auctionRound') or 1)==round_no]
+    top=max([float(b.get('amount') or 0) for b in bids]+[0.0])
+    target=auction_target(i)
+    reserve_state='none' if target<=0 else ('met' if top>=target else 'below')
+    ended=False
+    end=str(i.get('auctionEnd') or '').strip()
+    if end:
+        try: ended=datetime.datetime.fromisoformat(end) <= datetime.datetime.now()
+        except Exception: ended=False
+    sold=bool(ended and bids and (target<=0 or top>=target))
+    public_keys=['id','country','denomination','year','type','condition','quantity','serials','frontImg','backImg','auctionEnd','auctionOpeningPrice','auctionBidStep','notes','negotiationEnabled','negotiationPercent','auctionRound','issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason']
+    return {k:i.get(k) for k in public_keys} | {'auctionCurrentPrice':top,'bidCount':len(bids),'reserveState':reserve_state,'auctionEnded':ended,'auctionSold':sold}
+
+
+
+def public_market_item(i):
+    # السوق العام لا يرسل سعر الشراء أو الموقع الداخلي أو أي بيانات مالية/إدارية سرية.
+    keys=['id','country','denomination','year','type','condition','quantity','frontImg','backImg','notes',
+          'issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','gradingVerificationStatus','gradingNotes',
+          'marketOfferType','marketSalePrice','marketUnitPrice','marketQuantity','marketSetPieces','marketSetSize','marketSetCurrencyMode','marketPriceUnit',
+          'marketPartialAllowed','marketNegotiationEnabled','marketNegotiationPercent','marketTitle']
+    out={k:i.get(k) for k in keys}
+    out['availableQuantity']=max(0,int(i.get('marketQuantity') or i.get('quantity') or 1)-int(i.get('marketSoldQuantity') or 0))
+    return out
+
+def special_serial_pool(item):
+    raw=item.get("serials") or []
+    if not isinstance(raw,list): raw=[raw]
+    vals=[]
+    for x in raw:
+        x=str(x or "").strip()
+        if x and x not in vals: vals.append(x)
+    one=str(item.get("serial") or "").strip()
+    if one and one not in vals: vals.append(one)
+    return vals
+
+def special_reserved_serials(item_id):
+    now=datetime.datetime.now(); out=set()
+    for r in load_market_requests():
+        if str(r.get("itemId"))!=str(item_id) or r.get("status") not in ("pending","accepted"): continue
+        if r.get("status")=="pending":
+            try:
+                if datetime.datetime.fromisoformat(str(r.get("reservedUntil") or "")) <= now: continue
+            except Exception: continue
+        for x in r.get("selectedSerials") or []:
+            x=str(x).strip()
+            if x: out.add(x)
+    return out
+
+def special_available_serials(item):
+    sold={str(x).strip() for x in (item.get("marketSoldSerials") or []) if str(x).strip()}
+    reserved=special_reserved_serials(item.get("id"))
+    return [x for x in special_serial_pool(item) if x not in sold and x not in reserved]
+
+def special_sale_price(item):
+    try: return float(item.get("marketSalePrice") or item.get("marketUnitPrice") or 0)
+    except Exception: return 0.0
+
+def public_special_item(item):
+    serials=special_serial_pool(item); available=special_available_serials(item)
+    sold={str(x).strip() for x in (item.get("marketSoldSerials") or []) if str(x).strip()}; reserved=special_reserved_serials(item.get("id"))
+    qty=max(0,int(item.get("marketQuantity") or item.get("quantity") or max(1,len(serials)))-int(item.get("marketSoldQuantity") or 0))
+    if serials: qty=len(available)
+    price=special_sale_price(item); sale=bool(item.get("forMarket") and item.get("marketApproved") and price>0 and qty>0)
+    if serials and not available and reserved and len(sold)<len(serials): status="reserved"
+    elif qty<=0: status="sold"
+    else: status="available" if sale else "display"
+    keys=("id","country","denomination","year","condition","serial","serials","frontImg","backImg","specialNumberType","specialNumberTypes","specialNumberReason","marketSalePrice","marketUnitPrice","marketNegotiationEnabled","marketNegotiationPercent","marketOfferType","marketTitle","quantity")
+    out={k:item.get(k) for k in keys}; out.update({"availableSerials":available,"availableQuantity":qty,"unitPrice":price,"saleEnabled":sale,"soldOut":status=="sold","availabilityStatus":status}); return out
+
+def public_portal_url(host):
+    # V2.0: QR ثابت لا يعتمد على التاريخ أو رمز مؤقت.
+    return f'http://{host}/auction'
+
+def public_market_url(host):
+    return f'http://{host}/market'
+
+
+def _ocr_normalize(text):
+    """Normalize Arabic/Latin OCR output without destroying serial-number evidence."""
+    text=str(text or '')
+    trans=str.maketrans('٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹','01234567890123456789')
+    text=text.translate(trans)
+    text=text.replace('\u200f',' ').replace('\u200e',' ').replace('\u0640',' ')
+    # Arabic normalization helps OCR variants match our dictionaries.
+    text=re.sub('[إأآٱ]','ا',text)
+    text=text.replace('ى','ي').replace('ة','ه')
+    text=re.sub(r'\s+',' ',text)
+    return text.strip()
+
+
+def _confidence_bucket(score):
+    return 'high' if score>=0.82 else ('medium' if score>=0.55 else 'low')
+
+
+def parse_ocr_text(text):
+    """Turn raw OCR text into conservative currency-field suggestions with confidence.
+
+    High-confidence fields may be filled automatically by the UI. Medium confidence is
+    displayed as a suggestion requiring user confirmation. Low confidence is never used.
+    """
+    raw=str(text or '')
+    norm=_ocr_normalize(raw)
+    out={}; fields={}; candidates={}
+
+    def add(field,value,score,reason=''):
+        value=str(value or '').strip()
+        if not value: return
+        score=max(0.0,min(0.99,float(score)))
+        cur=fields.get(field)
+        if not cur or score>float(cur.get('confidence',0)):
+            fields[field]={'value':value,'confidence':round(score,2),'level':_confidence_bucket(score),'reason':reason}
+        candidates.setdefault(field,[]).append({'value':value,'confidence':round(score,2),'reason':reason})
+
+    # Country detection: exact normalized aliases first, then conservative fuzzy windows.
+    country_aliases={
+        'المملكة العربية السعودية':['المملكه العربيه السعوديه','السعوديه','المملكه السعوديه'],
+        'الإمارات العربية المتحدة':['الامارات العربيه المتحده','دوله الامارات العربيه المتحده','الامارات المتحده','الامارات'],
+        'سوريا':['الجمهوريه العربيه السوريه','سوريا','مصرف سوريه المركزي'],
+        'الكويت':['دوله الكويت','الكويت','بنك الكويت المركزي'],
+        'قطر':['دوله قطر','قطر','مصرف قطر المركزي'],
+        'البحرين':['مملكه البحرين','البحرين','مصرف البحرين المركزي'],
+        'عُمان':['سلطنه عمان','عمان','البنك المركزي العماني'],
+        'اليمن':['الجمهوريه اليمنيه','اليمن','البنك المركزي اليمني'],
+        'العراق':['جمهوريه العراق','العراق','البنك المركزي العراقي'],
+        'الأردن':['المملكه الاردنيه الهاشميه','الاردن','البنك المركزي الاردني'],
+        'مصر':['جمهوريه مصر العربيه','مصر','البنك المركزي المصري'],
+        'لبنان':['الجمهوريه اللبنانيه','لبنان','مصرف لبنان'],
+    }
+    for canonical,aliases in country_aliases.items():
+        best=0; matched=''
+        for a in aliases:
+            matched_here = bool(re.search(r'(?<![\w\u0600-\u06FF])'+re.escape(a)+r'(?![\w\u0600-\u06FF])',norm)) if len(a)<=6 else (a in norm)
+            if matched_here:
+                # Longer institutional/country phrases are more trustworthy than short names.
+                score=.96 if len(a)>=15 else (.91 if len(a)>=8 else .84)
+                if score>best: best=score; matched=a
+        if best: add('country',canonical,best,'تطابق اسم الدولة/الجهة المصدرة: '+matched)
+
+    # Year: prefer 4-digit calendar years. Avoid treating long serials as years.
+    for m in re.finditer(r'(?<!\d)(1[89]\d{2}|20\d{2}|14\d{2})(?!\d)',norm):
+        year=m.group(1); score=.9
+        if int(year)>2100 or int(year)<1300: score=.45
+        add('year',year,score,'سنة مكونة من أربعة أرقام')
+
+    # Denominations: digits + currency word, including common Arabic number words.
+    currency_units=r'(?:ريال|ريالات|ريالا|ليره|ليرات|دينار|دنانير|درهم|دراهم|جنيه|جنيهات|فلس)'
+    for m in re.finditer(r'(?<!\d)(\d{1,6})\s*('+currency_units[3:-1]+r')(?![\w])',norm):
+        add('denomination',m.group(1)+' '+m.group(2),.94,'قيمة رقمية متبوعة باسم العملة')
+    word_numbers={
+        'واحد':1,'واحده':1,'احد':1,'اثنان':2,'اثنين':2,'اثنتان':2,'ثلاثه':3,'ثلاث':3,'خمسه':5,'خمس':5,
+        'عشره':10,'عشر':10,'عشرون':20,'عشرين':20,'خمسه وعشرون':25,'خمس وعشرون':25,
+        'خمسون':50,'خمسين':50,'مائه':100,'مئه':100,'مائتان':200,'مئتان':200,
+        'خمسمائه':500,'خمسمئه':500,'الف':1000,'الفان':2000,'خمسه الاف':5000,'خمس الاف':5000,'عشره الاف':10000,
+    }
+    for phrase,num in sorted(word_numbers.items(),key=lambda x:len(x[0]),reverse=True):
+        mm=re.search(r'\b'+re.escape(phrase)+r'\s+('+currency_units[3:-1]+r')\b',norm)
+        if mm:
+            add('denomination',f'{num} {mm.group(1)}',.87,'قيمة مكتوبة بالكلمات')
+
+    # Serial numbers. Score conservatively; reject likely years/denominations and uniform noise.
+    serial_re=r'(?<![A-Za-z0-9])([A-Za-z]{0,3}\s*[-/]?\s*\d{5,12})(?![A-Za-z0-9])'
+    for m in re.finditer(serial_re,norm):
+        token=re.sub(r'\s+','',m.group(1)).strip('-/')
+        digits=''.join(ch for ch in token if ch.isdigit())
+        if len(digits)<5: continue
+        if len(digits)==4 and 1300<=int(digits)<=2100: continue
+        score=.67
+        if len(digits)>=6: score+=.08
+        if re.search('[A-Za-z]',token): score+=.07
+        if len(set(digits))>=4: score+=.04
+        if digits in ('00000','000000','111111','123456'): score-=.15
+        add('serial',token,min(score,.9),'نمط رقم تسلسلي محتمل')
+
+    # Keep legacy high-confidence data for backward compatibility.
+    for k,v in fields.items():
+        if float(v.get('confidence',0))>=.82:
+            out[k]=v['value']
+    return {'data':out,'fields':fields,'candidates':candidates,'normalizedText':norm[:5000],'rawText':raw[:5000]}
+
+def _tesseract_candidates():
+    """Return candidate tesseract executable paths without assuming one installation method."""
+    candidates=[]
+    settings=load_json(SETTINGS,{})
+    configured=str(settings.get('ocrTesseractPath') or '').strip()
+    env_cmd=str(os.environ.get('TESSERACT_CMD') or '').strip()
+    if configured: candidates.append(configured)
+    if env_cmd: candidates.append(env_cmd)
+
+    # PATH is the most reliable source when Tesseract was installed previously.
+    which=shutil.which('tesseract')
+    if which: candidates.append(which)
+
+    if os.name=='nt':
+        # Registry paths used by common Windows installers.
+        try:
+            import winreg
+            registry_locations=[
+                (winreg.HKEY_LOCAL_MACHINE, r'SOFTWARE\\Tesseract-OCR'),
+                (winreg.HKEY_LOCAL_MACHINE, r'SOFTWARE\\WOW6432Node\\Tesseract-OCR'),
+                (winreg.HKEY_CURRENT_USER, r'SOFTWARE\\Tesseract-OCR'),
+            ]
+            for hive,key_name in registry_locations:
+                try:
+                    with winreg.OpenKey(hive,key_name) as key:
+                        install_dir,_=winreg.QueryValueEx(key,'Path')
+                        if install_dir:
+                            candidates.append(os.path.join(str(install_dir),'tesseract.exe'))
+                except OSError:
+                    pass
+        except Exception:
+            pass
+
+        roots=[
+            os.environ.get('ProgramFiles',''),
+            os.environ.get('ProgramFiles(x86)',''),
+            os.environ.get('LOCALAPPDATA',''),
+            os.environ.get('APPDATA',''),
+            os.environ.get('USERPROFILE',''),
+            r'C:\\Tesseract-OCR',
+        ]
+        patterns=[]
+        for root in roots:
+            if not root: continue
+            patterns += [
+                os.path.join(root,'Tesseract-OCR','tesseract.exe'),
+                os.path.join(root,'Programs','Tesseract-OCR','tesseract.exe'),
+                os.path.join(root,'tesseract','tesseract.exe'),
+            ]
+        patterns += [
+            r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe',
+            r'C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe',
+        ]
+        for pat in patterns:
+            candidates.extend(glob.glob(pat))
+
+    # Preserve order while removing duplicates.
+    out=[]; seen=set()
+    for c in candidates:
+        c=os.path.expandvars(os.path.expanduser(str(c).strip().strip('"')))
+        key=os.path.normcase(os.path.abspath(c)) if c else ''
+        if c and key not in seen:
+            seen.add(key); out.append(c)
+    return out
+
+
+def resolve_tesseract():
+    """Locate a working Tesseract executable and remember it for later runs."""
+    diagnostics=[]
+    for exe in _tesseract_candidates():
+        if not os.path.isfile(exe):
+            diagnostics.append(f'غير موجود: {exe}')
+            continue
+        try:
+            r=subprocess.run([exe,'--version'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=10,encoding='utf-8',errors='ignore')
+            if r.returncode==0:
+                try:
+                    cfg=load_json(SETTINGS,{})
+                    if cfg.get('ocrTesseractPath')!=exe:
+                        cfg['ocrTesseractPath']=exe
+                        save_json(SETTINGS,cfg)
+                except Exception:
+                    pass
+                first=(r.stdout or '').splitlines()[0] if (r.stdout or '').splitlines() else 'Tesseract'
+                return exe,first,diagnostics
+            diagnostics.append(f'لم يعمل ({r.returncode}): {exe}')
+        except Exception as e:
+            diagnostics.append(f'{exe}: {e}')
+    return '', '', diagnostics
+
+
+def _tesseract_languages(exe):
+    try:
+        r=subprocess.run([exe,'--list-langs'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=15,encoding='utf-8',errors='ignore')
+        langs=[]
+        for line in (r.stdout or '').splitlines():
+            x=line.strip()
+            if x and not x.lower().startswith('list of available languages'):
+                langs.append(x)
+        return set(langs)
+    except Exception:
+        return set()
+
+
+def _run_tesseract(exe, image_path, lang, psm):
+    cmd=[exe,image_path,'stdout','--psm',str(psm)]
+    if lang:
+        cmd += ['-l',lang]
+    r=subprocess.run(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=45,encoding='utf-8',errors='ignore')
+    if r.returncode!=0:
+        raise RuntimeError((r.stderr or r.stdout or f'Tesseract exit {r.returncode}').strip())
+    return r.stdout or ''
+
+
+def analyze_image(url):
+    # OCR is intentionally independent from database saving. A read failure must never block saving an item or image.
+    rel=(url or '').lstrip('/')
+    path=os.path.abspath(os.path.join(ROOT,rel))
+    if not path.startswith(os.path.abspath(UPLOAD_DIR)) or not os.path.exists(path):
+        return False,{},'الصورة غير موجودة على الخادم.'
+
+    exe,version,diag=resolve_tesseract()
+    if not exe:
+        hint='؛ '.join(diag[-2:]) if diag else 'لم يتم العثور على tesseract.exe في PATH أو Registry أو المسارات المعروفة.'
+        return False,{},'لم يتم العثور على محرك Tesseract الذي سبق تثبيته على هذا الجهاز. '+hint+' رفع الصور وحفظ المقتنى يعملان بشكل مستقل.'
+
+    langs=_tesseract_languages(exe)
+    has_ara='ara' in langs
+    has_eng='eng' in langs
+    lang='ara+eng' if has_ara and has_eng else ('ara' if has_ara else ('eng' if has_eng else ''))
+    language_note=''
+    if not has_ara:
+        language_note=' تنبيه: حزمة اللغة العربية ara غير ظاهرة في هذا التثبيت.'
+
+    work=[]
+    texts=[]
+    errors=[]
+    try:
+        # Pillow improves currency OCR, but Tesseract can still run directly if Pillow is unavailable.
+        try:
+            from PIL import Image, ImageOps, ImageEnhance
+            im=Image.open(path)
+            im=ImageOps.exif_transpose(im).convert('L')
+            im=ImageOps.autocontrast(im)
+            im=ImageEnhance.Sharpness(im).enhance(1.8)
+            for angle in (0,90,180,270):
+                rim=im if angle==0 else im.rotate(angle,expand=True)
+                fd,tmp=tempfile.mkstemp(prefix='nawader_ocr_',suffix='.png')
+                os.close(fd)
+                rim.save(tmp,format='PNG')
+                work.append(tmp)
+        except Exception as e:
+            errors.append('تعذر تحسين الصورة بـ Pillow: '+str(e))
+            work=[path]
+
+        for img_path in work:
+            for psm in (6,11):
+                try:
+                    texts.append(_run_tesseract(exe,img_path,lang,psm))
+                except Exception as e:
+                    errors.append(str(e))
+                    # If combined Arabic+English fails for a traineddata reason, try the available default once.
+                    if lang:
+                        try: texts.append(_run_tesseract(exe,img_path,'',psm))
+                        except Exception as e2: errors.append(str(e2))
+
+        text=' '.join(t for t in texts if t).strip()
+        parsed=parse_ocr_text(text)
+        data=parsed.get('data',{})
+        fields=parsed.get('fields',{})
+        medium=[k for k,v in fields.items() if v.get('level')=='medium']
+        if data or medium:
+            note=f'تم تشغيل {version} وتحليل النص. البيانات عالية الثقة تُملأ تلقائيًا، والمتوسطة تظهر كاقتراح للمراجعة.'+language_note
+            return True,{'values':data,'fields':fields,'rawText':parsed.get('rawText','')[:2500]},note
+        if text:
+            return False,{'values':{},'fields':fields,'rawText':parsed.get('rawText','')[:2500]},f'تم تشغيل {version} وقراءة نص من الصورة، لكن لم أجد بيانات موثوقة أو محتملة لملء الحقول.'+language_note
+        detail=(' آخر خطأ: '+errors[-1][:220]) if errors else ''
+        return False,{},f'تم العثور على {version} لكنه لم يُرجع نصًا من هذه الصورة.'+language_note+detail
+    except subprocess.TimeoutExpired:
+        return False,{},'تم العثور على Tesseract لكن تحليل الصورة تجاوز المهلة. جرّب صورة أصغر أو أوضح؛ الحفظ لا يتأثر.'
+    except Exception as e:
+        return False,{},'تم العثور على Tesseract لكن حدث خطأ أثناء التحليل: '+str(e)[:300]+'؛ الحفظ لا يتأثر.'
+    finally:
+        for tmp in work:
+            if tmp!=path:
+                try: os.remove(tmp)
+                except OSError: pass
+
+
+def _pbkdf2(password, salt_hex, iterations=260000):
+    return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), bytes.fromhex(salt_hex), iterations).hex()
+
+def ensure_admin_auth():
+    cfg=load_json(AUTH_FILE,{})
+    if isinstance(cfg,dict) and cfg.get('salt') and cfg.get('hash'):
+        return cfg, None
+    password=secrets.token_urlsafe(12)
+    salt=secrets.token_hex(16)
+    cfg={'version':1,'username':'admin','salt':salt,'iterations':260000,'hash':_pbkdf2(password,salt,260000),'created':datetime.datetime.now().isoformat()}
+    save_json(AUTH_FILE,cfg)
+    try:
+        with open(ADMIN_CREDENTIALS,'w',encoding='utf-8') as f:
+            f.write('دخول إدارة نوادر العملات\n')
+            f.write('اسم المستخدم: admin\n')
+            f.write('كلمة المرور الأولية: '+password+'\n\n')
+            f.write('احتفظ بهذا الملف في جهاز الإدارة ولا تشاركه مع العملاء.\n')
+    except Exception: pass
+    return cfg, password
+
+def verify_admin_password(username,password):
+    cfg,_=ensure_admin_auth()
+    if not secrets.compare_digest(str(username or ''),str(cfg.get('username') or 'admin')): return False
+    got=_pbkdf2(str(password or ''),cfg['salt'],int(cfg.get('iterations') or 260000))
+    return secrets.compare_digest(got,str(cfg.get('hash') or ''))
+
+def clean_sessions():
+    now=time.time()
+    for token,meta in list(ADMIN_SESSIONS.items()):
+        if now-float(meta.get('last',0))>SESSION_TTL_SECONDS: ADMIN_SESSIONS.pop(token,None)
+
+def is_public_upload_url(url):
+    if not url: return False
+    path=urlparse(str(url)).path
+    if not path.startswith('/uploads/'): return False
+    for i in load():
+        if not ((i.get('forAuction') and i.get('auctionApproved')) or (i.get('forMarket') and i.get('marketApproved'))): continue
+        if urlparse(str(i.get('frontImg') or '')).path==path or urlparse(str(i.get('backImg') or '')).path==path: return True
+    return False
+
+ADMIN_GET_API={
+    '/api/negotiations','/api/backup/full','/api/items','/api/participants','/api/participants/summary',
+    '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
+    '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin'
+}
+PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions'}
+PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html'}
+
+class H(SimpleHTTPRequestHandler):
+    def cookie_value(self,name):
+        raw=self.headers.get('Cookie') or ''
+        for part in raw.split(';'):
+            if '=' in part:
+                k,v=part.strip().split('=',1)
+                if k==name: return v
+        return ''
+    def is_admin(self):
+        clean_sessions(); token=self.cookie_value('KhazinaAdmin')
+        meta=ADMIN_SESSIONS.get(token)
+        if not meta: return False
+        meta['last']=time.time(); return True
+    def require_admin(self,api=False):
+        if self.is_admin(): return True
+        if api: self.sendj({'error':'هذه الصفحة أو العملية خاصة بالإدارة. سجل الدخول أولًا.'},401)
+        else:
+            self.send_response(302); self.send_header('Location','/admin-login'); self.end_headers()
+        return False
+    def same_origin_ok(self):
+        origin=self.headers.get('Origin')
+        if not origin: return True
+        host=self.headers.get('Host') or ''
+        return origin in ('http://'+host,'https://'+host)
+    def login_page(self,error=''):
+        err=('<div class="err">'+error+'</div>') if error else ''
+        html='''<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>دخول الإدارة | نوادر العملات</title><style>body{margin:0;background:#0b1224;font-family:Tahoma,Arial,sans-serif;color:#0d1b3b;min-height:100vh;display:grid;place-items:center}.box{width:min(430px,90vw);background:white;border-radius:22px;padding:28px;box-shadow:0 20px 60px #0008;border-top:5px solid #c79245}h1{margin:0 0 8px;color:#102659}p{color:#5c6470}label{display:block;font-weight:700;margin:16px 0 6px}input{box-sizing:border-box;width:100%;padding:13px;border:1px solid #ccd3df;border-radius:12px;font-size:17px}button{width:100%;margin-top:20px;padding:13px;border:0;border-radius:12px;background:#102659;color:white;font-weight:800;font-size:17px;cursor:pointer}.err{background:#fff0f0;color:#9d1b2d;padding:10px;border-radius:10px;margin:12px 0}.public{display:block;text-align:center;margin-top:16px;color:#8a642b;text-decoration:none}</style></head><body><form class="box" method="post" action="/admin-login"><h1>🔐 دخول الإدارة</h1><p>الخزينة والسجل والمالية وإدارة السوق والمزاد محمية ولا تظهر للزوار.</p>'''+err+'''<label>اسم المستخدم</label><input name="username" value="admin" autocomplete="username" required><label>كلمة المرور</label><input name="password" type="password" autocomplete="current-password" required><button type="submit">دخول الإدارة</button><a class="public" href="/home">العودة إلى واجهة نوادر العملات</a></form></body></html>'''
+        data=html.encode('utf-8'); self.send_response(200); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Content-Length',str(len(data))); self.end_headers(); self.wfile.write(data)
+    def end_headers(self):
+        self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')
+        self.send_header('Pragma','no-cache')
+        self.send_header('Expires','0')
+        self.send_header('X-Content-Type-Options','nosniff')
+        self.send_header('X-Frame-Options','DENY')
+        self.send_header('Referrer-Policy','same-origin')
+        self.send_header('Permissions-Policy','camera=(), microphone=(), geolocation=()')
+        self.send_header('Content-Security-Policy',"frame-ancestors 'none'; base-uri 'self'; object-src 'none'")
+        super().end_headers()
+    def log_message(self, fmt, *args):
+        if self.path.startswith('/api/'): print(fmt%args)
+    def sendj(self,obj,status=200):
+        b=json.dumps(obj,ensure_ascii=False).encode('utf-8'); self.send_response(status); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Content-Length',str(len(b))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(b)
+    def body(self):
+        n=int(self.headers.get('Content-Length','0')); return json.loads(self.rfile.read(n) or b'{}')
+    def send_file(self,path,content_type=None):
+        try:
+            with open(path,'rb') as f: data=f.read()
+            self.send_response(200)
+            self.send_header('Content-Type',content_type or mimetypes.guess_type(path)[0] or 'application/octet-stream')
+            self.send_header('Content-Length',str(len(data)))
+            self.send_header('Cache-Control','no-store')
+            self.end_headers(); self.wfile.write(data)
+        except FileNotFoundError:
+            self.send_error(404,'File not found')
+    def do_GET(self):
+        p=urlparse(self.path).path
+        if p=='/admin-login':
+            if self.is_admin():
+                self.send_response(302); self.send_header('Location','/admin'); self.end_headers(); return
+            self.login_page(); return
+        if p=='/admin-logout':
+            token=self.cookie_value('KhazinaAdmin'); ADMIN_SESSIONS.pop(token,None)
+            self.send_response(302); self.send_header('Set-Cookie','KhazinaAdmin=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict'); self.send_header('Location','/home'); self.end_headers(); return
+        if p in ('/','/admin','/admin/','/index.html'):
+            if not self.require_admin(): return
+            self.send_file(os.path.join(ADMIN_DIR,'index.html'),'text/html; charset=utf-8'); return
+        if p in ('/admin/app.js','/admin/styles.css'):
+            if not self.require_admin(): return
+            name=os.path.basename(p)
+            ctype='application/javascript; charset=utf-8' if name.endswith('.js') else 'text/css; charset=utf-8'
+            self.send_file(os.path.join(ADMIN_DIR,name),ctype); return
+        if p in ADMIN_GET_API and not self.require_admin(api=True): return
+        if p=='/api/session-state':
+            self.sendj({'admin':self.is_admin()}); return
+        if p=='/api/version':
+            self.sendj({'version':'4.0.17','name':'Khazinat Al-Muqtaniat','port':getattr(self.server,'server_port',None)}); return
+        if p=='/api/settings/public':
+            st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours']}); return
+        if p=='/api/settings/admin':
+            if not self.require_admin(api=True): return
+            self.sendj({'settings':load_settings()}); return
+        if p=='/api/ocr/status':
+            exe,version,diag=resolve_tesseract()
+            langs=sorted(_tesseract_languages(exe)) if exe else []
+            self.sendj({'ok':bool(exe),'path':exe,'version':version,'hasArabic':'ara' in langs,'hasEnglish':'eng' in langs,'languages':langs[:80],'diagnostics':diag[-5:]}); return
+        if p=='/api/collectible-submissions':
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
+            person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+            if not person: self.sendj({'error':'الحساب غير موثق'},403); return
+            rows=[x for x in load_collectible_submissions() if str(x.get('participantId'))==pid]
+            rows.sort(key=lambda x:x.get('created',''),reverse=True)
+            safe=[]
+            for x in rows:
+                y={k:v for k,v in x.items() if k not in ('frontImage','backImage')}
+                y['hasFrontImage']=bool(x.get('frontImage')); y['hasBackImage']=bool(x.get('backImage'))
+                safe.append(y)
+            self.sendj({'submissions':safe}); return
+        if p=='/api/collectible-submissions/admin':
+            rows=load_collectible_submissions(); rows.sort(key=lambda x:x.get('created',''),reverse=True)
+            self.sendj({'submissions':rows,'pending':sum(1 for x in rows if x.get('status')=='pending'),'needsChanges':sum(1 for x in rows if x.get('status')=='needs_changes')}); return
+        if p=='/api/notifications':
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
+            person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+            if not person: self.sendj({'error':'الحساب غير موثق'},403); return
+            ensure_auction_outcomes(); rows=[x for x in load_notifications() if x.get('recipientType')=='participant' and str(x.get('recipientId'))==pid]
+            rows.sort(key=lambda x:x.get('created',''),reverse=True); self.sendj({'notifications':rows[:200],'unread':sum(1 for x in rows if not x.get('read'))}); return
+        if p=='/api/notifications/admin':
+            ensure_auction_outcomes(); rows=[x for x in load_notifications() if x.get('recipientType')=='admin']; rows.sort(key=lambda x:x.get('created',''),reverse=True)
+            self.sendj({'notifications':rows[:300],'unread':sum(1 for x in rows if not x.get('read'))}); return
+        if p=='/api/permissions':
+            people=load_people(); perms=load_user_permissions(); self.sendj({'participants':[{**{k:v for k,v in x.items() if k not in ('otp','otpExpires','otpAttempts')},'permissions':participant_permissions(x.get('id'))} for x in people],'raw':perms}); return
+        if p=='/api/dues':
+            rows=ensure_auction_outcomes(); people={x.get('id'):x for x in load_people()}
+            out=[]
+            for x in rows:
+                y=dict(x); y['participantName']=people.get(x.get('participantId'),{}).get('name','مشارك'); y['participantPhone']=people.get(x.get('participantId'),{}).get('phone',''); out.append(y)
+            out.sort(key=lambda x:x.get('created',''),reverse=True); self.sendj({'dues':out}); return
+        if p=='/api/orders':
+            ensure_auction_outcomes(); rows=load_orders(); rows.sort(key=lambda x:x.get('created',''),reverse=True); self.sendj({'orders':rows,'active':sum(1 for x in rows if not x.get('archived')),'archived':sum(1 for x in rows if x.get('archived'))}); return
+        if p=='/api/operations':
+            rows=load_operations_log(); rows.sort(key=lambda x:x.get('created',''),reverse=True); self.sendj({'events':rows[:500]}); return
+        if p=='/api/permissions/me':
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+            if not person: self.sendj({'error':'الحساب غير موثق'},403); return
+            self.sendj({'permissions':participant_permissions(pid)}); return
+        if p=='/api/seller/ended':
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+            if not person: self.sendj({'error':'الحساب غير موثق'},403); return
+            perm=participant_permissions(pid)
+            if not perm.get('sellerEndedAuctions'): self.sendj({'error':'لا توجد صلاحية لعرض المزادات المنتهية'},403); return
+            phone=str(person.get('phone') or '').replace(' ',''); now=datetime.datetime.now(); out=[]
+            for i in load():
+                if str(i.get('ownerPhone') or '').replace(' ','')!=phone: continue
+                try: ended=bool(i.get('auctionEnd')) and datetime.datetime.fromisoformat(str(i.get('auctionEnd')))<=now
+                except Exception: ended=False
+                if ended: out.append(public_item(i))
+            self.sendj({'items':out}); return
+        if p=='/api/seller/market':
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+            if not person: self.sendj({'error':'الحساب غير موثق'},403); return
+            perm=participant_permissions(pid)
+            if not (perm.get('sellerMarket') or perm.get('marketSupervision')): self.sendj({'error':'لا توجد صلاحية لمتابعة السوق'},403); return
+            phone=str(person.get('phone') or '').replace(' ',''); items=load(); ids={str(i.get('id')) for i in items if perm.get('marketSupervision') or str(i.get('ownerPhone') or '').replace(' ','')==phone}
+            req=[x for x in load_market_requests() if str(x.get('itemId')) in ids]
+            safe=[{k:v for k,v in x.items() if k not in ('ownerPhone',)} for x in req]
+            self.sendj({'requests':safe}); return
+        if p=='/api/negotiations':
+            q=urlparse(self.path).query
+            qs=parse_qs(q); item_id=(qs.get('itemId') or [''])[0]; pid=(qs.get('participantId') or [''])[0]
+            with LOCK:
+                a=load_negotiations()
+                if item_id: a=[x for x in a if x.get('itemId')==item_id]
+                if pid: a=[x for x in a if x.get('participantId')==pid]
+                self.sendj({'negotiations':a}); return
+        if p=='/api/backup/full':
+            with LOCK: raw=create_full_backup_bytes()
+            stamp=datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            self.send_response(200); self.send_header('Content-Type','application/zip'); self.send_header('Content-Disposition',f'attachment; filename=khazina_full_{stamp}.khzbackup'); self.send_header('Content-Length',str(len(raw))); self.end_headers(); self.wfile.write(raw); return
+        if p=='/api/items':
+            with LOCK:
+                ensure_auction_outcomes()
+                self.sendj({'items':load()}); return
+        if p=='/api/participants':
+            with LOCK:
+                people=load_people(); people.sort(key=lambda x:(bool(x.get('approved')),x.get('created','')))
+                self.sendj({'participants':people,'total':len(people),'pending':sum(1 for x in people if not x.get('approved'))}); return
+        if p=='/api/participants/summary':
+            with LOCK:
+                people=load_people(); self.sendj({'total':len(people),'pending':sum(1 for x in people if not x.get('approved')),'approved':sum(1 for x in people if x.get('approved'))}); return
+        if p=='/api/participant/status':
+            q=urlparse(self.path).query
+            pid=(parse_qs(q).get('id') or [''])[0]
+            with LOCK:
+                person=next((x for x in load_people() if x.get('id')==pid),None)
+                if not person: self.sendj({'found':False},404); return
+                safe={k:person.get(k) for k in ('id','name','approved','verified','blocked','approvedAt','verifiedAt')}
+                self.sendj({'found':True,'participant':safe}); return
+        if p=='/api/bids':
+            with LOCK:
+                people={x.get('id'):x for x in load_people()}; bids=load_bids()
+                for b in bids: b['bidderName']=people.get(b.get('participantId'),{}).get('name','مشارك')
+                self.sendj({'bids':bids}); return
+        if p=='/api/public/special-numbers':
+            rows=[public_special_item(i) for i in load() if i.get('specialNumberEnabled')]
+            self.sendj({'items':rows}); return
+        if p=='/api/public/auctions':
+            with LOCK:
+                ensure_auction_outcomes()
+                items=[]
+                now=datetime.datetime.now()
+                for i in load():
+                    if not (i.get('forAuction') and i.get('auctionApproved')): continue
+                    public=public_item(i)
+                    # V4.0.20: المزادات المنتهية تُفصل عن صفحة المزادات النشطة العامة.
+                    if public.get('auctionEnded'): continue
+                    items.append(public)
+                items.sort(key=lambda x:str(x.get('auctionEnd') or ''))
+                self.sendj({'items':items}); return
+        if p=='/api/visitor/orders':
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
+            person=next((x for x in load_people() if x.get('id')==pid and x.get('verified') and not x.get('blocked')),None)
+            if not person: self.sendj({'error':'الحساب غير موثق'},403); return
+            ensure_auction_outcomes(); phone=str(person.get('phone') or '').replace(' ',''); labels={'new':'طلب جديد','awaiting_payment':'بانتظار السداد','paid':'تم السداد','preparing':'قيد التجهيز','ready_to_ship':'جاهز للشحن','shipped':'تم الشحن','received':'تم الاستلام','completed':'مكتمل','stalled':'متعثر','cancelled':'ملغي','returned':'مرتجع'}
+            rows=[]
+            for o in load_orders():
+                if str(o.get('participantId') or '')!=pid and str(o.get('customerPhone') or '').replace(' ','')!=phone: continue
+                first=(o.get('items') or [{}])[0]
+                rows.append({'id':o.get('id'),'orderNumber':o.get('orderNumber'),'source':o.get('source'),'itemTitle':first.get('title','مقتنى'),'quantity':sum(int(x.get('quantity') or 1) for x in o.get('items') or []),'buyerTotal':o.get('total',0),'status':o.get('status'),'statusLabel':labels.get(o.get('status'),o.get('status')),'created':o.get('created'),'shippingCompany':o.get('shippingCompany'),'trackingNumber':o.get('trackingNumber'),'archived':o.get('archived',False)})
+            rows.sort(key=lambda x:x.get('created') or '',reverse=True); self.sendj({'requests':rows}); return
+        if p=='/api/public/market':
+            with LOCK:
+                items=[public_market_item(i) for i in load() if i.get('forMarket') and i.get('marketApproved')]
+                self.sendj({'items':items}); return
+        if p=='/api/market/requests':
+            with LOCK:
+                req=load_market_requests(); req.sort(key=lambda x:x.get('created',''),reverse=True); self.sendj({'requests':req}); return
+        if p=='/api/subscriptions':
+            with LOCK:
+                a=load_subscriptions(); a.sort(key=lambda x:x.get('created',''),reverse=True); self.sendj({'subscriptions':a}); return
+        if p=='/api/daily-qr':
+            try:
+                import qrcode
+                host=self.headers.get('Host') or f'{local_ip()}:{getattr(self.server,"server_port",8080)}'
+                # If admin opened localhost, QR must still point to the LAN address for phones.
+                if host.startswith('localhost') or host.startswith('127.0.0.1'):
+                    host=f'{local_ip()}:{getattr(self.server,"server_port",8080)}'
+                url=public_portal_url(host); im=qrcode.make(url); buf=io.BytesIO(); im.save(buf,format='PNG'); data=buf.getvalue()
+                self.send_response(200); self.send_header('Content-Type','image/png'); self.send_header('Content-Length',str(len(data))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(data); return
+            except Exception as e:
+                self.send_error(500,'QR generation failed'); return
+        if p=='/api/market-qr':
+            try:
+                import qrcode
+                host=self.headers.get('Host') or f'{local_ip()}:{getattr(self.server,"server_port",8080)}'
+                if host.startswith('localhost') or host.startswith('127.0.0.1'):
+                    host=f'{local_ip()}:{getattr(self.server,"server_port",8080)}'
+                url=public_market_url(host); im=qrcode.make(url); buf=io.BytesIO(); im.save(buf,format='PNG'); data=buf.getvalue()
+                self.send_response(200); self.send_header('Content-Type','image/png'); self.send_header('Content-Length',str(len(data))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(data); return
+            except Exception:
+                self.send_error(500,'QR generation failed'); return
+        if p=='/api/market-qr-info':
+            host=self.headers.get('Host') or f'{local_ip()}:{getattr(self.server,"server_port",8080)}'
+            if host.startswith('localhost') or host.startswith('127.0.0.1'): host=f'{local_ip()}:{getattr(self.server,"server_port",8080)}'
+            self.sendj({'stable':True,'url':public_market_url(host)}); return
+        if p=='/api/daily-qr-info':
+            host=self.headers.get('Host') or f'{local_ip()}:{getattr(self.server,"server_port",8080)}'
+            if host.startswith('localhost') or host.startswith('127.0.0.1'): host=f'{local_ip()}:{getattr(self.server,"server_port",8080)}'
+            self.sendj({'stable':True,'url':public_portal_url(host)}); return
+        if p=='/daily-auction':
+            # توافق مع أي QR قديم مطبوع: لا تنتهي صلاحيته بعد الآن.
+            self.send_file(os.path.join(PUBLIC_DIR,'public_auction.html'),'text/html; charset=utf-8'); return
+        # Robust public-auction aliases so the visitor page works even when the browser uses a clean URL.
+        if p in ('/home','/home/','/public_home.html'):
+            self.send_file(os.path.join(PUBLIC_DIR,'public_home.html'),'text/html; charset=utf-8'); return
+        if p in ('/announcements','/announcements/','/announcements.html'):
+            self.send_file(os.path.join(PUBLIC_DIR,'announcements.html'),'text/html; charset=utf-8'); return
+        if p in ('/account','/account/','/account.html'):
+            self.send_file(os.path.join(PUBLIC_DIR,'account.html'),'text/html; charset=utf-8'); return
+        if p in ('/notifications','/notifications/','/notifications.html'):
+            self.send_file(os.path.join(PUBLIC_DIR,'notifications.html'),'text/html; charset=utf-8'); return
+        if p in ('/seller','/seller/','/seller_portal.html'):
+            self.send_file(os.path.join(PUBLIC_DIR,'seller_portal.html'),'text/html; charset=utf-8'); return
+        if p in ('/special-numbers','/special-numbers/','/special_numbers.html'):
+            self.send_file(os.path.join(PUBLIC_DIR,'special_numbers.html'),'text/html; charset=utf-8'); return
+        if p in ('/auction','/auction/','/public_auction.html','/public-auction'):
+            self.send_file(os.path.join(PUBLIC_DIR,'public_auction.html'),'text/html; charset=utf-8'); return
+        if p in ('/market','/market/','/public_market.html','/public-market'):
+            self.send_file(os.path.join(PUBLIC_DIR,'public_market.html'),'text/html; charset=utf-8'); return
+        # لا نسمح بعرض مجلد المشروع أو الملفات الإدارية مباشرة.
+        if p=='/app.js':
+            if not self.require_admin(): return
+            self.send_file(os.path.join(ADMIN_DIR,'app.js'),'application/javascript; charset=utf-8'); return
+        if p.startswith('/uploads/'):
+            rel=os.path.basename(p); full=os.path.join(UPLOAD_DIR,rel)
+            if self.is_admin() or is_public_upload_url(p):
+                self.send_file(full); return
+            self.send_error(403,'Private image'); return
+        if p in PUBLIC_STATIC:
+            self.send_file(os.path.join(PUBLIC_DIR,p.lstrip('/'))); return
+        if p.startswith('/assets/') or p.startswith('/icons/'):
+            rel=os.path.normpath(p.lstrip('/'))
+            if rel.startswith('..'): self.send_error(404); return
+            self.send_file(os.path.join(SHARED_DIR,rel)); return
+        self.send_error(404,'Not found'); return
+    def do_POST(self):
+        p=urlparse(self.path).path
+        if p=='/admin-login':
+            try:
+                n=int(self.headers.get('Content-Length','0')); raw=self.rfile.read(n).decode('utf-8','replace'); form=parse_qs(raw)
+                username=(form.get('username') or [''])[0]; password=(form.get('password') or [''])[0]
+            except Exception:
+                self.login_page('تعذر قراءة بيانات الدخول.'); return
+            if not verify_admin_password(username,password):
+                time.sleep(0.35); self.login_page('اسم المستخدم أو كلمة المرور غير صحيحة.'); return
+            token=secrets.token_urlsafe(32); ADMIN_SESSIONS[token]={'created':time.time(),'last':time.time()}
+            secure='; Secure' if (self.headers.get('X-Forwarded-Proto') or '').lower()=='https' else ''
+            self.send_response(302); self.send_header('Set-Cookie',f'KhazinaAdmin={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={SESSION_TTL_SECONDS}{secure}'); self.send_header('Location','/admin'); self.end_headers(); return
+        if p not in PUBLIC_POST_API:
+            if not self.require_admin(api=True): return
+            if not self.same_origin_ok(): self.sendj({'error':'تم رفض الطلب لأسباب أمنية.'},403); return
+        if p=='/api/backup/restore':
+            try:
+                n=int(self.headers.get('Content-Length','0'))
+                if n<=0: self.sendj({'error':'اختر ملف النسخة الاحتياطية الكاملة'},400); return
+                raw=self.rfile.read(n)
+                with LOCK: result=restore_full_backup_bytes(raw)
+                self.sendj(result); return
+            except zipfile.BadZipFile:
+                self.sendj({'error':'ملف النسخة الاحتياطية تالف أو ليس ملف خزينة كامل'},400); return
+            except Exception as e:
+                self.sendj({'error':'تعذر استعادة النسخة الكاملة: '+str(e)},400); return
+        if p=='/api/upload':
+            try:
+                n=int(self.headers.get('Content-Length','0'))
+                if n<=0 or n>50*1024*1024: self.sendj({'error':'حجم الصورة غير مناسب (الحد 50 ميجابايت)'},413); return
+                ctype=(self.headers.get('Content-Type') or '').lower(); ext='.jpg'
+                if 'png' in ctype: ext='.png'
+                elif 'webp' in ctype: ext='.webp'
+                elif 'heic' in ctype or 'heif' in ctype: ext='.heic'
+                stamp=datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f'); name='photo_'+stamp+ext; dst=os.path.join(UPLOAD_DIR,name); tmp=dst+'.tmp'; remain=n
+                with open(tmp,'wb') as f:
+                    while remain:
+                        chunk=self.rfile.read(min(1024*1024,remain))
+                        if not chunk: break
+                        f.write(chunk); remain-=len(chunk)
+                if remain: raise IOError('رفع الصورة غير مكتمل')
+                os.replace(tmp,dst)
+                # Reduce storage and mobile-memory pressure after upload when Pillow can decode the image.
+                try:
+                    from PIL import Image, ImageOps
+                    im=Image.open(dst); im=ImageOps.exif_transpose(im); im.thumbnail((1800,1800))
+                    if im.mode not in ('RGB','L'): im=im.convert('RGB')
+                    jpg=os.path.join(UPLOAD_DIR,'photo_'+stamp+'.jpg')
+                    im.save(jpg,'JPEG',quality=82,optimize=True)
+                    if os.path.abspath(jpg)!=os.path.abspath(dst):
+                        try: os.remove(dst)
+                        except OSError: pass
+                    name=os.path.basename(jpg); dst=jpg
+                except Exception:
+                    pass
+                self.sendj({'ok':True,'url':'/uploads/'+name}); return
+            except Exception as e:
+                try:
+                    if 'tmp' in locals() and os.path.exists(tmp): os.remove(tmp)
+                except OSError: pass
+                self.sendj({'error':'تعذر حفظ الصورة على الكمبيوتر: '+str(e)},500); return
+        try: d=self.body()
+        except Exception: self.sendj({'error':'bad json'},400); return
+        with LOCK:
+            if p=='/api/collectible-submissions':
+                pid=str(d.get('participantId') or '')
+                person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+                if not person: self.sendj({'error':'يجب تسجيل الدخول بحساب موثق أولًا'},403); return
+                country=str(d.get('country') or '').strip(); denomination=str(d.get('denomination') or '').strip()
+                if not country or not denomination: self.sendj({'error':'الدولة والفئة مطلوبتان'},400); return
+                front=str(d.get('frontImage') or ''); back=str(d.get('backImage') or '')
+                for label,img in [('الوجه',front),('الخلف',back)]:
+                    if img and (not img.startswith('data:image/') or len(img)>6*1024*1024): self.sendj({'error':f'صورة {label} غير صالحة أو كبيرة جدًا'},400); return
+                rows=load_collectible_submissions(); now=datetime.datetime.now().isoformat()
+                row={'id':'cs-'+secrets.token_hex(6),'participantId':pid,'participantName':person.get('name',''),'participantPhone':person.get('phone',''),'country':country,'denomination':denomination,'year':str(d.get('year') or '').strip(),'issueEdition':str(d.get('issueEdition') or '').strip(),'condition':str(d.get('condition') or 'UNC').strip(),'serial':str(d.get('serial') or '').strip(),'notes':str(d.get('notes') or '').strip(),'desiredDestination':str(d.get('desiredDestination') or 'vault'),'frontImage':front,'backImage':back,'status':'pending','adminNote':'','created':now,'updated':now,'itemId':''}
+                rows.append(row); save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
+                add_notification('admin','','approval','🪙 طلب اعتماد مقتنى جديد',f"أرسل {person.get('name','عميل')} مقتنى {country} — {denomination} للمراجعة والاعتماد.",'','/admin')
+                add_notification('participant',pid,'approval','تم استلام المقتنى للمراجعة',f'تم استلام {country} — {denomination}. الحالة الآن: قيد المراجعة.','','/account')
+                append_operation('إرسال مقتنى للاعتماد',{'submissionId':row['id'],'participantId':pid,'country':country,'denomination':denomination},actor='العميل')
+                self.sendj({'ok':True,'submission':{k:v for k,v in row.items() if k not in ('frontImage','backImage')}}); return
+            if p=='/api/collectible-submissions/status':
+                sid=str(d.get('id') or ''); action=str(d.get('status') or ''); note=str(d.get('note') or '').strip()
+                if action not in ('approved','needs_changes','rejected'): self.sendj({'error':'الإجراء غير صالح'},400); return
+                rows=load_collectible_submissions(); row=next((x for x in rows if str(x.get('id'))==sid),None)
+                if not row: self.sendj({'error':'طلب الاعتماد غير موجود'},404); return
+                now=datetime.datetime.now().isoformat(); row['status']=action; row['adminNote']=note; row['updated']=now
+                if action=='approved' and not row.get('itemId'):
+                    items=load(); item_id='k-'+secrets.token_hex(8)
+                    serial=str(row.get('serial') or '').strip()
+                    item={'id':item_id,'country':row.get('country',''),'denomination':row.get('denomination',''),'issueEdition':row.get('issueEdition',''),'year':row.get('year',''),'type':'عملة ورقية','condition':row.get('condition','UNC'),'quantity':1,'soldQuantity':0,'serial':serial,'serials':[serial] if serial else [],'frontImg':row.get('frontImage',''),'backImg':row.get('backImage',''),'notes':row.get('notes',''),'ownerName':row.get('participantName',''),'ownerPhone':row.get('participantPhone',''),'ownerParticipantId':row.get('participantId',''),'sourceSubmissionId':sid,'forMarket':False,'marketApproved':False,'forAuction':False,'auctionApproved':False,'created':now,'updated':int(time.time()*1000)}
+                    items.append(item); save(items); row['itemId']=item_id
+                save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
+                pid=row.get('participantId'); title=f"{row.get('country','')} — {row.get('denomination','')}".strip(' —')
+                if action=='approved': nt=('✅ تم اعتماد المقتنى',f'تم اعتماد {title} وإضافته إلى سجل مقتنياتك. يمكنك طلب عرضه لاحقًا حسب الصلاحيات.')
+                elif action=='needs_changes': nt=('✏️ يحتاج المقتنى إلى استكمال',f'طلب {title} يحتاج تعديل/استكمال بيانات.'+((' ملاحظة الإدارة: '+note) if note else ''))
+                else: nt=('تم رفض طلب اعتماد المقتنى',f'لم يتم اعتماد {title}.'+((' السبب: '+note) if note else ''))
+                add_notification('participant',pid,'approval',nt[0],nt[1],row.get('itemId',''),'/account')
+                append_operation('تحديث طلب اعتماد مقتنى',{'submissionId':sid,'status':action,'itemId':row.get('itemId',''),'note':note})
+                self.sendj({'ok':True,'submission':row}); return
+            if p=='/api/permissions/update':
+                pid=str(d.get('participantId') or ''); people=load_people()
+                if not any(str(x.get('id'))==pid for x in people): self.sendj({'error':'المشارك غير موجود'},404); return
+                allowed=('sellerEndedAuctions','sellerMarket','marketSupervision','auctionSupervision','ordersView','ordersManage'); perms=load_user_permissions(); current=participant_permissions(pid)
+                for k in allowed:
+                    if k in d: current[k]=bool(d.get(k))
+                perms[pid]=current; save_json(USER_PERMISSIONS,{'users':perms}); append_operation('تحديث صلاحيات مستخدم',{'participantId':pid,'permissions':current}); self.sendj({'ok':True,'permissions':current}); return
+            if p=='/api/dues/status':
+                did=str(d.get('id') or ''); status=str(d.get('status') or '');
+                if status not in ('unpaid','paid','cancelled'): self.sendj({'error':'حالة المستحق غير صالحة'},400); return
+                rows=ensure_auction_outcomes(); row=next((x for x in rows if str(x.get('id'))==did),None)
+                if not row: self.sendj({'error':'المستحق غير موجود'},404); return
+                row['status']=status; row['updated']=datetime.datetime.now().isoformat();
+                if status=='paid':
+                    row['paidAt']=datetime.datetime.now().isoformat(); order=create_order_for_due(row); update_order_status(order,'paid','تم اعتماد السداد من المستحقات'); orders=load_orders(); orders=[order if str(x.get('id'))==str(order.get('id')) else x for x in orders]; save_json(ORDERS,{'orders':orders}); add_notification('participant',row.get('participantId'),'finance','✅ تم اعتماد السداد',f"تم اعتماد سداد مستحق مزاد {row.get('itemTitle') or ''}. أصبحت المشاركة متاحة ما لم يوجد مستحق متأخر آخر.",row.get('itemId'),'/account')
+                save_json(AUCTION_DUES,{'dues':rows}); append_operation('تحديث حالة مستحق مزاد',{'dueId':did,'status':status}); self.sendj({'ok':True,'due':row}); return
+            if p=='/api/notifications/read':
+                pid=str(d.get('participantId') or ''); nid=str(d.get('id') or ''); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+                if not person: self.sendj({'error':'الحساب غير موثق'},403); return
+                rows=load_notifications(); changed=False
+                for x in rows:
+                    if x.get('recipientType')=='participant' and str(x.get('recipientId'))==pid and (not nid or str(x.get('id'))==nid): x['read']=True; changed=True
+                if changed: save_json(NOTIFICATIONS,{'notifications':rows})
+                self.sendj({'ok':True}); return
+            if p=='/api/notifications/admin/read':
+                nid=str(d.get('id') or ''); rows=load_notifications(); changed=False
+                for x in rows:
+                    if x.get('recipientType')=='admin' and (not nid or str(x.get('id'))==nid): x['read']=True; changed=True
+                if changed: save_json(NOTIFICATIONS,{'notifications':rows})
+                self.sendj({'ok':True}); return
+            if p=='/api/order/update':
+                oid=str(d.get('id') or ''); status=str(d.get('status') or ''); rows=load_orders(); row=next((x for x in rows if str(x.get('id'))==oid),None)
+                if not row: self.sendj({'error':'الطلب غير موجود'},404); return
+                if row.get('archived') and status!='completed': self.sendj({'error':'الطلب المكتمل مؤرشف ولا يعاد للخلف'},409); return
+                if 'shippingCompany' in d: row['shippingCompany']=str(d.get('shippingCompany') or '').strip()
+                if 'trackingNumber' in d: row['trackingNumber']=str(d.get('trackingNumber') or '').strip()
+                try: update_order_status(row,status,str(d.get('note') or ''))
+                except ValueError as e: self.sendj({'error':str(e)},400); return
+                if status=='paid' and row.get('source')=='auction':
+                    dues=load_auction_dues(); due=next((x for x in dues if str(x.get('id'))==str(row.get('sourceId'))),None)
+                    if due:
+                        due['status']='paid'; due['paidAt']=datetime.datetime.now().isoformat(); due['updated']=due['paidAt']; save_json(AUCTION_DUES,{'dues':dues})
+                        add_notification('participant',due.get('participantId'),'finance','✅ تم اعتماد السداد',f"تم اعتماد سداد الطلب {row.get('orderNumber')}. عادت أهلية المشاركة وفق النظام.",due.get('itemId'),'/account')
+                save_json(ORDERS,{'orders':rows}); append_operation('تحديث طلب وشحن',{'orderId':oid,'orderNumber':row.get('orderNumber'),'status':status})
+                if row.get('participantId'): add_notification('participant',row.get('participantId'),'order','تحديث حالة الطلب',f"الطلب {row.get('orderNumber')} أصبح: {status}",'', '/account')
+                self.sendj({'ok':True,'order':row}); return
+            if p=='/api/order/shipping':
+                oid=str(d.get('id') or ''); rows=load_orders(); row=next((x for x in rows if str(x.get('id'))==oid),None)
+                if not row: self.sendj({'error':'الطلب غير موجود'},404); return
+                row['shippingCompany']=str(d.get('shippingCompany') or '').strip(); row['trackingNumber']=str(d.get('trackingNumber') or '').strip(); row['updated']=datetime.datetime.now().isoformat(); save_json(ORDERS,{'orders':rows}); self.sendj({'ok':True,'order':row}); return
+            if p=='/api/subscription/add':
+                typ=str(d.get('type','daily')).strip(); customer=str(d.get('customer','')).strip(); note=str(d.get('note','')).strip(); amount=float(d.get('amount') or 0)
+                if typ not in {'daily','seasonal','package'}: self.sendj({'error':'نوع الاشتراك غير صالح'},400); return
+                if amount<=0: self.sendj({'error':'أدخل مبلغ اشتراك صحيح'},400); return
+                row={'id':'s-'+secrets.token_hex(6),'type':typ,'customer':customer,'amount':amount,'note':note,'created':datetime.datetime.now().isoformat()}
+                a=load_subscriptions(); a.append(row); save_json(SUBSCRIPTIONS,{'subscriptions':a}); self.sendj({'ok':True,'subscription':row}); return
+            if p=='/api/special/request':
+                pid=str(d.get('participantId') or ''); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+                if not person: self.sendj({'error':'يجب تسجيل الدخول بحساب موثق لإتمام الشراء'},403); return
+                item_id=str(d.get('itemId') or ''); action=str(d.get('action') or 'buy'); item=next((i for i in load() if str(i.get('id'))==item_id and i.get('specialNumberEnabled')),None)
+                if not item: self.sendj({'error':'المقتنى غير موجود أو لم يعد ضمن الأرقام المميزة'},404); return
+                price=special_sale_price(item)
+                if not (item.get('forMarket') and item.get('marketApproved') and price>0): self.sendj({'error':'هذا المقتنى معروض للتعريف حاليًا وليس للبيع'},409); return
+                pool=special_serial_pool(item); available=special_available_serials(item); selected=d.get('selectedSerials') or []
+                if not isinstance(selected,list): selected=[selected]
+                selected=list(dict.fromkeys(str(x).strip() for x in selected if str(x).strip()))
+                if pool:
+                    if not selected: self.sendj({'error':'اختر الرقم أو الأرقام التي ترغب في شرائها'},400); return
+                    bad=[x for x in selected if x not in available]
+                    if bad: self.sendj({'error':'بعض الأرقام المختارة لم تعد متاحة: '+', '.join(bad)},409); return
+                    qty=len(selected)
+                else:
+                    qty=max(1,int(d.get('quantity') or 1)); avail=max(0,int(item.get('marketQuantity') or item.get('quantity') or 1)-int(item.get('marketSoldQuantity') or 0))
+                    if qty>avail: self.sendj({'error':f'الكمية المتاحة حاليًا {avail}'},409); return
+                base=round(price*qty,2); offered=float(d.get('offeredAmount') or 0)
+                if action=='offer':
+                    if not item.get('marketNegotiationEnabled'): self.sendj({'error':'التفاوض غير مفعّل لهذا المقتنى'},409); return
+                    pct=float(item.get('marketNegotiationPercent') or 0); minimum=base*(1-pct/100)
+                    if offered<=0 or offered+1e-9<minimum: self.sendj({'error':f'أقل عرض تفاوض مسموح {minimum:.2f} ر.س'},409); return
+                else: offered=base
+                fee_pct=float(load_settings().get('buyerFeePercent') or 0); fee=round((offered if action=='offer' else base)*fee_pct/100,2); total=round((offered if action=='offer' else base)+fee,2); now=datetime.datetime.now(); reserve_until=now+datetime.timedelta(minutes=30)
+                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or item_title(item),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':price,'name':person.get('name',''),'phone':person.get('phone',''),'action':action,'quantity':qty,'selectedSerials':selected,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':fee,'buyerTotal':total,'status':'pending','sourcePage':'special_numbers','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'reservedUntil':reserve_until.isoformat(),'created':now.isoformat()}
+                a=load_market_requests(); a.append(row); save_json(MARKET_REQUESTS,{'requests':a}); add_notification('admin','','market','🛒 طلب من صفحة الأرقام المميزة',f"{person.get('name','عميل')} طلب {item_title(item)}"+((' — الأرقام: '+', '.join(selected)) if selected else f' — الكمية: {qty}'),'','/admin'); add_notification('participant',pid,'order','تم تسجيل طلبك',f"تم حجز اختيارك من {item_title(item)} مؤقتًا وإرسال الطلب للإدارة.",item_id,'/account'); self.sendj({'ok':True,'request':row}); return
+            if p=='/api/market/request':
+                item_id=str(d.get('itemId','')); name=str(d.get('name','')).strip(); phone=''.join(ch for ch in str(d.get('phone','')) if ch.isdigit() or ch=='+')
+                action=str(d.get('action','buy')); qty=max(1,int(d.get('quantity') or 1)); offered=float(d.get('offeredAmount') or 0)
+                item=next((i for i in load() if str(i.get('id'))==item_id and i.get('forMarket') and i.get('marketApproved')),None)
+                if not item: self.sendj({'error':'العرض غير متاح في السوق'},404); return
+                if not name or len(''.join(ch for ch in phone if ch.isdigit()))<7: self.sendj({'error':'الاسم ورقم الجوال الصحيح مطلوبان'},400); return
+                avail=max(0,int(item.get('marketQuantity') or item.get('quantity') or 1)-int(item.get('marketSoldQuantity') or 0))
+                if avail<=0: self.sendj({'error':'نفدت الكمية المتاحة'},409); return
+                offer_type=str(item.get('marketOfferType') or 'single')
+                if qty>avail: self.sendj({'error':f'الكمية المتاحة حاليًا {avail}'},409); return
+                # V2.8: marketQuantity is always the number of sellable units (sets/bundles/pieces).
+                # marketSalePrice is the price of ONE selected selling unit. This keeps cart totals predictable.
+                if item.get('marketPriceUnit'):
+                    unit=float(item.get('marketSalePrice') or 0)
+                elif offer_type=='set' and float(item.get('marketUnitPrice') or 0)>0:
+                    # Compatibility with V2.7 set records where the intended set price was entered in unit price.
+                    unit=float(item.get('marketUnitPrice') or 0)
+                else:
+                    unit=float(item.get('marketSalePrice') or item.get('marketUnitPrice') or 0)
+                if unit<=0: self.sendj({'error':'سعر وحدة البيع غير محدد'},409); return
+                base=unit*qty
+                if action=='offer':
+                    if not item.get('marketNegotiationEnabled'): self.sendj({'error':'التفاوض غير مفعّل لهذا العرض'},409); return
+                    pct=float(item.get('marketNegotiationPercent') or 0); minimum=base*(1-pct/100)
+                    if offered<=0 or offered+1e-9<minimum: self.sendj({'error':f'أقل عرض تفاوض مسموح {minimum:.2f} ر.س'},409); return
+                else: offered=base
+                fee_pct=float(load_settings().get('buyerFeePercent') or 0); fee=(offered if action=='offer' else base)*fee_pct/100; total=(offered if action=='offer' else base)+fee
+                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or ((item.get('country') or '')+' — '+(item.get('denomination') or '')),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','marketOfferType':item.get('marketOfferType') or 'single','unitPrice':unit,'name':name,'phone':phone,'action':action,'quantity':qty,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':round(fee,2),'buyerTotal':round(total,2),'status':'pending','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'created':datetime.datetime.now().isoformat()}
+                a=load_market_requests(); a.append(row); save_json(MARKET_REQUESTS,{'requests':a})
+                chk=next((x for x in load_market_requests() if x.get('id')==row['id']),None)
+                if not chk: self.sendj({'error':'تعذر التحقق من تسجيل طلب السوق'},500); return
+                self.sendj({'ok':True,'request':chk}); return
+            if p=='/api/market/request/respond':
+                rid=str(d.get('id','')); status=str(d.get('status','')).strip(); allowed={'accepted','rejected','shipped','completed','pending'}
+                if status not in allowed: self.sendj({'error':'حالة الطلب غير صالحة'},400); return
+                a=load_market_requests(); row=next((x for x in a if x.get('id')==rid),None)
+                if not row: self.sendj({'error':'الطلب غير موجود'},404); return
+                previous=row.get('status')
+                if status=='shipped':
+                    row['shippingCompany']=str(d.get('shippingCompany') or '').strip(); row['trackingNumber']=str(d.get('trackingNumber') or '').strip(); row['shippedAt']=datetime.datetime.now().isoformat()
+                if previous=='completed' and status!='completed': self.sendj({'error':'الطلب المكتمل لا يمكن إعادته لحالة سابقة'},409); return
+                if status=='completed' and previous!='completed':
+                    items=load(); item=next((i for i in items if str(i.get('id'))==str(row.get('itemId'))),None)
+                    if item:
+                        q=max(1,int(row.get('quantity') or 1)); current=int(item.get('marketSoldQuantity') or 0); maximum=int(item.get('marketQuantity') or item.get('quantity') or 1)
+                        item['marketSoldQuantity']=min(maximum,current+q); item['soldQuantity']=min(int(item.get('quantity') or maximum),int(item.get('soldQuantity') or 0)+q)
+                        if row.get('selectedSerials'):
+                            done=list(item.get('marketSoldSerials') or [])
+                            for sn in row.get('selectedSerials') or []:
+                                if sn not in done: done.append(sn)
+                            item['marketSoldSerials']=done
+                        item['updated']=int(datetime.datetime.now().timestamp()*1000); save(items)
+                row['status']=status; row['updated']=datetime.datetime.now().isoformat();
+                if status=='accepted': create_order_for_market(row)
+                save_json(MARKET_REQUESTS,{'requests':a}); self.sendj({'ok':True,'request':row}); return
+            if p=='/api/auction/relaunch':
+                iid=str(d.get('id','')); end=str(d.get('auctionEnd','')).strip()
+                if not iid or not end: self.sendj({'error':'رقم المقتنى وموعد انتهاء المزاد مطلوبان'},400); return
+                try:
+                    enddt=datetime.datetime.fromisoformat(end)
+                    if enddt<=datetime.datetime.now(): self.sendj({'error':'اختر موعد انتهاء جديدًا في المستقبل'},400); return
+                except Exception: self.sendj({'error':'تاريخ انتهاء المزاد غير صالح'},400); return
+                items=load(); item=next((x for x in items if str(x.get('id'))==iid),None)
+                if not item: self.sendj({'error':'المقتنى غير موجود'},404); return
+                # V3.8: preserve a permanent snapshot of the completed round before relaunching.
+                old_round=int(item.get('auctionRound') or 1)
+                round_bids=[b for b in load_bids() if str(b.get('itemId'))==iid and int(b.get('auctionRound') or 1)==old_round]
+                history=list(item.get('auctionHistory') or [])
+                history.append({'round':old_round,'auctionEnd':item.get('auctionEnd'),'openingPrice':item.get('auctionOpeningPrice',item.get('auctionStartPrice',0)),'bidStep':item.get('auctionBidStep',1),'targetPrice':item.get('auctionTargetPrice',auction_target(item)),'finalPrice':item.get('auctionCurrentPrice',0),'bidCount':len(round_bids),'targetReached':float(item.get('auctionCurrentPrice') or 0)>=auction_target(item),'closedAt':datetime.datetime.now().isoformat()})
+                item['auctionHistory']=history
+                item['auctionRound']=old_round+1
+                item['auctionEnd']=end; item['forAuction']=True; item['auctionApproved']=bool(d.get('auctionApproved',True)); item['auctionCurrentPrice']=0
+                item['reauctionedAt']=datetime.datetime.now().isoformat(); item['updated']=int(datetime.datetime.now().timestamp()*1000)
+                for key in ('auctionOpeningPrice','auctionBidStep','auctionTargetPrice','negotiationEnabled','negotiationPercent'):
+                    if key in d: item[key]=d[key]
+                save(items); append_operation('إعادة إدراج مزاد',{'itemId':iid,'newRound':item['auctionRound'],'auctionEnd':end}); self.sendj({'ok':True,'auctionRound':item['auctionRound'],'item':item}); return
+            if p=='/api/visitor/receive':
+                rid=str(d.get('id','')); pid=str(d.get('participantId','')); person=next((x for x in load_people() if x.get('id')==pid and x.get('verified') and not x.get('blocked')),None)
+                if not person: self.sendj({'error':'الحساب غير موثق'},403); return
+                rows=load_orders(); row=next((x for x in rows if str(x.get('id'))==rid),None); phone=str(person.get('phone') or '').replace(' ','')
+                if not row or (str(row.get('participantId') or '')!=pid and str(row.get('customerPhone') or '').replace(' ','')!=phone): self.sendj({'error':'الطلب غير موجود'},404); return
+                if row.get('status')!='shipped': self.sendj({'error':'لا يمكن تأكيد الاستلام قبل تسجيل الشحن'},409); return
+                update_order_status(row,'received','أكد العميل الاستلام'); save_json(ORDERS,{'orders':rows}); append_operation('تأكيد استلام العميل',{'orderId':rid},actor='العميل')
+                self.sendj({'ok':True,'request':row}); return
+            if p=='/api/settings':
+                st=load_settings()
+                for k in ('buyerFeePercent','charityProfitPercent','auctionEntryFee','entryFeeEnabled','negotiationPercents','negotiationHours','adminEmail','platformName','ocrTesseractPath'):
+                    if k in d: st[k]=d[k]
+                save_json(SETTINGS,st); self.sendj({'ok':True,'settings':st}); return
+            if p=='/api/negotiate':
+                item_id=str(d.get('itemId','')); pid=str(d.get('participantId','')); amount=float(d.get('amount') or 0)
+                person=next((x for x in load_people() if x.get('id')==pid and x.get('approved') and x.get('verified') and not x.get('blocked')),None)
+                item=next((i for i in load() if i.get('id')==item_id and i.get('forAuction') and i.get('auctionApproved')),None)
+                if not person: self.sendj({'error':'يجب توثيق رقم الجوال قبل تقديم عرض تفاوض'},403); return
+                if not item: self.sendj({'error':'المقتنى غير متاح للتفاوض'},404); return
+                if not item.get('negotiationEnabled'): self.sendj({'error':'التفاوض غير مفعّل لهذا المقتنى'},409); return
+                base=max(float(item.get('auctionCurrentPrice') or 0), float(item.get('auctionTargetPrice') or 0), float(item.get('expectedPrice') or 0))
+                percent=float(item.get('negotiationPercent') or 0)
+                if percent not in (5,10,15,20): self.sendj({'error':'نسبة التفاوض غير صالحة'},409); return
+                minimum=max(0,base*(1-percent/100.0))
+                if amount<=0: self.sendj({'error':'أدخل مبلغ عرض صحيح'},409); return
+                if base>0 and amount+1e-9<minimum: self.sendj({'error':f'أقل عرض مسموح وفق نسبة التفاوض هو {minimum:.2f} ر.س'},409); return
+                now=datetime.datetime.now(); hours=float(load_settings().get('negotiationHours') or 48)
+                row={'id':'n-'+secrets.token_hex(6),'itemId':item_id,'participantId':pid,'amount':amount,'basePrice':base,'percent':percent,'minimum':minimum,'status':'pending','created':now.isoformat(),'expires':(now+datetime.timedelta(hours=hours)).isoformat()}
+                a=load_negotiations(); a.append(row); save_json(NEGOTIATIONS,{'negotiations':a}); self.sendj({'ok':True,'negotiation':row}); return
+            if p=='/api/negotiate/respond':
+                nid=str(d.get('id','')); action=str(d.get('action','')); counter=float(d.get('counterAmount') or 0); a=load_negotiations(); row=next((x for x in a if x.get('id')==nid),None)
+                if not row: self.sendj({'error':'عرض التفاوض غير موجود'},404); return
+                if action not in ('accepted','rejected','countered'): self.sendj({'error':'الإجراء غير صالح'},400); return
+                row['status']=action; row['updated']=datetime.datetime.now().isoformat()
+                if action=='countered':
+                    if counter<=0: self.sendj({'error':'أدخل قيمة العرض المقابل'},400); return
+                    row['counterAmount']=counter
+                save_json(NEGOTIATIONS,{'negotiations':a}); self.sendj({'ok':True,'negotiation':row}); return
+            if p=='/api/analyze':
+                ok,data,note=analyze_image(d.get('url','')); self.sendj({'ok':ok,'data':data,'note':note}); return
+            if p=='/api/participant/register':
+                name=str(d.get('name','')).strip(); raw_phone=str(d.get('phone','')).strip(); phone=''.join(ch for ch in raw_phone if ch.isdigit() or ch=='+')
+                if not name or not phone: self.sendj({'error':'الاسم والجوال مطلوبان'},400); return
+                if len(''.join(ch for ch in phone if ch.isdigit())) < 7: self.sendj({'error':'رقم الجوال غير مكتمل'},400); return
+                a=load_people(); existing=next((x for x in a if str(x.get('phone','')).replace(' ','')==phone.replace(' ','')),None)
+                now=datetime.datetime.now(); nowiso=now.isoformat()
+                if existing and existing.get('blocked'):
+                    self.sendj({'error':'هذا الرقم موقوف من الإدارة'},403); return
+                # Preserve previously approved users as permanently verified during migration.
+                if existing and existing.get('approved') and 'verified' not in existing:
+                    existing['verified']=True; existing['verifiedAt']=existing.get('approvedAt') or nowiso
+                if existing and existing.get('verified'):
+                    existing['name']=name or existing.get('name',''); existing['lastSeen']=nowiso; existing['approved']=True
+                    save_json(PEOPLE,{'participants':a})
+                    self.sendj({'ok':True,'participant':existing,'verified':True,'message':'مرحبًا بعودتك؛ اعتمادك ما زال فعالًا.'}); return
+                code=f'{secrets.randbelow(1000000):06d}'
+                expiry=(now+datetime.timedelta(minutes=5)).isoformat()
+                if existing:
+                    existing.update({'name':name or existing.get('name',''),'lastSeen':nowiso,'otp':code,'otpExpires':expiry,'otpAttempts':0,'approved':False,'verified':False})
+                    x=existing
+                else:
+                    x={'id':'p-'+secrets.token_hex(6),'name':name,'phone':phone,'approved':False,'verified':False,'blocked':False,'created':nowiso,'lastSeen':nowiso,'otp':code,'otpExpires':expiry,'otpAttempts':0}; a.append(x)
+                save_json(PEOPLE,{'participants':a})
+                saved=next((z for z in load_people() if z.get('id')==x['id']),None)
+                if not saved: self.sendj({'error':'تعذر تثبيت التسجيل على الخادم'},500); return
+                add_notification('admin','','approval','طلب توثيق/اعتماد جديد',f"طلب تسجيل من {saved.get('name','مشارك')} — {saved.get('phone','')}",'', '/admin')
+                # Local/LAN mode: return the OTP for testing. When an SMS provider is connected, remove devOtp and send code by SMS.
+                self.sendj({'ok':True,'participant':{k:v for k,v in saved.items() if k not in ('otp','otpExpires','otpAttempts')},'verified':False,'otpRequired':True,'devOtp':code,'expiresMinutes':5,'message':'تم إنشاء رمز التحقق.'}); return
+            if p=='/api/participant/verify':
+                pid=str(d.get('id','')); code=str(d.get('code','')).strip(); a=load_people(); person=next((x for x in a if x.get('id')==pid),None)
+                if not person: self.sendj({'error':'المشارك غير موجود'},404); return
+                if person.get('blocked'): self.sendj({'error':'هذا الحساب موقوف من الإدارة'},403); return
+                if person.get('verified'):
+                    self.sendj({'ok':True,'participant':person,'message':'الحساب موثق مسبقًا'}); return
+                try: expired=datetime.datetime.fromisoformat(person.get('otpExpires','')) < datetime.datetime.now()
+                except Exception: expired=True
+                if expired: self.sendj({'error':'انتهت صلاحية الرمز. اطلب رمزًا جديدًا.'},409); return
+                attempts=int(person.get('otpAttempts') or 0)
+                if attempts>=5: self.sendj({'error':'تم تجاوز عدد المحاولات. اطلب رمزًا جديدًا.'},429); return
+                if not secrets.compare_digest(str(person.get('otp','')),code):
+                    person['otpAttempts']=attempts+1; save_json(PEOPLE,{'participants':a}); self.sendj({'error':'رمز التحقق غير صحيح'},403); return
+                nowiso=datetime.datetime.now().isoformat(); person.update({'verified':True,'approved':True,'verifiedAt':nowiso,'approvedAt':nowiso,'otp':'','otpExpires':'','otpAttempts':0,'lastSeen':nowiso}); save_json(PEOPLE,{'participants':a})
+                add_notification('participant',pid,'approval','✅ تم اعتماد حسابك','تم توثيق رقم الجوال واعتماد حسابك، ويمكنك المشاركة في المزادات وفق شروط المنصة.','','/account')
+                append_operation('اعتماد مشارك تلقائي',{'participantId':pid,'name':person.get('name','')})
+                self.sendj({'ok':True,'participant':person,'message':'تم توثيق رقم الجوال واعتمادك تلقائيًا.'}); return
+            if p=='/api/participant/approve':
+                a=load_people(); iid=d.get('id'); approved=bool(d.get('approved')); direct=bool(d.get('direct')); found=False
+                for x in a:
+                    if x.get('id')==iid:
+                        nowiso=datetime.datetime.now().isoformat()
+                        x['approved']=approved; x['approvedAt']=nowiso if approved else ''
+                        if approved and direct:
+                            x['verified']=True; x['verifiedAt']=nowiso; x['otp']=''; x['otpExpires']=''; x['otpAttempts']=0
+                        found=True
+                save_json(PEOPLE,{'participants':a})
+                if found:
+                    add_notification('participant',iid,'approval','✅ تم اعتماد حسابك' if approved else 'تم إيقاف اعتماد المشاركة','يمكنك الآن المشاركة في المزادات.' if approved else 'تم إيقاف صلاحية المشاركة من الإدارة.','','/account')
+                    append_operation('تحديث اعتماد مشارك',{'participantId':iid,'approved':approved,'direct':direct})
+                self.sendj({'ok':found,'approved':approved,'direct':direct}); return
+            if p=='/api/bid':
+                itemId=d.get('itemId'); pid=d.get('participantId'); amount=float(d.get('amount') or 0)
+                person=next((x for x in load_people() if x.get('id')==pid and x.get('approved') and x.get('verified') and not x.get('blocked')),None)
+                item=next((i for i in load() if i.get('id')==itemId and i.get('forAuction') and i.get('auctionApproved')),None)
+                if not person: self.sendj({'error':'يجب توثيق رقم الجوال قبل المزايدة'},403); return
+                if not item: self.sendj({'error':'المزاد غير متاح'},404); return
+                overdue=overdue_due_for(pid)
+                if overdue:
+                    add_notification('participant',pid,'finance','⛔ المشاركة موقوفة بسبب مستحق متأخر',f"لديك مستحق سابق غير مسدد تجاوز 24 ساعة بقيمة {float(overdue.get('amount') or 0):g} ر.س. يرجى السداد أولًا.",overdue.get('itemId'),'/account')
+                    self.sendj({'error':'تعذر المشاركة: لديك مستحقات سابقة غير مسددة تجاوزت 24 ساعة. يرجى السداد أولًا.'},403); return
+                if item.get('auctionEnd'):
+                    try:
+                        end=datetime.datetime.fromisoformat(str(item['auctionEnd']));
+                        if end<=datetime.datetime.now(): self.sendj({'error':'انتهى المزاد'},409); return
+                    except Exception: pass
+                bids=load_bids(); round_no=int(item.get('auctionRound') or 1); item_bids=[b for b in bids if b.get('itemId')==itemId and int(b.get('auctionRound') or 1)==round_no]; current=max([float(b.get('amount') or 0) for b in item_bids]+[0.0])
+                opening=float(item.get('auctionOpeningPrice') or item.get('auctionStartPrice') or 0)
+                step=float(item.get('auctionBidStep') or 1)
+                if step<=0: step=1
+                if amount<=0: self.sendj({'error':'أدخل مبلغ مزايدة أكبر من صفر'},409); return
+                if not item_bids:
+                    if opening>0 and amount<opening:
+                        self.sendj({'error':f'السومة الأولى تبدأ من {opening:g} ر.س أو أكثر'},409); return
+                else:
+                    minimum=current+step
+                    if amount+1e-9<minimum:
+                        self.sendj({'error':f'الزيادة المحددة للمزاد {step:g} ر.س؛ أقل سوم مقبول الآن {minimum:g} ر.س'},409); return
+                previous_top=max(item_bids,key=lambda b:float(b.get('amount') or 0)) if item_bids else None
+                bid={'id':'b-'+secrets.token_hex(6),'itemId':itemId,'auctionRound':round_no,'participantId':pid,'amount':amount,'created':datetime.datetime.now().isoformat()}; bids.append(bid); save_json(BIDS,{'bids':bids})
+                title=item_title(item)
+                add_notification('participant',pid,'auction','✅ تم تسجيل مزايدتك',f"تم قبول مزايدتك على {title} بقيمة {amount:g} ر.س.",itemId,'/auction#'+str(itemId))
+                if previous_top and str(previous_top.get('participantId'))!=str(pid):
+                    add_notification('participant',previous_top.get('participantId'),'auction','⚡ تمت المزايدة عليك',f"مزايدتك لم تعد الأعلى في {title}. السعر الحالي {amount:g} ر.س، ويمكنك العودة للمزاد والزيادة.",itemId,'/auction#'+str(itemId))
+                items=load();
+                for i in items:
+                    if i.get('id')==itemId: i['auctionCurrentPrice']=amount; i['updated']=int(datetime.datetime.now().timestamp()*1000)
+                save(items); self.sendj({'ok':True,'current':amount}); return
+            items=load()
+            if p=='/api/item':
+                x=d.get('item',{}) if isinstance(d,dict) else {}
+                iid=str(x.get('id') or '').strip()
+                country=str(x.get('country') or '').strip()
+                denom=str(x.get('denomination') or '').strip()
+                if not iid or not country or not denom:
+                    self.sendj({'ok':False,'error':'بيانات الحفظ الأساسية ناقصة: رقم السجل أو الدولة أو الفئة'},400); return
+                # V3.5: validate requested publication before writing. Market and auction may both be selected.
+                if x.get('forAuction') and x.get('auctionApproved'):
+                    end=str(x.get('auctionEnd') or '').strip()
+                    if not end:
+                        self.sendj({'ok':False,'error':'اعتماد المزاد للنشر يتطلب تاريخ ووقت انتهاء'},400); return
+                    try:
+                        if datetime.datetime.fromisoformat(end) <= datetime.datetime.now():
+                            self.sendj({'ok':False,'error':'موعد انتهاء المزاد يجب أن يكون في المستقبل'},400); return
+                    except ValueError:
+                        self.sendj({'ok':False,'error':'صيغة تاريخ انتهاء المزاد غير صحيحة'},400); return
+                if x.get('forMarket') and x.get('marketApproved'):
+                    if float(x.get('marketSalePrice') or 0) <= 0:
+                        self.sendj({'ok':False,'error':'اعتماد السوق للنشر يتطلب سعر بيع أكبر من صفر'},400); return
+                    if int(x.get('marketQuantity') or 0) < 1:
+                        self.sendj({'ok':False,'error':'الكمية المعروضة في السوق يجب أن تكون 1 على الأقل'},400); return
+                before=len(items)
+                items=[i for i in items if str(i.get('id'))!=iid]
+                x['id']=iid
+                x['updated']=int(datetime.datetime.now().timestamp()*1000)
+                items.append(x)
+                try:
+                    save(items)
+                    check=load()
+                    saved=next((i for i in check if str(i.get('id'))==iid),None)
+                    if not saved:
+                        append_save_audit({'id':iid,'ok':False,'country':country,'denomination':denom,'created':datetime.datetime.now().isoformat(),'reason':'verify_missing'})
+                        self.sendj({'ok':False,'error':'تمت محاولة الكتابة لكن تعذر التحقق من وجود السجل بعد الحفظ'},500); return
+                    append_save_audit({'id':iid,'ok':True,'country':country,'denomination':denom,'created':datetime.datetime.now().isoformat(),'before':before,'after':len(check)})
+                    self.sendj({'ok':True,'saved':saved,'total':len(check),'verified':True,'publication':{'auction':bool(saved.get('forAuction') and saved.get('auctionApproved')),'market':bool(saved.get('forMarket') and saved.get('marketApproved'))}}); return
+                except Exception as e:
+                    try: append_save_audit({'id':iid,'ok':False,'country':country,'denomination':denom,'created':datetime.datetime.now().isoformat(),'reason':str(e)})
+                    except Exception: pass
+                    self.sendj({'ok':False,'error':'فشل حفظ السجل على القرص: '+str(e)},500); return
+            if p=='/api/merge':
+                incoming=d.get('items',[]); ids={i.get('id') for i in items}; ss={sig(i) for i in items}; added=0
+                for x in incoming:
+                    if x.get('id') in ids or sig(x) in ss: continue
+                    items.append(x); ids.add(x.get('id')); ss.add(sig(x)); added+=1
+                save(items); self.sendj({'ok':True,'added':added,'total':len(items)}); return
+            if p=='/api/clear': save([]); self.sendj({'ok':True}); return
+        self.sendj({'error':'not found'},404)
+    def do_DELETE(self):
+        p=urlparse(self.path).path
+        if not self.require_admin(api=True): return
+        if not self.same_origin_ok(): self.sendj({'error':'تم رفض الطلب لأسباب أمنية.'},403); return
+        if p.startswith('/api/item/'):
+            iid=p.split('/')[-1]
+            with LOCK:
+                items=[i for i in load() if str(i.get('id'))!=iid]; save(items)
+            self.sendj({'ok':True}); return
+        self.sendj({'error':'not found'},404)
+
+os.chdir(ROOT); backup_data('startup')
+ensure_dues_tracking_start()
+_auth_cfg,_new_admin_password=ensure_admin_auth()
+VERSION='4.0.19'
+def local_ip():
+    try:
+        x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
+    except Exception: return '127.0.0.1'
+
+def make_server():
+    preferred=int(os.environ.get('KHAZINA_PORT','8080'))
+    for port in range(preferred,preferred+10):
+        try: return ThreadingHTTPServer(('0.0.0.0',port),H),port
+        except OSError as e:
+            if getattr(e,'errno',None) not in (98,10048): raise
+    raise OSError('تعذر إيجاد منفذ متاح بين 8080 و8089')
+
+server,PORT=make_server(); IP=local_ip()
+admin_url=f'http://localhost:{PORT}/admin'
+public_url=f'http://{IP}:{PORT}/auction'
+market_url=f'http://{IP}:{PORT}/market'
+try:
+    with open(os.path.join(ROOT,'رابط_الجوال.txt'),'w',encoding='utf-8') as f:
+        f.write('واجهة الزوار:\n'+f'http://{IP}:{PORT}/home\n\nرابط المزاد للزوار:\n'+public_url+'\n\nرابط السوق العام:\n'+market_url+'\n\nالإدارة محمية بكلمة مرور ولا يُنصح بإرسال رابطها للعملاء.\n')
+except Exception: pass
+print(f'خزينة المقتنيات V{VERSION} - الخادم يعمل على المنفذ {PORT}')
+if PORT!=8080: print('تنبيه: المنفذ 8080 مستخدم من نسخة أخرى، لذلك تم تشغيل هذه النسخة على منفذ بديل.')
+print('الإدارة:',admin_url)
+print('بيانات دخول الإدارة محفوظة في:',ADMIN_CREDENTIALS)
+if _new_admin_password: print('تم إنشاء كلمة مرور إدارة جديدة. افتح ملف بيانات_دخول_الإدارة.txt داخل مجلد البرنامج.')
+print('واجهة الزوار:',f'http://{IP}:{PORT}/home')
+print('المزاد للزوار:',public_url)
+print('السوق العام:',market_url)
+print('لا تغلق هذه النافذة أثناء استخدام البرنامج من الأجهزة الأخرى.')
+def open_browser():
+    time.sleep(1)
+    try: webbrowser.open(admin_url)
+    except Exception: pass
+threading.Thread(target=open_browser,daemon=True).start()
+def final_backup(): backup_data('shutdown')
+atexit.register(final_backup)
+try: server.serve_forever()
+except KeyboardInterrupt: print('\nإيقاف آمن للخادم...')
+finally: server.server_close(); final_backup()

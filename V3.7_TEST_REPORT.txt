@@ -1,0 +1,11 @@
+نوادر العملات V3.7 — تقرير الاختبار الأساسي
+
+[PASS] Python syntax compile: server.py
+[PASS] /home public returns HTTP 200
+[PASS] /styles.css public returns HTTP 200
+[PASS] /admin without session redirects to /admin-login
+[PASS] /api/version reports 3.7.0
+[PASS] Security headers present on responses
+[PASS] Admin and public files physically separated into dedicated folders
+
+تنبيه: اختبار الوظائف التفصيلي للسوق والمزاد والحفظ يتم في المرحلة التالية بعد اعتماد الهيكل.

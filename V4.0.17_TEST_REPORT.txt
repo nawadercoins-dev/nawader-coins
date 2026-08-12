@@ -1,0 +1,12 @@
+V4.0.17 TEST REPORT
+===================
+[OK] Python syntax: server.py compiled successfully.
+[OK] JavaScript syntax: special_numbers inline application passed node --check.
+[OK] Public special-numbers API returns unit price, available serials, availability state.
+[OK] Verified customer can submit selected serials through /api/special/request.
+[OK] Server creates a 30-minute reservation for selected serials.
+[OK] Reserved serials disappear from the next public availability response.
+[OK] Duplicate/unavailable serial selections are rejected server-side.
+[OK] Selected serials are carried into market order data.
+[OK] Completion path records selected serials as sold.
+[OK] Version bumped to 4.0.17.

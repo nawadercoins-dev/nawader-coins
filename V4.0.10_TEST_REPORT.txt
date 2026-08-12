@@ -1,0 +1,12 @@
+V4.0.10 TEST REPORT
+- Source: V4.0.9 FROM V4.0.8
+- Account page: upgraded profile dashboard
+- Visitor auction viewer: preserved
+- Admin auction viewer: unified lightbox + rotation + center + navigation
+- Countdown urgency styling: visitor + admin
+- Special numbers reliable save path: preserved from base
+- Permissions visual cards: preserved/enhanced
+- Dues three-action workflow: preserved/enhanced
+- Finance net profit strip: preserved/enhanced
+- Orders thumbnails: reduced to 180x112 desktop
+- Market QR admin block: absent

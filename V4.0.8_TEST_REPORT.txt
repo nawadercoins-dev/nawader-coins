@@ -1,0 +1,9 @@
+V4.0.8 SPECIAL NUMBERS RELIABLE SAVE
+====================================
+[PASS] Python server syntax compile
+[PASS] JavaScript syntax check
+[PASS] POST /api/item with specialNumberEnabled=true
+[PASS] sequential classification persisted
+[PASS] server-side save verification returned verified=true
+[PASS] immediate second GET is no longer required for declaring the save successful
+[PASS] public special-numbers API exposes the stored classification

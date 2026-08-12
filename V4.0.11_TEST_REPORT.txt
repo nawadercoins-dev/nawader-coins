@@ -1,0 +1,27 @@
+V4.0.11 — CUSTOMER COLLECTIBLE APPROVAL — TEST REPORT
+
+Base: V4.0.10.1 CORRECTIVE uploaded by the user.
+
+Implemented:
+- New account card: «إضافة مقتنى للاعتماد».
+- Customer submission form: country, denomination, year, issue, condition, serial, notes, intended destination, front/back images.
+- Browser-side image compression before submission.
+- Customer submission states: pending / needs changes / approved / rejected.
+- New admin section: «اعتماد المقتنيات» with badge and review cards.
+- Admin actions: approve & add to inventory / request changes / reject.
+- Approval adds to inventory only; it does NOT auto-publish to market or auction.
+- Participant/admin notifications and operations log entries.
+- collectible_submissions.json included in full backup and restore.
+
+Checks performed:
+PASS Python compile: server.py
+PASS JavaScript syntax: admin/app.js
+PASS JavaScript syntax: account inline script
+PASS HTTP /api/version returns 4.0.11
+PASS verified participant POST collectible submission
+PASS participant GET own submission status
+PASS admin authenticated GET submission queue
+PASS admin approval creates exactly one inventory record
+PASS approved inventory record has forMarket=false and forAuction=false
+
+Important: Existing V4.0.10.1 corrective functionality was preserved; this upgrade adds the approval workflow on top of it.
