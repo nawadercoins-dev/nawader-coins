@@ -617,33 +617,19 @@ def analyze_image(url):
 def _pbkdf2(password, salt_hex, iterations=260000):
     return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), bytes.fromhex(salt_hex), iterations).hex()
 
-def _configured_admin_password():
-    # Render/production can override this with ADMIN_PASSWORD.
-    # The approved recovery default is 12345678 so local and Render logins stay in sync.
-    return str(os.environ.get('ADMIN_PASSWORD') or '12345678')
-
 def ensure_admin_auth():
-    password=_configured_admin_password()
     cfg=load_json(AUTH_FILE,{})
-    iterations=260000
-    valid=False
     if isinstance(cfg,dict) and cfg.get('salt') and cfg.get('hash'):
-        try:
-            got=_pbkdf2(password,cfg['salt'],int(cfg.get('iterations') or iterations))
-            valid=secrets.compare_digest(got,str(cfg.get('hash') or '')) and str(cfg.get('username') or 'admin')=='admin'
-        except Exception:
-            valid=False
-    if valid:
         return cfg, None
+    password=secrets.token_urlsafe(12)
     salt=secrets.token_hex(16)
-    cfg={'version':2,'username':'admin','salt':salt,'iterations':iterations,'hash':_pbkdf2(password,salt,iterations),'created':datetime.datetime.now().isoformat(),'source':'ADMIN_PASSWORD/default-recovery'}
+    cfg={'version':1,'username':'admin','salt':salt,'iterations':260000,'hash':_pbkdf2(password,salt,260000),'created':datetime.datetime.now().isoformat()}
     save_json(AUTH_FILE,cfg)
     try:
         with open(ADMIN_CREDENTIALS,'w',encoding='utf-8') as f:
             f.write('دخول إدارة نوادر العملات\n')
             f.write('اسم المستخدم: admin\n')
-            f.write('كلمة المرور: '+password+'\n\n')
-            f.write('يمكن تغييرها لاحقًا عبر متغير ADMIN_PASSWORD في Render.\n')
+            f.write('كلمة المرور الأولية: '+password+'\n\n')
             f.write('احتفظ بهذا الملف في جهاز الإدارة ولا تشاركه مع العملاء.\n')
     except Exception: pass
     return cfg, password
@@ -868,11 +854,9 @@ class H(SimpleHTTPRequestHandler):
                 now=datetime.datetime.now()
                 for i in load():
                     if not (i.get('forAuction') and i.get('auctionApproved')): continue
-                    public=public_item(i)
-                    # V4.0.20: المزادات المنتهية تُفصل عن صفحة المزادات النشطة العامة.
-                    if public.get('auctionEnded'): continue
-                    items.append(public)
-                items.sort(key=lambda x:str(x.get('auctionEnd') or ''))
+                    # Keep ended approved auctions visible so visitors can see the final result / winner status.
+                    items.append(public_item(i))
+                items.sort(key=lambda x:(bool(x.get('auctionEnded')), str(x.get('auctionEnd') or '')))
                 self.sendj({'items':items}); return
         if p=='/api/visitor/orders':
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
@@ -1141,7 +1125,7 @@ class H(SimpleHTTPRequestHandler):
                     if offered<=0 or offered+1e-9<minimum: self.sendj({'error':f'أقل عرض تفاوض مسموح {minimum:.2f} ر.س'},409); return
                 else: offered=base
                 fee_pct=float(load_settings().get('buyerFeePercent') or 0); fee=round((offered if action=='offer' else base)*fee_pct/100,2); total=round((offered if action=='offer' else base)+fee,2); now=datetime.datetime.now(); reserve_until=now+datetime.timedelta(minutes=30)
-                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or item_title(item),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':price,'name':person.get('name',''),'phone':person.get('phone',''),'action':action,'quantity':qty,'selectedSerials':selected,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':fee,'buyerTotal':total,'status':'pending','sourcePage':'special_numbers','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'reservedUntil':reserve_until.isoformat(),'created':now.isoformat()}
+                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or item_title(item),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':price,'name':person.get('name',''),'phone':person.get('phone',''),'action':action,'quantity':qty,'selectedSerials':selected,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':fee,'buyerTotal':total,'status':'pending','sourcePage':'special_numbers','reservedUntil':reserve_until.isoformat(),'created':now.isoformat()}
                 a=load_market_requests(); a.append(row); save_json(MARKET_REQUESTS,{'requests':a}); add_notification('admin','','market','🛒 طلب من صفحة الأرقام المميزة',f"{person.get('name','عميل')} طلب {item_title(item)}"+((' — الأرقام: '+', '.join(selected)) if selected else f' — الكمية: {qty}'),'','/admin'); add_notification('participant',pid,'order','تم تسجيل طلبك',f"تم حجز اختيارك من {item_title(item)} مؤقتًا وإرسال الطلب للإدارة.",item_id,'/account'); self.sendj({'ok':True,'request':row}); return
             if p=='/api/market/request':
                 item_id=str(d.get('itemId','')); name=str(d.get('name','')).strip(); phone=''.join(ch for ch in str(d.get('phone','')) if ch.isdigit() or ch=='+')
@@ -1170,7 +1154,7 @@ class H(SimpleHTTPRequestHandler):
                     if offered<=0 or offered+1e-9<minimum: self.sendj({'error':f'أقل عرض تفاوض مسموح {minimum:.2f} ر.س'},409); return
                 else: offered=base
                 fee_pct=float(load_settings().get('buyerFeePercent') or 0); fee=(offered if action=='offer' else base)*fee_pct/100; total=(offered if action=='offer' else base)+fee
-                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or ((item.get('country') or '')+' — '+(item.get('denomination') or '')),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','marketOfferType':item.get('marketOfferType') or 'single','unitPrice':unit,'name':name,'phone':phone,'action':action,'quantity':qty,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':round(fee,2),'buyerTotal':round(total,2),'status':'pending','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'created':datetime.datetime.now().isoformat()}
+                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or ((item.get('country') or '')+' — '+(item.get('denomination') or '')),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','marketOfferType':item.get('marketOfferType') or 'single','unitPrice':unit,'name':name,'phone':phone,'action':action,'quantity':qty,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':round(fee,2),'buyerTotal':round(total,2),'status':'pending','created':datetime.datetime.now().isoformat()}
                 a=load_market_requests(); a.append(row); save_json(MARKET_REQUESTS,{'requests':a})
                 chk=next((x for x in load_market_requests() if x.get('id')==row['id']),None)
                 if not chk: self.sendj({'error':'تعذر التحقق من تسجيل طلب السوق'},500); return
@@ -1416,24 +1400,16 @@ class H(SimpleHTTPRequestHandler):
         self.sendj({'error':'not found'},404)
 
 os.chdir(ROOT); backup_data('startup')
-# تشغيل آمن: تأكد من وجود ملفات الواجهات الأساسية قبل بدء الخدمة.
-_required_runtime_files=[
-    os.path.join(ADMIN_DIR,'index.html'), os.path.join(ADMIN_DIR,'app.js'), os.path.join(ADMIN_DIR,'styles.css'),
-    os.path.join(PUBLIC_DIR,'public_home.html'), os.path.join(PUBLIC_DIR,'public_auction.html'), os.path.join(PUBLIC_DIR,'public_market.html')
-]
-_missing_runtime=[p for p in _required_runtime_files if not os.path.isfile(p)]
-if _missing_runtime:
-    raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.0.23-ADMIN-RECOVERY'
+VERSION='4.0.17-SPECIAL-NUMBERS-COMMERCE'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
     except Exception: return '127.0.0.1'
 
 def make_server():
-    preferred=int(os.environ.get('PORT') or os.environ.get('KHAZINA_PORT','8080'))
+    preferred=int(os.environ.get('KHAZINA_PORT','8080'))
     for port in range(preferred,preferred+10):
         try: return ThreadingHTTPServer(('0.0.0.0',port),H),port
         except OSError as e:
