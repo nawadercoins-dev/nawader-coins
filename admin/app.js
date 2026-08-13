@@ -152,11 +152,16 @@ async function compressImageForUpload(f) {
   if (!f) return f;
   if (!/^image\//.test(f.type || "")) throw new Error("الملف ليس صورة");
   if (f.size > 50 * 1024 * 1024)
-    throw new Error("الصورة أكبر من 50 ميجابايت؛ خفّض دقة الكاميرا أو اختر صورة أصغر");
-  if (f.size <= 900 * 1024 && /image\/(jpeg|webp)/i.test(f.type || "")) return f;
-  let source, url = "";
+    throw new Error(
+      "الصورة أكبر من 50 ميجابايت؛ خفّض دقة الكاميرا أو اختر صورة أصغر",
+    );
+  if (f.size <= 900 * 1024 && /image\/(jpeg|webp)/i.test(f.type || ""))
+    return f;
+  let source,
+    url = "";
   try {
-    if (typeof createImageBitmap === "function") source = await createImageBitmap(f);
+    if (typeof createImageBitmap === "function")
+      source = await createImageBitmap(f);
     else {
       url = URL.createObjectURL(f);
       source = await new Promise((ok, no) => {
@@ -178,12 +183,18 @@ async function compressImageForUpload(f) {
     ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
     let blob = await new Promise((ok) => canvas.toBlob(ok, "image/jpeg", 0.8));
     if (!blob) throw new Error("تعذر ضغط الصورة");
-    return new File([blob], (f.name || "photo").replace(/\.[^.]+$/, "") + ".jpg", {
-      type: "image/jpeg",
-      lastModified: Date.now(),
-    });
+    return new File(
+      [blob],
+      (f.name || "photo").replace(/\.[^.]+$/, "") + ".jpg",
+      {
+        type: "image/jpeg",
+        lastModified: Date.now(),
+      },
+    );
   } catch (e) {
-    throw new Error("تعذر تجهيز الصورة. اختر صورة JPG أصغر من المعرض ثم حاول مرة أخرى.");
+    throw new Error(
+      "تعذر تجهيز الصورة. اختر صورة JPG أصغر من المعرض ثم حاول مرة أخرى.",
+    );
   } finally {
     if (source && typeof source.close === "function") source.close();
     if (url) URL.revokeObjectURL(url);
@@ -458,7 +469,10 @@ function card(i) {
       ? "نشط"
       : "غير نشط"
     : "غير مخصص";
-  return `<article class="item record-card">${i.frontImg ? `<img src="${i.frontImg}">` : '<div class="muted">لا توجد صورة</div>'}<div class="record-card-body"><h3>${esc(i.country)} — ${esc(i.denomination)}</h3><div class="record-strips record-strips-v403"><div><span>الفئة</span><b>${esc(i.denomination || "—")}</b></div><div><span>حالة الحفظ</span><b>${esc(i.condition || "—")}</b></div><div class="quantity-stack"><span>الكميات</span><b><em>الكمية الأصلية</em><strong>${Number(i.quantity || 0)}</strong></b><b><em>المباعة</em><strong>${Number(i.soldQuantity || 0)}</strong></b><b><em>المتبقية</em><strong>${remain}</strong></b></div><div class="display-status"><span>حالة العرض</span><b><em>السوق العام</em><strong class="state ${marketState === "نشط" ? "on" : marketState === "غير نشط" ? "off" : "neutral"}">${marketState}</strong></b><b><em>المزاد</em><strong class="state ${auctionState === "نشط" || auctionState.includes("فائز") ? "on" : auctionState === "غير نشط" || auctionState.includes("دون بيع") ? "off" : "neutral"}">${auctionState}</strong></b></div><div><span>موقع التخزين</span><b>${esc(loc(i))}</b></div></div><div class="actions record-actions"><button onclick="detail('${i.id}')">عرض</button><button class="ghost" onclick="editItem('${i.id}')">تعديل</button><button class="danger" onclick="removeItem('${i.id}')">حذف</button></div></div></article>`;
+  const photo = i.frontImg
+    ? `<img src="${esc(i.frontImg)}" alt="${esc(`${i.country || ""} ${i.denomination || ""}`)}" loading="lazy">`
+    : '<div class="record-no-photo" aria-label="لا توجد صورة"><span>🖼️</span><b>لا توجد صورة</b></div>';
+  return `<article class="item record-card">${photo}<div class="record-card-body"><h3>${esc(i.country)} — ${esc(i.denomination)}</h3><div class="record-strips record-strips-v403"><div><span>الفئة</span><b>${esc(i.denomination || "—")}</b></div><div><span>حالة الحفظ</span><b>${esc(i.condition || "—")}</b></div><div class="quantity-stack"><span>الكميات</span><b><em>الكمية الأصلية</em><strong>${Number(i.quantity || 0)}</strong></b><b><em>المباعة</em><strong>${Number(i.soldQuantity || 0)}</strong></b><b><em>المتبقية</em><strong>${remain}</strong></b></div><div class="display-status"><span>حالة العرض</span><b><em>السوق العام</em><strong class="state ${marketState === "نشط" ? "on" : marketState === "غير نشط" ? "off" : "neutral"}">${marketState}</strong></b><b><em>المزاد</em><strong class="state ${auctionState === "نشط" || auctionState.includes("فائز") ? "on" : auctionState === "غير نشط" || auctionState.includes("دون بيع") ? "off" : "neutral"}">${auctionState}</strong></b></div><div><span>موقع التخزين</span><b>${esc(loc(i))}</b></div></div><div class="actions record-actions"><button onclick="detail('${i.id}')">عرض</button><button class="ghost" onclick="editItem('${i.id}')">تعديل</button><button class="danger" onclick="removeItem('${i.id}')">حذف</button></div></div></article>`;
 }
 let refreshBusy = false,
   lastDataToken = "";
@@ -590,8 +604,13 @@ function renderList(a) {
 }
 window.removeItem = async (id) => {
   if (confirm("حذف السجل؟")) {
-    await del(id);
-    await refresh(true);
+    try {
+      await del(id);
+      await refresh(true);
+      toast("تم حذف المقتنى.");
+    } catch (error) {
+      alert("تعذر حذف المقتنى: " + (error?.message || "خطأ غير معروف"));
+    }
   }
 };
 window.detail = async (id) => {
@@ -755,17 +774,28 @@ async function renderParticipants() {
   try {
     let r = await api("/api/participants");
     let a = r.participants || [];
+    let archived = r.archive || [];
     if ($("pendingParticipantsCount"))
       $("pendingParticipantsCount").textContent = r.pending || 0;
     if ($("participantsTotalCount"))
       $("participantsTotalCount").textContent = r.total || a.length;
+    if ($("participantsArchiveCount"))
+      $("participantsArchiveCount").textContent = r.archived || archived.length;
     $("participantsList").innerHTML =
       a
         .map(
           (x) =>
-            `<div class="participant ${x.approved ? "approved" : "pending"}"><b>${esc(x.name || "")}</b> — ${esc(x.phone || "")}<br><span class="muted">${x.approved && x.verified ? "✅ موثق ومعتمد" : x.approved ? "✅ معتمد إداريًا" : "⏳ بانتظار التحقق/الاعتماد"}</span><br><small class="muted">رمز المشاركة: ${esc(x.id || "")} ${x.created ? "— الطلب: " + new Date(x.created).toLocaleString("ar-SA") : ""}</small><div class="actions"><button onclick="participantSet('${x.id}',true,true)">✅ اعتماد مباشر بدون رمز</button><button class="danger" onclick="participantSet('${x.id}',false,false)">إلغاء الاعتماد</button></div></div>`,
+            `<div class="participant ${x.approved ? "approved" : "pending"}"><b>${esc(x.name || "")}</b> — ${esc(x.phone || "")}<br><span class="muted">${x.approved && x.verified ? "✅ موثق ومعتمد" : x.approved ? "✅ معتمد إداريًا" : "⏳ بانتظار التحقق/الاعتماد"}</span><br><small class="muted">رمز المشاركة: ${esc(x.id || "")} ${x.created ? "— الطلب: " + new Date(x.created).toLocaleString("ar-SA") : ""}</small><div class="actions"><button onclick="participantSet('${x.id}',true,true)">✅ اعتماد مباشر بدون رمز</button><button class="danger" onclick="participantSet('${x.id}',false,false)">${x.approved ? "إلغاء الاعتماد ونقل للأرشيف" : "رفض ونقل للأرشيف"}</button></div></div>`,
         )
         .join("") || "<p>لا توجد طلبات مشاركة.</p>";
+    if ($("participantsArchiveList"))
+      $("participantsArchiveList").innerHTML =
+        archived
+          .map(
+            (x) =>
+              `<div class="participant archived"><b>${esc(x.name || "")}</b> — ${esc(x.phone || "")}<br><span class="muted">🗄️ ${esc(x.archiveReason || "مؤرشف")}</span><br><small class="muted">رمز المشاركة: ${esc(x.id || "")} ${x.archivedAt ? "— الأرشفة: " + new Date(x.archivedAt).toLocaleString("ar-SA") : ""}</small><div class="actions"><button onclick="participantRestore('${x.id}',false)">↩️ استعادة إلى الانتظار</button><button onclick="participantRestore('${x.id}',true)">✅ استعادة واعتماد</button><button class="danger" onclick="participantDeleteForever('${x.id}')">🗑️ حذف نهائي</button></div></div>`,
+          )
+          .join("") || "<p>لا يوجد مشاركون في الأرشيف.</p>";
     await refreshParticipantBadge();
   } catch (e) {
     $("participantsList").innerHTML = "<p>تعذر تحميل المشاركين.</p>";
@@ -783,6 +813,8 @@ async function refreshParticipantBadge() {
       $("pendingParticipantsCount").textContent = r.pending || 0;
     if ($("participantsTotalCount"))
       $("participantsTotalCount").textContent = r.total || 0;
+    if ($("participantsArchiveCount"))
+      $("participantsArchiveCount").textContent = r.archived || 0;
     if ($("dashboardParticipantsPending"))
       $("dashboardParticipantsPending").textContent = r.pending || 0;
   } catch (e) {}
@@ -791,6 +823,22 @@ window.participantSet = async (id, approved, direct = false) => {
   await api("/api/participant/approve", {
     method: "POST",
     body: JSON.stringify({ id, approved, direct }),
+  });
+  await renderParticipants();
+};
+window.participantRestore = async (id, approve = false) => {
+  await api("/api/participant/restore", {
+    method: "POST",
+    body: JSON.stringify({ id, approve }),
+  });
+  await renderParticipants();
+};
+window.participantDeleteForever = async (id) => {
+  if (!confirm("حذف هذا العميل نهائيًا؟ لا يمكن التراجع عن هذا الإجراء."))
+    return;
+  await api("/api/participant/delete", {
+    method: "POST",
+    body: JSON.stringify({ id }),
   });
   await renderParticipants();
 };
@@ -1191,8 +1239,8 @@ $("form").onsubmit = async (e) => {
       marketNegotiationEnabled:
         wantsMarket && $("marketNegotiationEnabled")?.checked,
       marketNegotiationPercent: n("marketNegotiationPercent") || 5,
-      frontImg: frontImageRemoved ? "" : (frontImg || old?.frontImg || ""),
-      backImg: backImageRemoved ? "" : (backImg || old?.backImg || ""),
+      frontImg: frontImageRemoved ? "" : frontImg || old?.frontImg || "",
+      backImg: backImageRemoved ? "" : backImg || old?.backImg || "",
       warehouse: v("warehouse"),
       cabinet: v("cabinet"),
       shelf: v("shelf"),
