@@ -93,3 +93,28 @@ input,select,textarea{box-sizing:border-box;min-height:46px;font-size:16px}.admi
   }
   .visitor-floating-nav span{font-size:10px!important}
 }
+
+/* V4.0.25.3 — منع صفحات المزاد من تحويل شريط التنقل السفلي إلى قائمة عمودية */
+nav.visitor-floating-nav{
+  display:grid!important;
+  grid-auto-flow:column!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  grid-template-rows:1fr!important;
+  align-items:stretch!important;
+  justify-items:stretch!important;
+  flex-direction:row!important;
+  flex-wrap:nowrap!important;
+  writing-mode:horizontal-tb!important;
+  overflow:visible!important;
+}
+nav.visitor-floating-nav>a,
+nav.visitor-floating-nav>button{
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:center!important;
+  justify-content:center!important;
+  float:none!important;
+  position:relative!important;
+  margin:0!important;
+  writing-mode:horizontal-tb!important;
+}
