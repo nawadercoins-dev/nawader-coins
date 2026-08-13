@@ -6,28 +6,44 @@ ROOT=os.path.dirname(os.path.abspath(__file__))
 ADMIN_DIR=os.path.join(ROOT,'admin')
 PUBLIC_DIR=os.path.join(ROOT,'public')
 SHARED_DIR=os.path.join(ROOT,'shared')
-DATA=os.path.join(ROOT,'khazina_shared_data.json')
-PEOPLE=os.path.join(ROOT,'auction_participants.json')
-BIDS=os.path.join(ROOT,'auction_bids.json')
-NEGOTIATIONS=os.path.join(ROOT,'auction_negotiations.json')
-MARKET_REQUESTS=os.path.join(ROOT,'market_requests.json')
-SUBSCRIPTIONS=os.path.join(ROOT,'subscription_ledger.json')
-SAVE_AUDIT=os.path.join(ROOT,'save_audit.json')
-SETTINGS=os.path.join(ROOT,'platform_settings.json')
-NOTIFICATIONS=os.path.join(ROOT,'notifications.json')
-AUCTION_DUES=os.path.join(ROOT,'auction_dues.json')
-USER_PERMISSIONS=os.path.join(ROOT,'user_permissions.json')
-OPERATIONS_LOG=os.path.join(ROOT,'operations_log.json')
-ORDERS=os.path.join(ROOT,'orders_shipping.json')
-COLLECTIBLE_SUBMISSIONS=os.path.join(ROOT,'collectible_submissions.json')
-AUTH_FILE=os.path.join(ROOT,'admin_auth.json')
-ADMIN_CREDENTIALS=os.path.join(ROOT,'بيانات_دخول_الإدارة.txt')
+# في Render اربط قرصًا دائمًا بالمسار /var/data. محليًا يبقى الحفظ بجانب البرنامج.
+DATA_ROOT=os.path.abspath(os.environ.get('DATA_DIR') or ROOT)
+os.makedirs(DATA_ROOT,exist_ok=True)
+DATA=os.path.join(DATA_ROOT,'khazina_shared_data.json')
+PEOPLE=os.path.join(DATA_ROOT,'auction_participants.json')
+BIDS=os.path.join(DATA_ROOT,'auction_bids.json')
+NEGOTIATIONS=os.path.join(DATA_ROOT,'auction_negotiations.json')
+MARKET_REQUESTS=os.path.join(DATA_ROOT,'market_requests.json')
+SUBSCRIPTIONS=os.path.join(DATA_ROOT,'subscription_ledger.json')
+SAVE_AUDIT=os.path.join(DATA_ROOT,'save_audit.json')
+SETTINGS=os.path.join(DATA_ROOT,'platform_settings.json')
+NOTIFICATIONS=os.path.join(DATA_ROOT,'notifications.json')
+AUCTION_DUES=os.path.join(DATA_ROOT,'auction_dues.json')
+USER_PERMISSIONS=os.path.join(DATA_ROOT,'user_permissions.json')
+OPERATIONS_LOG=os.path.join(DATA_ROOT,'operations_log.json')
+ORDERS=os.path.join(DATA_ROOT,'orders_shipping.json')
+COLLECTIBLE_SUBMISSIONS=os.path.join(DATA_ROOT,'collectible_submissions.json')
+AUTH_FILE=os.path.join(DATA_ROOT,'admin_auth.json')
+ADMIN_CREDENTIALS=os.path.join(DATA_ROOT,'بيانات_دخول_الإدارة.txt')
 ADMIN_SESSIONS={}
 SESSION_TTL_SECONDS=12*60*60
 LOCK=threading.Lock()
-BACKUP_DIR=os.path.join(ROOT,'backups')
-UPLOAD_DIR=os.path.join(ROOT,'uploads')
+BACKUP_DIR=os.path.join(DATA_ROOT,'backups')
+UPLOAD_DIR=os.path.join(DATA_ROOT,'uploads')
+os.makedirs(BACKUP_DIR,exist_ok=True)
 os.makedirs(UPLOAD_DIR,exist_ok=True)
+
+# تهيئة القرص في أول تشغيل فقط من الملفات المرفقة مع المشروع، دون استبدال أي بيانات دائمة.
+if DATA_ROOT != ROOT:
+    for _dst in (DATA,PEOPLE,BIDS,NEGOTIATIONS,MARKET_REQUESTS,SUBSCRIPTIONS,SAVE_AUDIT,SETTINGS,NOTIFICATIONS,AUCTION_DUES,USER_PERMISSIONS,OPERATIONS_LOG,ORDERS,COLLECTIBLE_SUBMISSIONS,AUTH_FILE):
+        _src=os.path.join(ROOT,os.path.basename(_dst))
+        if not os.path.exists(_dst) and os.path.isfile(_src):
+            shutil.copy2(_src,_dst)
+    _seed_uploads=os.path.join(ROOT,'uploads')
+    if os.path.isdir(_seed_uploads) and not os.listdir(UPLOAD_DIR):
+        for _name in os.listdir(_seed_uploads):
+            _src=os.path.join(_seed_uploads,_name); _dst=os.path.join(UPLOAD_DIR,_name)
+            if os.path.isfile(_src): shutil.copy2(_src,_dst)
 
 def backup_data(reason='auto'):
     if not os.path.exists(DATA): return None
