@@ -1,0 +1,17 @@
+{
+  "name": "خزينة المقتنيات V2.8",
+  "short_name": "الخزينة",
+  "start_url": "./",
+  "display": "standalone",
+  "theme_color": "#071b35",
+  "background_color": "#f7f2e8",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
