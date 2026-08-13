@@ -273,7 +273,7 @@ def public_item(i):
         try: ended=datetime.datetime.fromisoformat(end) <= datetime.datetime.now()
         except Exception: ended=False
     sold=bool(ended and bids and (target<=0 or top>=target))
-    public_keys=['id','country','denomination','year','type','condition','quantity','serials','frontImg','backImg','auctionEnd','auctionOpeningPrice','auctionBidStep','notes','negotiationEnabled','negotiationPercent','auctionRound','issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason']
+    public_keys=['id','country','denomination','year','type','condition','quantity','serials','frontImg','backImg','auctionEnd','auctionOpeningPrice','auctionBidStep','notes','negotiationEnabled','negotiationPercent','auctionRound','issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason','updated']
     return {k:i.get(k) for k in public_keys} | {'auctionCurrentPrice':top,'bidCount':len(bids),'reserveState':reserve_state,'auctionEnded':ended,'auctionSold':sold}
 
 
@@ -283,7 +283,7 @@ def public_market_item(i):
     keys=['id','country','denomination','year','type','condition','quantity','frontImg','backImg','notes',
           'issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','gradingVerificationStatus','gradingNotes',
           'marketOfferType','marketSalePrice','marketUnitPrice','marketQuantity','marketSetPieces','marketSetSize','marketSetCurrencyMode','marketPriceUnit',
-          'marketPartialAllowed','marketNegotiationEnabled','marketNegotiationPercent','marketTitle']
+          'marketPartialAllowed','marketNegotiationEnabled','marketNegotiationPercent','marketTitle','updated','specialNumberEnabled']
     out={k:i.get(k) for k in keys}
     out['availableQuantity']=max(0,int(i.get('marketQuantity') or i.get('quantity') or 1)-int(i.get('marketSoldQuantity') or 0))
     return out
@@ -773,7 +773,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
         if p=='/api/version':
-            self.sendj({'version':'4.0.17','name':'Khazinat Al-Muqtaniat','port':getattr(self.server,'server_port',None)}); return
+            self.sendj({'version':'4.0.25','name':'Khazinat Al-Muqtaniat','port':getattr(self.server,'server_port',None)}); return
         if p=='/api/settings/public':
             st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours']}); return
         if p=='/api/settings/admin':
@@ -1457,7 +1457,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.0.23-ADMIN-RECOVERY'
+VERSION='4.0.25-CLOUD-IMAGES'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip

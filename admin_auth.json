@@ -1,1 +1,9 @@
-{"version": 1, "username": "admin", "salt": "0cf70c85844b0f7ee29666fd2ba2bec5", "iterations": 260000, "hash": "e818dc6c8e43cb2c1648535f691f17cccce2f5cd74913e3ced2af6c0a49c3e1e", "created": "2026-08-11T08:19:03.688988"}
+{
+  "version": 2,
+  "username": "admin",
+  "salt": "79034896f941ce36465b50eb04ec6588",
+  "iterations": 260000,
+  "hash": "3104216833e4d5e0f038ddd6faf3d161a425bcb7a7faf6b05afd1c1deb0bb5bf",
+  "created": "2026-08-12T12:52:58.256822",
+  "source": "ADMIN_PASSWORD/default-recovery"
+}
