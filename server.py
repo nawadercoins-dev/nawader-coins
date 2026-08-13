@@ -559,9 +559,20 @@ def _run_tesseract(exe, image_path, lang, psm):
 
 def analyze_image(url):
     # OCR is intentionally independent from database saving. A read failure must never block saving an item or image.
-    rel=(url or '').lstrip('/')
-    path=os.path.abspath(os.path.join(ROOT,rel))
-    if not path.startswith(os.path.abspath(UPLOAD_DIR)) or not os.path.exists(path):
+    # The public URL is /uploads/..., but on Render the real file can be
+    # /var/data/uploads/... outside ROOT. Resolve it against UPLOAD_DIR.
+    parsed_path=urlparse(str(url or '')).path
+    prefix='/uploads/'
+    if not parsed_path.startswith(prefix):
+        return False,{},'الصورة غير موجودة على الخادم.'
+    rel=parsed_path[len(prefix):]
+    path=os.path.abspath(os.path.join(UPLOAD_DIR,rel))
+    upload_root=os.path.abspath(UPLOAD_DIR)
+    try:
+        inside_uploads=os.path.commonpath([path,upload_root])==upload_root
+    except ValueError:
+        inside_uploads=False
+    if not inside_uploads or not os.path.isfile(path):
         return False,{},'الصورة غير موجودة على الخادم.'
 
     exe,version,diag=resolve_tesseract()
@@ -880,11 +891,13 @@ class H(SimpleHTTPRequestHandler):
                 self.sendj({'items':load()}); return
         if p=='/api/participants':
             with LOCK:
-                people=load_people(); people.sort(key=lambda x:(bool(x.get('approved')),x.get('created','')))
-                self.sendj({'participants':people,'total':len(people),'pending':sum(1 for x in people if not x.get('approved'))}); return
+                people=load_people(); active=[x for x in people if not x.get('archived')]; archived=[x for x in people if x.get('archived')]
+                active.sort(key=lambda x:(bool(x.get('approved')),x.get('created',''))); archived.sort(key=lambda x:x.get('archivedAt',''),reverse=True)
+                self.sendj({'participants':active,'archive':archived,'total':len(active),'pending':sum(1 for x in active if not x.get('approved')),'archived':len(archived)}); return
         if p=='/api/participants/summary':
             with LOCK:
-                people=load_people(); self.sendj({'total':len(people),'pending':sum(1 for x in people if not x.get('approved')),'approved':sum(1 for x in people if x.get('approved'))}); return
+                people=load_people(); active=[x for x in people if not x.get('archived')]; archived=[x for x in people if x.get('archived')]
+                self.sendj({'total':len(active),'pending':sum(1 for x in active if not x.get('approved')),'approved':sum(1 for x in active if x.get('approved')),'archived':len(archived)}); return
         if p=='/api/participant/status':
             q=urlparse(self.path).query
             pid=(parse_qs(q).get('id') or [''])[0]
@@ -1372,16 +1385,34 @@ class H(SimpleHTTPRequestHandler):
                         nowiso=datetime.datetime.now().isoformat()
                         x['approved']=approved; x['approvedAt']=nowiso if approved else ''
                         if approved and direct:
-                            x['verified']=True; x['verifiedAt']=nowiso; x['otp']=''; x['otpExpires']=''; x['otpAttempts']=0
+                            x['verified']=True; x['verifiedAt']=nowiso; x['otp']=''; x['otpExpires']=''; x['otpAttempts']=0; x['archived']=False; x['archivedAt']=''; x['archiveReason']=''
+                        elif not approved:
+                            x['archived']=True; x['archivedAt']=nowiso; x['archiveReason']='إلغاء أو رفض الاعتماد'
                         found=True
                 save_json(PEOPLE,{'participants':a})
                 if found:
                     add_notification('participant',iid,'approval','✅ تم اعتماد حسابك' if approved else 'تم إيقاف اعتماد المشاركة','يمكنك الآن المشاركة في المزادات.' if approved else 'تم إيقاف صلاحية المشاركة من الإدارة.','','/account')
                     append_operation('تحديث اعتماد مشارك',{'participantId':iid,'approved':approved,'direct':direct})
                 self.sendj({'ok':found,'approved':approved,'direct':direct}); return
+            if p=='/api/participant/restore':
+                a=load_people(); iid=d.get('id'); approve=bool(d.get('approve')); found=False
+                for x in a:
+                    if x.get('id')==iid:
+                        nowiso=datetime.datetime.now().isoformat(); x['archived']=False; x['archivedAt']=''; x['archiveReason']=''; x['approved']=approve; x['approvedAt']=nowiso if approve else ''
+                        if approve: x['verified']=True; x['verifiedAt']=nowiso; x['otp']=''; x['otpExpires']=''; x['otpAttempts']=0
+                        found=True; break
+                if found:
+                    save_json(PEOPLE,{'participants':a}); append_operation('استعادة مشارك من الأرشيف',{'participantId':iid,'approved':approve})
+                self.sendj({'ok':found,'approved':approve}); return
+            if p=='/api/participant/delete':
+                a=load_people(); iid=d.get('id'); person=next((x for x in a if x.get('id')==iid),None)
+                if not person: self.sendj({'error':'المشارك غير موجود'},404); return
+                if not person.get('archived'): self.sendj({'error':'يجب نقل المشارك إلى الأرشيف قبل الحذف النهائي'},409); return
+                a=[x for x in a if x.get('id')!=iid]; save_json(PEOPLE,{'participants':a}); append_operation('حذف مشارك نهائيًا',{'participantId':iid,'name':person.get('name','')})
+                self.sendj({'ok':True}); return
             if p=='/api/bid':
                 itemId=d.get('itemId'); pid=d.get('participantId'); amount=float(d.get('amount') or 0)
-                person=next((x for x in load_people() if x.get('id')==pid and x.get('approved') and x.get('verified') and not x.get('blocked')),None)
+                person=next((x for x in load_people() if x.get('id')==pid and x.get('approved') and x.get('verified') and not x.get('blocked') and not x.get('archived')),None)
                 item=next((i for i in load() if i.get('id')==itemId and i.get('forAuction') and i.get('auctionApproved')),None)
                 if not person: self.sendj({'error':'يجب توثيق رقم الجوال قبل المزايدة'},403); return
                 if not item: self.sendj({'error':'المزاد غير متاح'},404); return
