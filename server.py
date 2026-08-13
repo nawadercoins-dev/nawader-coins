@@ -617,19 +617,33 @@ def analyze_image(url):
 def _pbkdf2(password, salt_hex, iterations=260000):
     return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), bytes.fromhex(salt_hex), iterations).hex()
 
+def _configured_admin_password():
+    # Render/production can override this with ADMIN_PASSWORD.
+    # The approved recovery default is 12345678 so local and Render logins stay in sync.
+    return str(os.environ.get('ADMIN_PASSWORD') or '12345678')
+
 def ensure_admin_auth():
+    password=_configured_admin_password()
     cfg=load_json(AUTH_FILE,{})
+    iterations=260000
+    valid=False
     if isinstance(cfg,dict) and cfg.get('salt') and cfg.get('hash'):
+        try:
+            got=_pbkdf2(password,cfg['salt'],int(cfg.get('iterations') or iterations))
+            valid=secrets.compare_digest(got,str(cfg.get('hash') or '')) and str(cfg.get('username') or 'admin')=='admin'
+        except Exception:
+            valid=False
+    if valid:
         return cfg, None
-    password=secrets.token_urlsafe(12)
     salt=secrets.token_hex(16)
-    cfg={'version':1,'username':'admin','salt':salt,'iterations':260000,'hash':_pbkdf2(password,salt,260000),'created':datetime.datetime.now().isoformat()}
+    cfg={'version':2,'username':'admin','salt':salt,'iterations':iterations,'hash':_pbkdf2(password,salt,iterations),'created':datetime.datetime.now().isoformat(),'source':'ADMIN_PASSWORD/default-recovery'}
     save_json(AUTH_FILE,cfg)
     try:
         with open(ADMIN_CREDENTIALS,'w',encoding='utf-8') as f:
             f.write('دخول إدارة نوادر العملات\n')
             f.write('اسم المستخدم: admin\n')
-            f.write('كلمة المرور الأولية: '+password+'\n\n')
+            f.write('كلمة المرور: '+password+'\n\n')
+            f.write('يمكن تغييرها لاحقًا عبر متغير ADMIN_PASSWORD في Render.\n')
             f.write('احتفظ بهذا الملف في جهاز الإدارة ولا تشاركه مع العملاء.\n')
     except Exception: pass
     return cfg, password
@@ -688,7 +702,7 @@ class H(SimpleHTTPRequestHandler):
         return origin in ('http://'+host,'https://'+host)
     def login_page(self,error=''):
         err=('<div class="err">'+error+'</div>') if error else ''
-        html='''<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>دخول الإدارة | نوادر العملات</title><style>body{margin:0;background:#0b1224;font-family:Tahoma,Arial,sans-serif;color:#0d1b3b;min-height:100vh;display:grid;place-items:center}.box{width:min(430px,90vw);background:white;border-radius:22px;padding:28px;box-shadow:0 20px 60px #0008;border-top:5px solid #c79245}h1{margin:0 0 8px;color:#102659}p{color:#5c6470}label{display:block;font-weight:700;margin:16px 0 6px}input{box-sizing:border-box;width:100%;padding:13px;border:1px solid #ccd3df;border-radius:12px;font-size:17px}button{width:100%;margin-top:20px;padding:13px;border:0;border-radius:12px;background:#102659;color:white;font-weight:800;font-size:17px;cursor:pointer}.err{background:#fff0f0;color:#9d1b2d;padding:10px;border-radius:10px;margin:12px 0}.public{display:block;text-align:center;margin-top:16px;color:#8a642b;text-decoration:none}</style></head><body><form class="box" method="post" action="/admin-login"><h1>🔐 دخول الإدارة</h1><p>الخزينة والسجل والمالية وإدارة السوق والمزاد محمية ولا تظهر للزوار.</p>'''+err+'''<label>اسم المستخدم</label><input name="username" value="admin" autocomplete="username" required><label>كلمة المرور</label><input name="password" type="password" autocomplete="current-password" required><button type="submit">دخول الإدارة</button><a class="public" href="/home">العودة إلى واجهة نوادر العملات</a></form></body></html>'''
+        html='''<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>دخول الإدارة | نوادر العملات</title><style>body{margin:0;background:#0b1224;font-family:Tahoma,Arial,sans-serif;color:#0d1b3b;min-height:100vh;display:grid;place-items:center}.box{width:min(430px,90vw);background:white;border-radius:22px;padding:28px;box-shadow:0 20px 60px #0008;border-top:5px solid #c79245}h1{margin:0 0 8px;color:#102659}p{color:#5c6470}label{display:block;font-weight:700;margin:16px 0 6px}input{box-sizing:border-box;width:100%;padding:13px;border:1px solid #ccd3df;border-radius:12px;font-size:17px}button{width:100%;margin-top:20px;padding:13px;border:0;border-radius:12px;background:#102659;color:white;font-weight:800;font-size:17px;cursor:pointer}.err{background:#fff0f0;color:#9d1b2d;padding:10px;border-radius:10px;margin:12px 0}.public{display:block;text-align:center;margin-top:16px;color:#8a642b;text-decoration:none}</style></head><body><form class="box" method="post" action="/admin-login"><h1>🔐 دخول الإدارة</h1><p>الخزينة والسجل والمالية وإدارة السوق والمزاد محمية ولا تظهر للزوار.</p>'''+err+'''<label>اسم المستخدم</label><input name="username" value="admin" autocomplete="username" required><label>كلمة المرور</label><input name="password" type="password" autocomplete="current-password" required><button type="submit">دخول الإدارة</button><a class="public" href="/">العودة إلى واجهة نوادر العملات</a></form></body></html>'''
         data=html.encode('utf-8'); self.send_response(200); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Content-Length',str(len(data))); self.end_headers(); self.wfile.write(data)
     def end_headers(self):
         self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')
@@ -724,8 +738,12 @@ class H(SimpleHTTPRequestHandler):
             self.login_page(); return
         if p=='/admin-logout':
             token=self.cookie_value('KhazinaAdmin'); ADMIN_SESSIONS.pop(token,None)
-            self.send_response(302); self.send_header('Set-Cookie','KhazinaAdmin=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict'); self.send_header('Location','/home'); self.end_headers(); return
-        if p in ('/','/admin','/admin/','/index.html'):
+            self.send_response(302); self.send_header('Set-Cookie','KhazinaAdmin=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict'); self.send_header('Location','/'); self.end_headers(); return
+        # The root URL is the permanent public homepage. Keep /home as a
+        # compatibility alias so old bookmarks and printed links never 404.
+        if p in ('/','/home','/home/','/public_home.html'):
+            self.send_file(os.path.join(PUBLIC_DIR,'public_home.html'),'text/html; charset=utf-8'); return
+        if p in ('/admin','/admin/','/index.html'):
             if not self.require_admin(): return
             self.send_file(os.path.join(ADMIN_DIR,'index.html'),'text/html; charset=utf-8'); return
         if p in ('/admin/app.js','/admin/styles.css'):
@@ -854,9 +872,11 @@ class H(SimpleHTTPRequestHandler):
                 now=datetime.datetime.now()
                 for i in load():
                     if not (i.get('forAuction') and i.get('auctionApproved')): continue
-                    # Keep ended approved auctions visible so visitors can see the final result / winner status.
-                    items.append(public_item(i))
-                items.sort(key=lambda x:(bool(x.get('auctionEnded')), str(x.get('auctionEnd') or '')))
+                    public=public_item(i)
+                    # V4.0.20: المزادات المنتهية تُفصل عن صفحة المزادات النشطة العامة.
+                    if public.get('auctionEnded'): continue
+                    items.append(public)
+                items.sort(key=lambda x:str(x.get('auctionEnd') or ''))
                 self.sendj({'items':items}); return
         if p=='/api/visitor/orders':
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
@@ -912,8 +932,6 @@ class H(SimpleHTTPRequestHandler):
             # توافق مع أي QR قديم مطبوع: لا تنتهي صلاحيته بعد الآن.
             self.send_file(os.path.join(PUBLIC_DIR,'public_auction.html'),'text/html; charset=utf-8'); return
         # Robust public-auction aliases so the visitor page works even when the browser uses a clean URL.
-        if p in ('/home','/home/','/public_home.html'):
-            self.send_file(os.path.join(PUBLIC_DIR,'public_home.html'),'text/html; charset=utf-8'); return
         if p in ('/announcements','/announcements/','/announcements.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'announcements.html'),'text/html; charset=utf-8'); return
         if p in ('/account','/account/','/account.html'):
@@ -1125,7 +1143,7 @@ class H(SimpleHTTPRequestHandler):
                     if offered<=0 or offered+1e-9<minimum: self.sendj({'error':f'أقل عرض تفاوض مسموح {minimum:.2f} ر.س'},409); return
                 else: offered=base
                 fee_pct=float(load_settings().get('buyerFeePercent') or 0); fee=round((offered if action=='offer' else base)*fee_pct/100,2); total=round((offered if action=='offer' else base)+fee,2); now=datetime.datetime.now(); reserve_until=now+datetime.timedelta(minutes=30)
-                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or item_title(item),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':price,'name':person.get('name',''),'phone':person.get('phone',''),'action':action,'quantity':qty,'selectedSerials':selected,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':fee,'buyerTotal':total,'status':'pending','sourcePage':'special_numbers','reservedUntil':reserve_until.isoformat(),'created':now.isoformat()}
+                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or item_title(item),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':price,'name':person.get('name',''),'phone':person.get('phone',''),'action':action,'quantity':qty,'selectedSerials':selected,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':fee,'buyerTotal':total,'status':'pending','sourcePage':'special_numbers','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'reservedUntil':reserve_until.isoformat(),'created':now.isoformat()}
                 a=load_market_requests(); a.append(row); save_json(MARKET_REQUESTS,{'requests':a}); add_notification('admin','','market','🛒 طلب من صفحة الأرقام المميزة',f"{person.get('name','عميل')} طلب {item_title(item)}"+((' — الأرقام: '+', '.join(selected)) if selected else f' — الكمية: {qty}'),'','/admin'); add_notification('participant',pid,'order','تم تسجيل طلبك',f"تم حجز اختيارك من {item_title(item)} مؤقتًا وإرسال الطلب للإدارة.",item_id,'/account'); self.sendj({'ok':True,'request':row}); return
             if p=='/api/market/request':
                 item_id=str(d.get('itemId','')); name=str(d.get('name','')).strip(); phone=''.join(ch for ch in str(d.get('phone','')) if ch.isdigit() or ch=='+')
@@ -1154,7 +1172,7 @@ class H(SimpleHTTPRequestHandler):
                     if offered<=0 or offered+1e-9<minimum: self.sendj({'error':f'أقل عرض تفاوض مسموح {minimum:.2f} ر.س'},409); return
                 else: offered=base
                 fee_pct=float(load_settings().get('buyerFeePercent') or 0); fee=(offered if action=='offer' else base)*fee_pct/100; total=(offered if action=='offer' else base)+fee
-                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or ((item.get('country') or '')+' — '+(item.get('denomination') or '')),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','marketOfferType':item.get('marketOfferType') or 'single','unitPrice':unit,'name':name,'phone':phone,'action':action,'quantity':qty,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':round(fee,2),'buyerTotal':round(total,2),'status':'pending','created':datetime.datetime.now().isoformat()}
+                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or ((item.get('country') or '')+' — '+(item.get('denomination') or '')),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','marketOfferType':item.get('marketOfferType') or 'single','unitPrice':unit,'name':name,'phone':phone,'action':action,'quantity':qty,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':round(fee,2),'buyerTotal':round(total,2),'status':'pending','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'created':datetime.datetime.now().isoformat()}
                 a=load_market_requests(); a.append(row); save_json(MARKET_REQUESTS,{'requests':a})
                 chk=next((x for x in load_market_requests() if x.get('id')==row['id']),None)
                 if not chk: self.sendj({'error':'تعذر التحقق من تسجيل طلب السوق'},500); return
@@ -1400,16 +1418,24 @@ class H(SimpleHTTPRequestHandler):
         self.sendj({'error':'not found'},404)
 
 os.chdir(ROOT); backup_data('startup')
+# تشغيل آمن: تأكد من وجود ملفات الواجهات الأساسية قبل بدء الخدمة.
+_required_runtime_files=[
+    os.path.join(ADMIN_DIR,'index.html'), os.path.join(ADMIN_DIR,'app.js'), os.path.join(ADMIN_DIR,'styles.css'),
+    os.path.join(PUBLIC_DIR,'public_home.html'), os.path.join(PUBLIC_DIR,'public_auction.html'), os.path.join(PUBLIC_DIR,'public_market.html')
+]
+_missing_runtime=[p for p in _required_runtime_files if not os.path.isfile(p)]
+if _missing_runtime:
+    raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.0.17-SPECIAL-NUMBERS-COMMERCE'
+VERSION='4.0.23-ADMIN-RECOVERY'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
     except Exception: return '127.0.0.1'
 
 def make_server():
-    preferred=int(os.environ.get('KHAZINA_PORT','8080'))
+    preferred=int(os.environ.get('PORT') or os.environ.get('KHAZINA_PORT','8080'))
     for port in range(preferred,preferred+10):
         try: return ThreadingHTTPServer(('0.0.0.0',port),H),port
         except OSError as e:
