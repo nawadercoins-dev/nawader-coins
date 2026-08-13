@@ -684,6 +684,10 @@ def is_public_upload_url(url):
     for i in load():
         if not ((i.get('forAuction') and i.get('auctionApproved')) or (i.get('forMarket') and i.get('marketApproved'))): continue
         if urlparse(str(i.get('frontImg') or '')).path==path or urlparse(str(i.get('backImg') or '')).path==path: return True
+    # صور طلبات المقتنيات تُحفظ بأسماء عشوائية على القرص الدائم، وتحتاجها
+    # صفحة صاحب الطلب للمعاينة والتعديل قبل اعتماد الإدارة.
+    for row in load_collectible_submissions():
+        if urlparse(str(row.get('frontImage') or '')).path==path or urlparse(str(row.get('backImage') or '')).path==path: return True
     return False
 
 ADMIN_GET_API={
@@ -691,7 +695,7 @@ ADMIN_GET_API={
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
     '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin'
 }
-PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions'}
+PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload'}
 PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html'}
 
 class H(SimpleHTTPRequestHandler):
@@ -792,6 +796,9 @@ class H(SimpleHTTPRequestHandler):
             safe=[]
             for x in rows:
                 y={k:v for k,v in x.items() if k not in ('frontImage','backImage')}
+                # لا نعيد Base64 القديم حتى لا تمتلئ ذاكرة الجوال؛ الروابط الدائمة آمنة للعرض.
+                if str(x.get('frontImage') or '').startswith('/uploads/'): y['frontImage']=x.get('frontImage')
+                if str(x.get('backImage') or '').startswith('/uploads/'): y['backImage']=x.get('backImage')
                 y['hasFrontImage']=bool(x.get('frontImage')); y['hasBackImage']=bool(x.get('backImage'))
                 safe.append(y)
             self.sendj({'submissions':safe}); return
@@ -1018,8 +1025,12 @@ class H(SimpleHTTPRequestHandler):
                 self.sendj({'error':'ملف النسخة الاحتياطية تالف أو ليس ملف خزينة كامل'},400); return
             except Exception as e:
                 self.sendj({'error':'تعذر استعادة النسخة الكاملة: '+str(e)},400); return
-        if p=='/api/upload':
+        if p in ('/api/upload','/api/visitor/upload'):
             try:
+                if p=='/api/visitor/upload':
+                    pid=str(self.headers.get('X-Participant-Id') or '')
+                    person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+                    if not person: self.sendj({'error':'يجب تسجيل الدخول بحساب موثق أولًا'},403); return
                 n=int(self.headers.get('Content-Length','0'))
                 if n<=0 or n>50*1024*1024: self.sendj({'error':'حجم الصورة غير مناسب (الحد 50 ميجابايت)'},413); return
                 ctype=(self.headers.get('Content-Type') or '').lower(); ext='.jpg'
@@ -1064,14 +1075,33 @@ class H(SimpleHTTPRequestHandler):
                 if not country or not denomination: self.sendj({'error':'الدولة والفئة مطلوبتان'},400); return
                 front=str(d.get('frontImage') or ''); back=str(d.get('backImage') or '')
                 for label,img in [('الوجه',front),('الخلف',back)]:
-                    if img and (not img.startswith('data:image/') or len(img)>6*1024*1024): self.sendj({'error':f'صورة {label} غير صالحة أو كبيرة جدًا'},400); return
+                    if img and not img.startswith('/uploads/') and (not img.startswith('data:image/') or len(img)>6*1024*1024): self.sendj({'error':f'صورة {label} غير صالحة أو كبيرة جدًا'},400); return
                 rows=load_collectible_submissions(); now=datetime.datetime.now().isoformat()
+                sid=str(d.get('id') or '')
+                if sid:
+                    row=next((x for x in rows if str(x.get('id'))==sid and str(x.get('participantId'))==pid),None)
+                    if not row: self.sendj({'error':'السجل غير موجود أو لا تملك صلاحية تعديله'},404); return
+                    if row.get('itemId') or row.get('status')=='approved': self.sendj({'error':'تم اعتماد السجل؛ اطلب من الإدارة تعديله'},409); return
+                    row.update({'country':country,'denomination':denomination,'year':str(d.get('year') or '').strip(),'issueEdition':str(d.get('issueEdition') or '').strip(),'condition':str(d.get('condition') or 'UNC').strip(),'serial':str(d.get('serial') or '').strip(),'notes':str(d.get('notes') or '').strip(),'desiredDestination':str(d.get('desiredDestination') or 'vault'),'frontImage':front,'backImage':back,'status':'pending','adminNote':'','updated':now})
+                    save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
+                    add_notification('admin','','approval','✏️ تم تعديل طلب مقتنى',f"عدّل {person.get('name','عميل')} مقتنى {country} — {denomination} وأعاده للمراجعة.",'','/admin')
+                    self.sendj({'ok':True,'submission':{k:v for k,v in row.items() if k not in ('frontImage','backImage')}}); return
                 row={'id':'cs-'+secrets.token_hex(6),'participantId':pid,'participantName':person.get('name',''),'participantPhone':person.get('phone',''),'country':country,'denomination':denomination,'year':str(d.get('year') or '').strip(),'issueEdition':str(d.get('issueEdition') or '').strip(),'condition':str(d.get('condition') or 'UNC').strip(),'serial':str(d.get('serial') or '').strip(),'notes':str(d.get('notes') or '').strip(),'desiredDestination':str(d.get('desiredDestination') or 'vault'),'frontImage':front,'backImage':back,'status':'pending','adminNote':'','created':now,'updated':now,'itemId':''}
                 rows.append(row); save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
                 add_notification('admin','','approval','🪙 طلب اعتماد مقتنى جديد',f"أرسل {person.get('name','عميل')} مقتنى {country} — {denomination} للمراجعة والاعتماد.",'','/admin')
                 add_notification('participant',pid,'approval','تم استلام المقتنى للمراجعة',f'تم استلام {country} — {denomination}. الحالة الآن: قيد المراجعة.','','/account')
                 append_operation('إرسال مقتنى للاعتماد',{'submissionId':row['id'],'participantId':pid,'country':country,'denomination':denomination},actor='العميل')
                 self.sendj({'ok':True,'submission':{k:v for k,v in row.items() if k not in ('frontImage','backImage')}}); return
+            if p=='/api/collectible-submissions/delete':
+                pid=str(d.get('participantId') or ''); sid=str(d.get('id') or '')
+                person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+                if not person: self.sendj({'error':'يجب تسجيل الدخول بحساب موثق أولًا'},403); return
+                rows=load_collectible_submissions(); row=next((x for x in rows if str(x.get('id'))==sid and str(x.get('participantId'))==pid),None)
+                if not row: self.sendj({'error':'السجل غير موجود أو لا تملك صلاحية حذفه'},404); return
+                if row.get('itemId') or row.get('status')=='approved': self.sendj({'error':'تم اعتماد السجل؛ الحذف من صلاحية الإدارة'},409); return
+                rows=[x for x in rows if str(x.get('id'))!=sid]; save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
+                append_operation('حذف طلب مقتنى',{'submissionId':sid,'participantId':pid},actor='العميل')
+                self.sendj({'ok':True}); return
             if p=='/api/collectible-submissions/status':
                 sid=str(d.get('id') or ''); action=str(d.get('status') or ''); note=str(d.get('note') or '').strip()
                 if action not in ('approved','needs_changes','rejected'): self.sendj({'error':'الإجراء غير صالح'},400); return
