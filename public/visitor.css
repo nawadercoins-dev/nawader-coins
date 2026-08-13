@@ -56,8 +56,40 @@ input,select,textarea{box-sizing:border-box;min-height:46px;font-size:16px}.admi
 
 /* V4.0.25 — شريط تنقل ثابت وموحد في جميع صفحات الزوار */
 .has-visitor-floating-nav{padding-bottom:88px!important}
-.visitor-floating-nav{position:fixed;z-index:99990;inset-inline-start:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);display:grid;grid-template-columns:repeat(3,minmax(76px,1fr));gap:7px;width:min(330px,calc(100vw - 24px));padding:7px;background:rgba(7,27,53,.96);border:1px solid rgba(226,189,105,.9);border-radius:19px;box-shadow:0 12px 35px rgba(0,0,0,.34);backdrop-filter:blur(9px)}
+.visitor-floating-nav{position:fixed;z-index:99990;left:50%;right:auto;inset-inline-start:auto;inset-inline-end:auto;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);display:grid;grid-template-columns:repeat(3,minmax(76px,1fr));gap:7px;width:min(330px,calc(100vw - 24px));max-width:calc(100dvw - 12px);padding:7px;box-sizing:border-box;background:rgba(7,27,53,.96);border:1px solid rgba(226,189,105,.9);border-radius:19px;box-shadow:0 12px 35px rgba(0,0,0,.34);backdrop-filter:blur(9px)}
 .visitor-floating-nav a,.visitor-floating-nav button{min-height:51px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid rgba(226,189,105,.45);border-radius:13px;background:#123b66;color:#fff;text-decoration:none;font:900 17px Tahoma,"Segoe UI",Arial;cursor:pointer}
 .visitor-floating-nav a{background:linear-gradient(135deg,#b98218,#e1b94f);color:#071b35;border-color:#e7ca7b}
 .visitor-floating-nav span{font-size:13px}
-@media(max-width:480px){.has-visitor-floating-nav{padding-bottom:82px!important}.visitor-floating-nav{bottom:max(7px,env(safe-area-inset-bottom));grid-template-columns:repeat(3,1fr);width:calc(100vw - 16px)}.visitor-floating-nav a,.visitor-floating-nav button{min-height:48px;font-size:16px}.visitor-floating-nav span{font-size:12px}}
+@media(max-width:480px){.has-visitor-floating-nav{padding-bottom:76px!important}.visitor-floating-nav{bottom:max(6px,env(safe-area-inset-bottom));grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;width:min(286px,calc(100vw - 12px));padding:5px;border-radius:16px}.visitor-floating-nav a,.visitor-floating-nav button{min-width:0;min-height:43px;padding:5px 4px;font-size:14px;border-radius:12px}.visitor-floating-nav span{font-size:11px}}
+
+/* V4.0.25.2 — تثبيت الشريط داخل عرض شاشة الجوال الحقيقي حتى مع وجود محتوى أفقي عريض */
+@media (max-width:700px) and (orientation:portrait){
+  .has-visitor-floating-nav{padding-bottom:72px!important}
+  .visitor-floating-nav{
+    position:fixed!important;
+    left:50vw!important;
+    right:auto!important;
+    inset-inline-start:auto!important;
+    inset-inline-end:auto!important;
+    bottom:calc(6px + env(safe-area-inset-bottom,0px))!important;
+    transform:translate3d(-50%,0,0)!important;
+    width:min(264px,calc(100vw - 16px))!important;
+    max-width:calc(100vw - 16px)!important;
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    gap:4px!important;
+    padding:5px!important;
+    border-radius:15px!important;
+    direction:rtl!important;
+  }
+  .visitor-floating-nav a,.visitor-floating-nav button{
+    min-width:0!important;
+    width:100%!important;
+    min-height:40px!important;
+    padding:4px 3px!important;
+    gap:3px!important;
+    border-radius:10px!important;
+    font-size:13px!important;
+    white-space:nowrap!important;
+  }
+  .visitor-floating-nav span{font-size:10px!important}
+}
