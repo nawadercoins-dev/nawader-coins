@@ -53,3 +53,11 @@ input,select,textarea{box-sizing:border-box;min-height:46px;font-size:16px}.admi
 .auction-lightbox-stage img:active{cursor:grabbing}
 .public-photo-tools button[data-act="open"]{background:#d99a18!important;color:#fff!important;font-weight:900}
 .auction-expandable-image{cursor:zoom-in!important}
+
+/* V4.0.25 — شريط تنقل ثابت وموحد في جميع صفحات الزوار */
+.has-visitor-floating-nav{padding-bottom:88px!important}
+.visitor-floating-nav{position:fixed;z-index:99990;inset-inline-start:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);display:grid;grid-template-columns:repeat(3,minmax(76px,1fr));gap:7px;width:min(330px,calc(100vw - 24px));padding:7px;background:rgba(7,27,53,.96);border:1px solid rgba(226,189,105,.9);border-radius:19px;box-shadow:0 12px 35px rgba(0,0,0,.34);backdrop-filter:blur(9px)}
+.visitor-floating-nav a,.visitor-floating-nav button{min-height:51px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid rgba(226,189,105,.45);border-radius:13px;background:#123b66;color:#fff;text-decoration:none;font:900 17px Tahoma,"Segoe UI",Arial;cursor:pointer}
+.visitor-floating-nav a{background:linear-gradient(135deg,#b98218,#e1b94f);color:#071b35;border-color:#e7ca7b}
+.visitor-floating-nav span{font-size:13px}
+@media(max-width:480px){.has-visitor-floating-nav{padding-bottom:82px!important}.visitor-floating-nav{bottom:max(7px,env(safe-area-inset-bottom));grid-template-columns:repeat(3,1fr);width:calc(100vw - 16px)}.visitor-floating-nav a,.visitor-floating-nav button{min-height:48px;font-size:16px}.visitor-floating-nav span{font-size:12px}}
