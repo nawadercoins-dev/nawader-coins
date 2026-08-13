@@ -805,7 +805,18 @@ class H(SimpleHTTPRequestHandler):
             ensure_auction_outcomes(); rows=[x for x in load_notifications() if x.get('recipientType')=='participant' and str(x.get('recipientId'))==pid]
             rows.sort(key=lambda x:x.get('created',''),reverse=True); self.sendj({'notifications':rows[:200],'unread':sum(1 for x in rows if not x.get('read'))}); return
         if p=='/api/notifications/admin':
-            ensure_auction_outcomes(); rows=[x for x in load_notifications() if x.get('recipientType')=='admin']; rows.sort(key=lambda x:x.get('created',''),reverse=True)
+            ensure_auction_outcomes(); rows=[dict(x) for x in load_notifications() if x.get('recipientType')=='admin']; rows.sort(key=lambda x:x.get('created',''),reverse=True)
+            # Link approval notifications to their participant, including older
+            # notifications that were created before participantId was stored.
+            people=load_people()
+            for row in rows:
+                if row.get('category')!='approval': continue
+                pid=str(row.get('participantId') or row.get('itemId') or '')
+                if not pid.startswith('p-'):
+                    msg=str(row.get('message') or '')
+                    person=next((x for x in people if str(x.get('phone') or '') and str(x.get('phone')) in msg),None)
+                    pid=str((person or {}).get('id') or '')
+                if pid: row['participantId']=pid
             self.sendj({'notifications':rows[:300],'unread':sum(1 for x in rows if not x.get('read'))}); return
         if p=='/api/permissions':
             people=load_people(); perms=load_user_permissions(); self.sendj({'participants':[{**{k:v for k,v in x.items() if k not in ('otp','otpExpires','otpAttempts')},'permissions':participant_permissions(x.get('id'))} for x in people],'raw':perms}); return
@@ -1304,7 +1315,7 @@ class H(SimpleHTTPRequestHandler):
                 save_json(PEOPLE,{'participants':a})
                 saved=next((z for z in load_people() if z.get('id')==x['id']),None)
                 if not saved: self.sendj({'error':'تعذر تثبيت التسجيل على الخادم'},500); return
-                add_notification('admin','','approval','طلب توثيق/اعتماد جديد',f"طلب تسجيل من {saved.get('name','مشارك')} — {saved.get('phone','')}",'', '/admin')
+                note=add_notification('admin','','approval','طلب توثيق/اعتماد جديد',f"طلب تسجيل من {saved.get('name','مشارك')} — {saved.get('phone','')}",saved.get('id',''), '/admin')
                 # Local/LAN mode: return the OTP for testing. When an SMS provider is connected, remove devOtp and send code by SMS.
                 self.sendj({'ok':True,'participant':{k:v for k,v in saved.items() if k not in ('otp','otpExpires','otpAttempts')},'verified':False,'otpRequired':True,'devOtp':code,'expiresMinutes':5,'message':'تم إنشاء رمز التحقق.'}); return
             if p=='/api/participant/verify':
