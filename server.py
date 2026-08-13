@@ -223,7 +223,9 @@ def restore_full_backup_bytes(raw):
         for arc,path in BACKUP_FILES:
             member='data/'+arc
             if member in names: save_json(path,json.loads(z.read(member).decode('utf-8')))
-        tmpdir=tempfile.mkdtemp(prefix='khazina_restore_',dir=ROOT)
+        # أنشئ مجلد الاستعادة المؤقت داخل قرص البيانات نفسه حتى يكون النقل
+        # إلى uploads ذريًا ولا يفشل بين نظام ملفات Render المؤقت والقرص الدائم.
+        tmpdir=tempfile.mkdtemp(prefix='khazina_restore_',dir=DATA_ROOT)
         try:
             new_upload=os.path.join(tmpdir,'uploads'); os.makedirs(new_upload,exist_ok=True)
             for member in names:
