@@ -1,5 +1,5 @@
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 import json, os, threading, shutil, datetime, atexit, re, secrets, mimetypes, socket, webbrowser, time, io, hashlib, hmac, zipfile, tempfile, subprocess, glob
 
 ROOT=os.path.dirname(os.path.abspath(__file__))
@@ -23,6 +23,7 @@ USER_PERMISSIONS=os.path.join(DATA_ROOT,'user_permissions.json')
 OPERATIONS_LOG=os.path.join(DATA_ROOT,'operations_log.json')
 ORDERS=os.path.join(DATA_ROOT,'orders_shipping.json')
 COLLECTIBLE_SUBMISSIONS=os.path.join(DATA_ROOT,'collectible_submissions.json')
+WHATSAPP_REQUESTS=os.path.join(DATA_ROOT,'whatsapp_verification_requests.json')
 AUTH_FILE=os.path.join(DATA_ROOT,'admin_auth.json')
 ADMIN_CREDENTIALS=os.path.join(DATA_ROOT,'بيانات_دخول_الإدارة.txt')
 ADMIN_SESSIONS={}
@@ -33,9 +34,41 @@ UPLOAD_DIR=os.path.join(DATA_ROOT,'uploads')
 os.makedirs(BACKUP_DIR,exist_ok=True)
 os.makedirs(UPLOAD_DIR,exist_ok=True)
 
+def normalize_saudi_mobile(value):
+    digits=''.join(ch for ch in str(value or '') if ch.isdigit())
+    if digits.startswith('00966'): digits=digits[2:]
+    if digits.startswith('05') and len(digits)==10: digits='966'+digits[1:]
+    elif digits.startswith('5') and len(digits)==9: digits='966'+digits
+    if not re.fullmatch(r'9665\d{8}',digits):
+        raise ValueError('أدخل رقم جوال سعودي صحيحًا يبدأ بـ 05')
+    return '+'+digits
+
+def whatsapp_digits(value):
+    digits=''.join(ch for ch in str(value or '') if ch.isdigit())
+    if digits.startswith('00'): digits=digits[2:]
+    return digits
+
+def claim_hash(token):
+    return hashlib.sha256(str(token or '').encode('utf-8')).hexdigest()
+
+def safe_participant(person):
+    hidden={'otp','otpExpires','otpAttempts','whatsappClaimHash','whatsappRequestCode','whatsappRequestId'}
+    return {k:v for k,v in person.items() if k not in hidden}
+
+def whatsapp_verification_url(person,request_code):
+    settings=load_settings(); number=whatsapp_digits(settings.get('whatsappNumber'))
+    if not number: raise ValueError('رقم واتساب الإدارة غير مضبوط. أضفه من إعدادات لوحة التحكم.')
+    phone=str(person.get('phone') or '')
+    message=(f"السلام عليكم، أرغب في توثيق حسابي في نوادر العملات.\n"
+             f"الاسم: {person.get('name','')}\n"
+             f"رقم الجوال المسجل: {phone}\n"
+             f"رمز طلب التوثيق: {request_code}\n"
+             "أرسل هذا الطلب من نفس رقم واتساب المسجل، ثم انتظر اعتماد الإدارة.")
+    return 'https://wa.me/'+number+'?text='+quote(message,safe='')
+
 # تهيئة القرص في أول تشغيل فقط من الملفات المرفقة مع المشروع، دون استبدال أي بيانات دائمة.
 if DATA_ROOT != ROOT:
-    for _dst in (DATA,PEOPLE,BIDS,NEGOTIATIONS,MARKET_REQUESTS,SUBSCRIPTIONS,SAVE_AUDIT,SETTINGS,NOTIFICATIONS,AUCTION_DUES,USER_PERMISSIONS,OPERATIONS_LOG,ORDERS,COLLECTIBLE_SUBMISSIONS,AUTH_FILE):
+    for _dst in (DATA,PEOPLE,BIDS,NEGOTIATIONS,MARKET_REQUESTS,SUBSCRIPTIONS,SAVE_AUDIT,SETTINGS,NOTIFICATIONS,AUCTION_DUES,USER_PERMISSIONS,OPERATIONS_LOG,ORDERS,COLLECTIBLE_SUBMISSIONS,WHATSAPP_REQUESTS,AUTH_FILE):
         _src=os.path.join(ROOT,os.path.basename(_dst))
         if not os.path.exists(_dst) and os.path.isfile(_src):
             shutil.copy2(_src,_dst)
@@ -84,6 +117,7 @@ def load_user_permissions(): return load_json(USER_PERMISSIONS,{'users':{}}).get
 def load_operations_log(): return load_json(OPERATIONS_LOG,{'events':[]}).get('events',[])
 def load_orders(): return load_json(ORDERS,{'orders':[]}).get('orders',[])
 def load_collectible_submissions(): return load_json(COLLECTIBLE_SUBMISSIONS,{'submissions':[]}).get('submissions',[])
+def load_whatsapp_requests(): return load_json(WHATSAPP_REQUESTS,{'requests':[]}).get('requests',[])
 def load_save_audit(): return load_json(SAVE_AUDIT,{'events':[]}).get('events',[])
 def append_save_audit(event):
     rows=load_save_audit(); rows.append(event); rows=rows[-500:]; save_json(SAVE_AUDIT,{'events':rows})
@@ -185,7 +219,7 @@ def overdue_due_for(pid):
     return None
 
 def load_settings():
-    defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':False,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','duesTrackingStartedAt':''}
+    defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':False,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','whatsappNumber':'966551892409','duesTrackingStartedAt':''}
     x=load_json(SETTINGS,defaults.copy())
     defaults.update(x if isinstance(x,dict) else {})
     return defaults
@@ -194,7 +228,7 @@ BACKUP_FILES=[
     ('khazina_shared_data.json',DATA),('auction_participants.json',PEOPLE),
     ('auction_bids.json',BIDS),('auction_negotiations.json',NEGOTIATIONS),
     ('market_requests.json',MARKET_REQUESTS),('subscription_ledger.json',SUBSCRIPTIONS),('save_audit.json',SAVE_AUDIT),('platform_settings.json',SETTINGS),
-    ('notifications.json',NOTIFICATIONS),('auction_dues.json',AUCTION_DUES),('user_permissions.json',USER_PERMISSIONS),('operations_log.json',OPERATIONS_LOG),('orders_shipping.json',ORDERS),('collectible_submissions.json',COLLECTIBLE_SUBMISSIONS)
+    ('notifications.json',NOTIFICATIONS),('auction_dues.json',AUCTION_DUES),('user_permissions.json',USER_PERMISSIONS),('operations_log.json',OPERATIONS_LOG),('orders_shipping.json',ORDERS),('collectible_submissions.json',COLLECTIBLE_SUBMISSIONS),('whatsapp_verification_requests.json',WHATSAPP_REQUESTS)
 ]
 
 def create_full_backup_bytes():
@@ -733,6 +767,10 @@ class H(SimpleHTTPRequestHandler):
         if not origin: return True
         host=self.headers.get('Host') or ''
         return origin in ('http://'+host,'https://'+host)
+    def local_development_request(self):
+        host=(self.headers.get('Host') or '').split(':',1)[0].strip('[]').lower()
+        if host in ('localhost','127.0.0.1','::1'): return True
+        return bool(re.fullmatch(r'10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+',host))
     def login_page(self,error=''):
         err=('<div class="err">'+error+'</div>') if error else ''
         html='''<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>دخول الإدارة | نوادر العملات</title><style>body{margin:0;background:#0b1224;font-family:Tahoma,Arial,sans-serif;color:#0d1b3b;min-height:100vh;display:grid;place-items:center}.box{width:min(430px,90vw);background:white;border-radius:22px;padding:28px;box-shadow:0 20px 60px #0008;border-top:5px solid #c79245}h1{margin:0 0 8px;color:#102659}p{color:#5c6470}label{display:block;font-weight:700;margin:16px 0 6px}input{box-sizing:border-box;width:100%;padding:13px;border:1px solid #ccd3df;border-radius:12px;font-size:17px}button{width:100%;margin-top:20px;padding:13px;border:0;border-radius:12px;background:#102659;color:white;font-weight:800;font-size:17px;cursor:pointer}.err{background:#fff0f0;color:#9d1b2d;padding:10px;border-radius:10px;margin:12px 0}.public{display:block;text-align:center;margin-top:16px;color:#8a642b;text-decoration:none}</style></head><body><form class="box" method="post" action="/admin-login"><h1>🔐 دخول الإدارة</h1><p>الخزينة والسجل والمالية وإدارة السوق والمزاد محمية ولا تظهر للزوار.</p>'''+err+'''<label>اسم المستخدم</label><input name="username" value="admin" autocomplete="username" required><label>كلمة المرور</label><input name="password" type="password" autocomplete="current-password" required><button type="submit">دخول الإدارة</button><a class="public" href="/">العودة إلى واجهة نوادر العملات</a></form></body></html>'''
@@ -788,9 +826,9 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
         if p=='/api/version':
-            self.sendj({'version':'4.0.25','name':'Khazinat Al-Muqtaniat','port':getattr(self.server,'server_port',None)}); return
+            self.sendj({'version':'4.0.27','name':'Khazinat Al-Muqtaniat','port':getattr(self.server,'server_port',None)}); return
         if p=='/api/settings/public':
-            st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours']}); return
+            st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'whatsappVerification':True}); return
         if p=='/api/settings/admin':
             if not self.require_admin(api=True): return
             self.sendj({'settings':load_settings()}); return
@@ -893,15 +931,30 @@ class H(SimpleHTTPRequestHandler):
             with LOCK:
                 people=load_people(); active=[x for x in people if not x.get('archived')]; archived=[x for x in people if x.get('archived')]
                 active.sort(key=lambda x:(bool(x.get('approved')),x.get('created',''))); archived.sort(key=lambda x:x.get('archivedAt',''),reverse=True)
-                self.sendj({'participants':active,'archive':archived,'total':len(active),'pending':sum(1 for x in active if not x.get('approved')),'archived':len(archived)}); return
+                self.sendj({'participants':active,'archive':archived,'total':len(active),'pending':sum(1 for x in active if not x.get('approved') or x.get('whatsappRequestPending')),'archived':len(archived)}); return
         if p=='/api/participants/summary':
             with LOCK:
                 people=load_people(); active=[x for x in people if not x.get('archived')]; archived=[x for x in people if x.get('archived')]
-                self.sendj({'total':len(active),'pending':sum(1 for x in active if not x.get('approved')),'approved':sum(1 for x in active if x.get('approved')),'archived':len(archived)}); return
+                self.sendj({'total':len(active),'pending':sum(1 for x in active if not x.get('approved') or x.get('whatsappRequestPending')),'approved':sum(1 for x in active if x.get('approved')),'archived':len(archived)}); return
         if p=='/api/participant/status':
             q=urlparse(self.path).query
-            pid=(parse_qs(q).get('id') or [''])[0]
+            query=parse_qs(q); pid=(query.get('id') or [''])[0]; request_id=(query.get('requestId') or [''])[0]; claim=(query.get('claim') or [''])[0]
             with LOCK:
+                if request_id:
+                    request_row=next((x for x in load_whatsapp_requests() if str(x.get('id'))==request_id),None)
+                    if not request_row: self.sendj({'error':'طلب التوثيق غير موجود'},404); return
+                    if not claim or not secrets.compare_digest(str(request_row.get('claimHash') or ''),claim_hash(claim)):
+                        self.sendj({'error':'طلب التوثيق غير صالح. أرسل طلبًا جديدًا.'},403); return
+                    try: expired=datetime.datetime.fromisoformat(str(request_row.get('expires') or ''))<datetime.datetime.now()
+                    except Exception: expired=True
+                    if expired and request_row.get('status')=='pending': self.sendj({'error':'انتهت صلاحية طلب التوثيق. أرسل طلبًا جديدًا.'},409); return
+                    if request_row.get('status')=='pending':
+                        self.sendj({'found':True,'loginGranted':False,'pending':True,'requestCode':request_row.get('requestCode','')}); return
+                    if request_row.get('status')=='approved':
+                        person=next((x for x in load_people() if str(x.get('id'))==str(request_row.get('participantId'))),None)
+                        if person and person.get('approved') and person.get('verified') and not person.get('blocked'):
+                            self.sendj({'found':True,'loginGranted':True,'participant':safe_participant(person)}); return
+                    self.sendj({'found':True,'loginGranted':False,'pending':False,'rejected':request_row.get('status')=='rejected'}); return
                 person=next((x for x in load_people() if x.get('id')==pid),None)
                 if not person: self.sendj({'found':False},404); return
                 safe={k:person.get(k) for k in ('id','name','approved','verified','blocked','approvedAt','verifiedAt')}
@@ -1191,7 +1244,7 @@ class H(SimpleHTTPRequestHandler):
                 row={'id':'s-'+secrets.token_hex(6),'type':typ,'customer':customer,'amount':amount,'note':note,'created':datetime.datetime.now().isoformat()}
                 a=load_subscriptions(); a.append(row); save_json(SUBSCRIPTIONS,{'subscriptions':a}); self.sendj({'ok':True,'subscription':row}); return
             if p=='/api/special/request':
-                pid=str(d.get('participantId') or ''); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+                pid=str(d.get('participantId') or ''); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('approved') and x.get('verified') and not x.get('blocked')),None)
                 if not person: self.sendj({'error':'يجب تسجيل الدخول بحساب موثق لإتمام الشراء'},403); return
                 item_id=str(d.get('itemId') or ''); action=str(d.get('action') or 'buy'); item=next((i for i in load() if str(i.get('id'))==item_id and i.get('specialNumberEnabled')),None)
                 if not item: self.sendj({'error':'المقتنى غير موجود أو لم يعد ضمن الأرقام المميزة'},404); return
@@ -1218,7 +1271,9 @@ class H(SimpleHTTPRequestHandler):
                 row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or item_title(item),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':price,'name':person.get('name',''),'phone':person.get('phone',''),'action':action,'quantity':qty,'selectedSerials':selected,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':fee,'buyerTotal':total,'status':'pending','sourcePage':'special_numbers','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'reservedUntil':reserve_until.isoformat(),'created':now.isoformat()}
                 a=load_market_requests(); a.append(row); save_json(MARKET_REQUESTS,{'requests':a}); add_notification('admin','','market','🛒 طلب من صفحة الأرقام المميزة',f"{person.get('name','عميل')} طلب {item_title(item)}"+((' — الأرقام: '+', '.join(selected)) if selected else f' — الكمية: {qty}'),'','/admin'); add_notification('participant',pid,'order','تم تسجيل طلبك',f"تم حجز اختيارك من {item_title(item)} مؤقتًا وإرسال الطلب للإدارة.",item_id,'/account'); self.sendj({'ok':True,'request':row}); return
             if p=='/api/market/request':
-                item_id=str(d.get('itemId','')); name=str(d.get('name','')).strip(); phone=''.join(ch for ch in str(d.get('phone','')) if ch.isdigit() or ch=='+')
+                pid=str(d.get('participantId') or ''); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('approved') and x.get('verified') and not x.get('blocked')),None)
+                if not person: self.sendj({'error':'يجب توثيق حسابك عبر واتساب واعتماد الإدارة قبل الشراء أو التفاوض'},403); return
+                item_id=str(d.get('itemId','')); name=str(person.get('name') or '').strip(); phone=str(person.get('phone') or '')
                 action=str(d.get('action','buy')); qty=max(1,int(d.get('quantity') or 1)); offered=float(d.get('offeredAmount') or 0)
                 item=next((i for i in load() if str(i.get('id'))==item_id and i.get('forMarket') and i.get('marketApproved')),None)
                 if not item: self.sendj({'error':'العرض غير متاح في السوق'},404); return
@@ -1244,7 +1299,7 @@ class H(SimpleHTTPRequestHandler):
                     if offered<=0 or offered+1e-9<minimum: self.sendj({'error':f'أقل عرض تفاوض مسموح {minimum:.2f} ر.س'},409); return
                 else: offered=base
                 fee_pct=float(load_settings().get('buyerFeePercent') or 0); fee=(offered if action=='offer' else base)*fee_pct/100; total=(offered if action=='offer' else base)+fee
-                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or ((item.get('country') or '')+' — '+(item.get('denomination') or '')),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','marketOfferType':item.get('marketOfferType') or 'single','unitPrice':unit,'name':name,'phone':phone,'action':action,'quantity':qty,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':round(fee,2),'buyerTotal':round(total,2),'status':'pending','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'created':datetime.datetime.now().isoformat()}
+                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'participantId':pid,'itemTitle':item.get('marketTitle') or ((item.get('country') or '')+' — '+(item.get('denomination') or '')),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','marketOfferType':item.get('marketOfferType') or 'single','unitPrice':unit,'name':name,'phone':phone,'action':action,'quantity':qty,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':round(fee,2),'buyerTotal':round(total,2),'status':'pending','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'created':datetime.datetime.now().isoformat()}
                 a=load_market_requests(); a.append(row); save_json(MARKET_REQUESTS,{'requests':a})
                 chk=next((x for x in load_market_requests() if x.get('id')==row['id']),None)
                 if not chk: self.sendj({'error':'تعذر التحقق من تسجيل طلب السوق'},500); return
@@ -1303,7 +1358,7 @@ class H(SimpleHTTPRequestHandler):
                 self.sendj({'ok':True,'request':row}); return
             if p=='/api/settings':
                 st=load_settings()
-                for k in ('buyerFeePercent','charityProfitPercent','auctionEntryFee','entryFeeEnabled','negotiationPercents','negotiationHours','adminEmail','platformName','ocrTesseractPath'):
+                for k in ('buyerFeePercent','charityProfitPercent','auctionEntryFee','entryFeeEnabled','negotiationPercents','negotiationHours','adminEmail','platformName','whatsappNumber','ocrTesseractPath'):
                     if k in d: st[k]=d[k]
                 save_json(SETTINGS,st); self.sendj({'ok':True,'settings':st}); return
             if p=='/api/negotiate':
@@ -1334,66 +1389,58 @@ class H(SimpleHTTPRequestHandler):
             if p=='/api/analyze':
                 ok,data,note=analyze_image(d.get('url','')); self.sendj({'ok':ok,'data':data,'note':note}); return
             if p=='/api/participant/register':
-                name=str(d.get('name','')).strip(); raw_phone=str(d.get('phone','')).strip(); phone=''.join(ch for ch in raw_phone if ch.isdigit() or ch=='+')
-                if not name or not phone: self.sendj({'error':'الاسم والجوال مطلوبان'},400); return
-                if len(''.join(ch for ch in phone if ch.isdigit())) < 7: self.sendj({'error':'رقم الجوال غير مكتمل'},400); return
-                a=load_people(); existing=next((x for x in a if str(x.get('phone','')).replace(' ','')==phone.replace(' ','')),None)
+                name=str(d.get('name','')).strip()
+                if len(name)<2: self.sendj({'error':'اكتب الاسم الكامل'},400); return
+                try: phone=normalize_saudi_mobile(d.get('phone'))
+                except ValueError as e: self.sendj({'error':str(e)},400); return
+                a=load_people(); existing=None
+                for candidate in a:
+                    try: same=normalize_saudi_mobile(candidate.get('phone'))==phone
+                    except ValueError: same=False
+                    if same: existing=candidate; break
                 now=datetime.datetime.now(); nowiso=now.isoformat()
                 if existing and existing.get('blocked'):
                     self.sendj({'error':'هذا الرقم موقوف من الإدارة'},403); return
-                # Preserve previously approved users as permanently verified during migration.
-                if existing and existing.get('approved') and 'verified' not in existing:
-                    existing['verified']=True; existing['verifiedAt']=existing.get('approvedAt') or nowiso
-                if existing and existing.get('verified'):
-                    existing['name']=name or existing.get('name',''); existing['lastSeen']=nowiso; existing['approved']=True
-                    save_json(PEOPLE,{'participants':a})
-                    self.sendj({'ok':True,'participant':existing,'verified':True,'message':'مرحبًا بعودتك؛ اعتمادك ما زال فعالًا.'}); return
-                code=f'{secrets.randbelow(1000000):06d}'
-                expiry=(now+datetime.timedelta(minutes=5)).isoformat()
                 if existing:
-                    existing.update({'name':name or existing.get('name',''),'lastSeen':nowiso,'otp':code,'otpExpires':expiry,'otpAttempts':0,'approved':False,'verified':False})
-                    x=existing
+                    person=existing; person['name']=name or person.get('name',''); person['phone']=phone; person['lastSeen']=nowiso
                 else:
-                    x={'id':'p-'+secrets.token_hex(6),'name':name,'phone':phone,'approved':False,'verified':False,'blocked':False,'created':nowiso,'lastSeen':nowiso,'otp':code,'otpExpires':expiry,'otpAttempts':0}; a.append(x)
+                    person={'id':'p-'+secrets.token_hex(6),'name':name,'phone':phone,'approved':False,'verified':False,'blocked':False,'created':nowiso,'lastSeen':nowiso}; a.append(person)
+                request_code='NW-'+secrets.token_hex(3).upper(); claim=secrets.token_urlsafe(32); request_id='wr-'+secrets.token_hex(8)
+                request_row={'id':request_id,'participantId':person['id'],'name':name,'phone':phone,'requestCode':request_code,'claimHash':claim_hash(claim),'status':'pending','created':nowiso,'expires':(now+datetime.timedelta(hours=24)).isoformat(),'previouslyApproved':bool(person.get('approved') and person.get('verified'))}
+                requests=load_whatsapp_requests()
+                for old in requests:
+                    if str(old.get('participantId'))==str(person['id']) and old.get('status')=='pending': old['status']='superseded'; old['updated']=nowiso
+                requests.append(request_row); requests=requests[-4000:]
+                person.update({'whatsappRequestPending':True,'whatsappRequestCode':request_code,'whatsappRequestId':request_id,'whatsappRequestedAt':nowiso,'authProvider':'whatsapp-admin'})
                 save_json(PEOPLE,{'participants':a})
-                saved=next((z for z in load_people() if z.get('id')==x['id']),None)
-                if not saved: self.sendj({'error':'تعذر تثبيت التسجيل على الخادم'},500); return
-                note=add_notification('admin','','approval','طلب توثيق/اعتماد جديد',f"طلب تسجيل من {saved.get('name','مشارك')} — {saved.get('phone','')}",saved.get('id',''), '/admin')
-                # Local/LAN mode: return the OTP for testing. When an SMS provider is connected, remove devOtp and send code by SMS.
-                self.sendj({'ok':True,'participant':{k:v for k,v in saved.items() if k not in ('otp','otpExpires','otpAttempts')},'verified':False,'otpRequired':True,'devOtp':code,'expiresMinutes':5,'message':'تم إنشاء رمز التحقق.'}); return
+                save_json(WHATSAPP_REQUESTS,{'requests':requests})
+                add_notification('admin','','approval','طلب توثيق واتساب',f"{name} — {phone} — الرمز {request_code}. طابق رقم مرسل واتساب قبل الاعتماد.",person.get('id',''),'/admin')
+                self.sendj({'ok':True,'verified':False,'approvalRequired':True,'requestId':request_id,'requestCode':request_code,'claimToken':claim,'whatsappUrl':whatsapp_verification_url(person,request_code),'expiresHours':24,'message':'أرسل الطلب عبر واتساب من الرقم نفسه ثم انتظر اعتماد الإدارة.'}); return
             if p=='/api/participant/verify':
-                pid=str(d.get('id','')); code=str(d.get('code','')).strip(); a=load_people(); person=next((x for x in a if x.get('id')==pid),None)
-                if not person: self.sendj({'error':'المشارك غير موجود'},404); return
-                if person.get('blocked'): self.sendj({'error':'هذا الحساب موقوف من الإدارة'},403); return
-                if person.get('verified'):
-                    self.sendj({'ok':True,'participant':person,'message':'الحساب موثق مسبقًا'}); return
-                try: expired=datetime.datetime.fromisoformat(person.get('otpExpires','')) < datetime.datetime.now()
-                except Exception: expired=True
-                if expired: self.sendj({'error':'انتهت صلاحية الرمز. اطلب رمزًا جديدًا.'},409); return
-                attempts=int(person.get('otpAttempts') or 0)
-                if attempts>=5: self.sendj({'error':'تم تجاوز عدد المحاولات. اطلب رمزًا جديدًا.'},429); return
-                if not secrets.compare_digest(str(person.get('otp','')),code):
-                    person['otpAttempts']=attempts+1; save_json(PEOPLE,{'participants':a}); self.sendj({'error':'رمز التحقق غير صحيح'},403); return
-                nowiso=datetime.datetime.now().isoformat(); person.update({'verified':True,'approved':True,'verifiedAt':nowiso,'approvedAt':nowiso,'otp':'','otpExpires':'','otpAttempts':0,'lastSeen':nowiso}); save_json(PEOPLE,{'participants':a})
-                add_notification('participant',pid,'approval','✅ تم اعتماد حسابك','تم توثيق رقم الجوال واعتماد حسابك، ويمكنك المشاركة في المزادات وفق شروط المنصة.','','/account')
-                append_operation('اعتماد مشارك تلقائي',{'participantId':pid,'name':person.get('name','')})
-                self.sendj({'ok':True,'participant':person,'message':'تم توثيق رقم الجوال واعتمادك تلقائيًا.'}); return
+                self.sendj({'error':'أُلغي التحقق بالرمز المدفوع. استخدم طلب التوثيق المجاني عبر واتساب.'},410); return
             if p=='/api/participant/approve':
-                a=load_people(); iid=d.get('id'); approved=bool(d.get('approved')); direct=bool(d.get('direct')); found=False
+                a=load_people(); requests=load_whatsapp_requests(); iid=d.get('id'); approved=bool(d.get('approved')); direct=bool(d.get('direct')); found=False; request_action=False
                 for x in a:
                     if x.get('id')==iid:
                         nowiso=datetime.datetime.now().isoformat()
-                        x['approved']=approved; x['approvedAt']=nowiso if approved else ''
-                        if approved and direct:
-                            x['verified']=True; x['verifiedAt']=nowiso; x['otp']=''; x['otpExpires']=''; x['otpAttempts']=0; x['archived']=False; x['archivedAt']=''; x['archiveReason']=''
-                        elif not approved:
-                            x['archived']=True; x['archivedAt']=nowiso; x['archiveReason']='إلغاء أو رفض الاعتماد'
+                        request_row=next((r for r in requests if str(r.get('id'))==str(x.get('whatsappRequestId')) and r.get('status')=='pending'),None)
+                        request_action=bool(request_row)
+                        if approved:
+                            x['approved']=True; x['approvedAt']=nowiso; x['verified']=True; x['verifiedAt']=x.get('verifiedAt') or nowiso; x['archived']=False; x['archivedAt']=''; x['archiveReason']=''
+                            if request_row: request_row['status']='approved'; request_row['approvedAt']=nowiso
+                        elif request_row and request_row.get('previouslyApproved'):
+                            request_row['status']='rejected'; request_row['rejectedAt']=nowiso
+                        else:
+                            x['approved']=False; x['approvedAt']=''; x['verified']=False; x['archived']=True; x['archivedAt']=nowiso; x['archiveReason']='رفض طلب التوثيق عبر واتساب'
+                            if request_row: request_row['status']='rejected'; request_row['rejectedAt']=nowiso
+                        x['whatsappRequestPending']=False; x['whatsappRequestResolvedAt']=nowiso
                         found=True
                 save_json(PEOPLE,{'participants':a})
+                save_json(WHATSAPP_REQUESTS,{'requests':requests})
                 if found:
-                    add_notification('participant',iid,'approval','✅ تم اعتماد حسابك' if approved else 'تم إيقاف اعتماد المشاركة','يمكنك الآن المشاركة في المزادات.' if approved else 'تم إيقاف صلاحية المشاركة من الإدارة.','','/account')
-                    append_operation('تحديث اعتماد مشارك',{'participantId':iid,'approved':approved,'direct':direct})
-                self.sendj({'ok':found,'approved':approved,'direct':direct}); return
+                    add_notification('participant',iid,'approval','✅ تم اعتماد طلب واتساب' if approved else 'تم رفض طلب التوثيق','يمكنك الآن الدخول والمشاركة.' if approved else 'راجع رقم الجوال وأرسل طلب توثيق جديدًا من الرقم نفسه.','','/account')
+                    append_operation('اعتماد توثيق واتساب' if approved else 'رفض توثيق واتساب',{'participantId':iid,'approved':approved,'requestAction':request_action})
+                self.sendj({'ok':found,'approved':approved,'direct':direct,'requestAction':request_action}); return
             if p=='/api/participant/restore':
                 a=load_people(); iid=d.get('id'); approve=bool(d.get('approve')); found=False
                 for x in a:
@@ -1518,7 +1565,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.0.25-CLOUD-IMAGES'
+VERSION='4.0.27-FREE-WHATSAPP-VERIFY'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
