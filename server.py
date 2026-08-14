@@ -789,13 +789,16 @@ class H(SimpleHTTPRequestHandler):
         b=json.dumps(obj,ensure_ascii=False).encode('utf-8'); self.send_response(status); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Content-Length',str(len(b))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(b)
     def body(self):
         n=int(self.headers.get('Content-Length','0')); return json.loads(self.rfile.read(n) or b'{}')
-    def send_file(self,path,content_type=None):
+    def send_file(self,path,content_type=None,fresh_frontend=False):
         try:
             with open(path,'rb') as f: data=f.read()
             self.send_response(200)
             self.send_header('Content-Type',content_type or mimetypes.guess_type(path)[0] or 'application/octet-stream')
             self.send_header('Content-Length',str(len(data)))
             self.send_header('Cache-Control','no-store')
+            if fresh_frontend:
+                self.send_header('Clear-Site-Data','"cache"')
+                self.send_header('X-Nawader-Frontend-Version','4.0.30')
             self.end_headers(); self.wfile.write(data)
         except FileNotFoundError:
             self.send_error(404,'File not found')
@@ -824,7 +827,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
         if p=='/api/version':
-            self.sendj({'version':'4.0.28','name':'Khazinat Al-Muqtaniat','port':getattr(self.server,'server_port',None)}); return
+            self.sendj({'version':'4.0.30','name':'Khazinat Al-Muqtaniat','port':getattr(self.server,'server_port',None)}); return
         if p=='/api/settings/public':
             st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'whatsappVerification':True}); return
         if p=='/api/settings/admin':
@@ -1028,12 +1031,12 @@ class H(SimpleHTTPRequestHandler):
             self.sendj({'stable':True,'url':public_portal_url(host)}); return
         if p=='/daily-auction':
             # توافق مع أي QR قديم مطبوع: لا تنتهي صلاحيته بعد الآن.
-            self.send_file(os.path.join(PUBLIC_DIR,'public_auction.html'),'text/html; charset=utf-8'); return
+            self.send_file(os.path.join(PUBLIC_DIR,'public_auction.html'),'text/html; charset=utf-8',True); return
         # Robust public-auction aliases so the visitor page works even when the browser uses a clean URL.
         if p in ('/announcements','/announcements/','/announcements.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'announcements.html'),'text/html; charset=utf-8'); return
         if p in ('/account','/account/','/account.html'):
-            self.send_file(os.path.join(PUBLIC_DIR,'account.html'),'text/html; charset=utf-8'); return
+            self.send_file(os.path.join(PUBLIC_DIR,'account.html'),'text/html; charset=utf-8',True); return
         if p in ('/notifications','/notifications/','/notifications.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'notifications.html'),'text/html; charset=utf-8'); return
         if p in ('/seller','/seller/','/seller_portal.html'):
@@ -1041,7 +1044,7 @@ class H(SimpleHTTPRequestHandler):
         if p in ('/special-numbers','/special-numbers/','/special_numbers.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'special_numbers.html'),'text/html; charset=utf-8'); return
         if p in ('/auction','/auction/','/public_auction.html','/public-auction'):
-            self.send_file(os.path.join(PUBLIC_DIR,'public_auction.html'),'text/html; charset=utf-8'); return
+            self.send_file(os.path.join(PUBLIC_DIR,'public_auction.html'),'text/html; charset=utf-8',True); return
         if p in ('/market','/market/','/public_market.html','/public-market'):
             self.send_file(os.path.join(PUBLIC_DIR,'public_market.html'),'text/html; charset=utf-8'); return
         # لا نسمح بعرض مجلد المشروع أو الملفات الإدارية مباشرة.
@@ -1349,6 +1352,10 @@ class H(SimpleHTTPRequestHandler):
                 st=load_settings()
                 for k in ('buyerFeePercent','charityProfitPercent','auctionEntryFee','entryFeeEnabled','negotiationPercents','negotiationHours','adminEmail','platformName','whatsappNumber','ocrTesseractPath'):
                     if k in d: st[k]=d[k]
+                try:
+                    st['whatsappNumber']=whatsapp_digits(normalize_saudi_mobile(st.get('whatsappNumber')))
+                except ValueError as e:
+                    self.sendj({'error':str(e)},400); return
                 save_json(SETTINGS,st); self.sendj({'ok':True,'settings':st}); return
             if p=='/api/negotiate':
                 item_id=str(d.get('itemId','')); pid=str(d.get('participantId','')); amount=float(d.get('amount') or 0)
@@ -1554,7 +1561,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.0.28-SIMPLE-ACCESS-RELIABLE-REFRESH'
+VERSION='4.0.30-FRONTEND-CACHE-RESET-WHATSAPP-FIX'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
