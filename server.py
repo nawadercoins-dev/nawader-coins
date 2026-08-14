@@ -798,7 +798,7 @@ class H(SimpleHTTPRequestHandler):
             self.send_header('Cache-Control','no-store')
             if fresh_frontend:
                 self.send_header('Clear-Site-Data','"cache"')
-                self.send_header('X-Nawader-Frontend-Version','4.0.30')
+                self.send_header('X-Nawader-Frontend-Version','4.0.31')
             self.end_headers(); self.wfile.write(data)
         except FileNotFoundError:
             self.send_error(404,'File not found')
@@ -827,7 +827,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
         if p=='/api/version':
-            self.sendj({'version':'4.0.30','name':'Khazinat Al-Muqtaniat','port':getattr(self.server,'server_port',None)}); return
+            self.sendj({'version':'4.0.31','name':'Khazinat Al-Muqtaniat','port':getattr(self.server,'server_port',None)}); return
         if p=='/api/settings/public':
             st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'whatsappVerification':True}); return
         if p=='/api/settings/admin':
@@ -1561,7 +1561,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.0.30-FRONTEND-CACHE-RESET-WHATSAPP-FIX'
+VERSION='4.0.31-MOBILE-NAV-VIEWPORT-CENTER'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip

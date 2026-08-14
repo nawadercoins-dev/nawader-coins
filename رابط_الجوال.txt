@@ -1,10 +1,10 @@
 واجهة الزوار:
-https://nawadercoins.com/home
+http://127.0.0.1:8080/home
 
 رابط المزاد للزوار:
-https://nawadercoins.com/auction
+http://127.0.0.1:8080/auction
 
 رابط السوق العام:
-https://nawadercoins.com/market
+http://127.0.0.1:8080/market
 
 الإدارة محمية بكلمة مرور ولا يُنصح بإرسال رابطها للعملاء.
