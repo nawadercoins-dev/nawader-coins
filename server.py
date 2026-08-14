@@ -19,7 +19,6 @@ SAVE_AUDIT=os.path.join(DATA_ROOT,'save_audit.json')
 SETTINGS=os.path.join(DATA_ROOT,'platform_settings.json')
 NOTIFICATIONS=os.path.join(DATA_ROOT,'notifications.json')
 AUCTION_DUES=os.path.join(DATA_ROOT,'auction_dues.json')
-USER_PERMISSIONS=os.path.join(DATA_ROOT,'user_permissions.json')
 OPERATIONS_LOG=os.path.join(DATA_ROOT,'operations_log.json')
 ORDERS=os.path.join(DATA_ROOT,'orders_shipping.json')
 COLLECTIBLE_SUBMISSIONS=os.path.join(DATA_ROOT,'collectible_submissions.json')
@@ -68,7 +67,7 @@ def whatsapp_verification_url(person,request_code):
 
 # تهيئة القرص في أول تشغيل فقط من الملفات المرفقة مع المشروع، دون استبدال أي بيانات دائمة.
 if DATA_ROOT != ROOT:
-    for _dst in (DATA,PEOPLE,BIDS,NEGOTIATIONS,MARKET_REQUESTS,SUBSCRIPTIONS,SAVE_AUDIT,SETTINGS,NOTIFICATIONS,AUCTION_DUES,USER_PERMISSIONS,OPERATIONS_LOG,ORDERS,COLLECTIBLE_SUBMISSIONS,WHATSAPP_REQUESTS,AUTH_FILE):
+    for _dst in (DATA,PEOPLE,BIDS,NEGOTIATIONS,MARKET_REQUESTS,SUBSCRIPTIONS,SAVE_AUDIT,SETTINGS,NOTIFICATIONS,AUCTION_DUES,OPERATIONS_LOG,ORDERS,COLLECTIBLE_SUBMISSIONS,WHATSAPP_REQUESTS,AUTH_FILE):
         _src=os.path.join(ROOT,os.path.basename(_dst))
         if not os.path.exists(_dst) and os.path.isfile(_src):
             shutil.copy2(_src,_dst)
@@ -113,7 +112,6 @@ def load_market_requests(): return load_json(MARKET_REQUESTS,{'requests':[]}).ge
 def load_subscriptions(): return load_json(SUBSCRIPTIONS,{'subscriptions':[]}).get('subscriptions',[])
 def load_notifications(): return load_json(NOTIFICATIONS,{'notifications':[]}).get('notifications',[])
 def load_auction_dues(): return load_json(AUCTION_DUES,{'dues':[]}).get('dues',[])
-def load_user_permissions(): return load_json(USER_PERMISSIONS,{'users':{}}).get('users',{})
 def load_operations_log(): return load_json(OPERATIONS_LOG,{'events':[]}).get('events',[])
 def load_orders(): return load_json(ORDERS,{'orders':[]}).get('orders',[])
 def load_collectible_submissions(): return load_json(COLLECTIBLE_SUBMISSIONS,{'submissions':[]}).get('submissions',[])
@@ -130,10 +128,10 @@ def add_notification(recipient_type, recipient_id, category, title, message, ite
     rows.append(row); rows=rows[-4000:]; save_json(NOTIFICATIONS,{'notifications':rows}); return row
 
 def participant_permissions(pid):
-    defaults={'sellerEndedAuctions':False,'sellerMarket':False,'marketSupervision':False,'auctionSupervision':False,'ordersView':False,'ordersManage':False}
-    x=load_user_permissions().get(str(pid),{})
-    defaults.update(x if isinstance(x,dict) else {})
-    return defaults
+    # V4.0.28: fixed, predictable access policy.  Individual permission files
+    # are intentionally ignored so an old or incomplete checkbox selection can
+    # never hide pages or accidentally grant administrative supervision.
+    return {'sellerEndedAuctions':True,'sellerMarket':True,'marketSupervision':False,'auctionSupervision':False,'ordersView':False,'ordersManage':False}
 
 def item_title(i):
     return str(i.get('marketTitle') or ((i.get('country') or '')+' — '+(i.get('denomination') or ''))).strip(' —') or 'مقتنى'
@@ -228,7 +226,7 @@ BACKUP_FILES=[
     ('khazina_shared_data.json',DATA),('auction_participants.json',PEOPLE),
     ('auction_bids.json',BIDS),('auction_negotiations.json',NEGOTIATIONS),
     ('market_requests.json',MARKET_REQUESTS),('subscription_ledger.json',SUBSCRIPTIONS),('save_audit.json',SAVE_AUDIT),('platform_settings.json',SETTINGS),
-    ('notifications.json',NOTIFICATIONS),('auction_dues.json',AUCTION_DUES),('user_permissions.json',USER_PERMISSIONS),('operations_log.json',OPERATIONS_LOG),('orders_shipping.json',ORDERS),('collectible_submissions.json',COLLECTIBLE_SUBMISSIONS),('whatsapp_verification_requests.json',WHATSAPP_REQUESTS)
+    ('notifications.json',NOTIFICATIONS),('auction_dues.json',AUCTION_DUES),('operations_log.json',OPERATIONS_LOG),('orders_shipping.json',ORDERS),('collectible_submissions.json',COLLECTIBLE_SUBMISSIONS),('whatsapp_verification_requests.json',WHATSAPP_REQUESTS)
 ]
 
 def create_full_backup_bytes():
@@ -738,7 +736,7 @@ def is_public_upload_url(url):
 ADMIN_GET_API={
     '/api/negotiations','/api/backup/full','/api/items','/api/participants','/api/participants/summary',
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
-    '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin'
+    '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin'
 }
 PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload'}
 PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html'}
@@ -826,7 +824,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
         if p=='/api/version':
-            self.sendj({'version':'4.0.27','name':'Khazinat Al-Muqtaniat','port':getattr(self.server,'server_port',None)}); return
+            self.sendj({'version':'4.0.28','name':'Khazinat Al-Muqtaniat','port':getattr(self.server,'server_port',None)}); return
         if p=='/api/settings/public':
             st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'whatsappVerification':True}); return
         if p=='/api/settings/admin':
@@ -874,8 +872,6 @@ class H(SimpleHTTPRequestHandler):
                     pid=str((person or {}).get('id') or '')
                 if pid: row['participantId']=pid
             self.sendj({'notifications':rows[:300],'unread':sum(1 for x in rows if not x.get('read'))}); return
-        if p=='/api/permissions':
-            people=load_people(); perms=load_user_permissions(); self.sendj({'participants':[{**{k:v for k,v in x.items() if k not in ('otp','otpExpires','otpAttempts')},'permissions':participant_permissions(x.get('id'))} for x in people],'raw':perms}); return
         if p=='/api/dues':
             rows=ensure_auction_outcomes(); people={x.get('id'):x for x in load_people()}
             out=[]
@@ -887,11 +883,11 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/operations':
             rows=load_operations_log(); rows.sort(key=lambda x:x.get('created',''),reverse=True); self.sendj({'events':rows[:500]}); return
         if p=='/api/permissions/me':
-            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('approved') and x.get('verified') and not x.get('blocked') and not x.get('archived')),None)
             if not person: self.sendj({'error':'الحساب غير موثق'},403); return
             self.sendj({'permissions':participant_permissions(pid)}); return
         if p=='/api/seller/ended':
-            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('approved') and x.get('verified') and not x.get('blocked') and not x.get('archived')),None)
             if not person: self.sendj({'error':'الحساب غير موثق'},403); return
             perm=participant_permissions(pid)
             if not perm.get('sellerEndedAuctions'): self.sendj({'error':'لا توجد صلاحية لعرض المزادات المنتهية'},403); return
@@ -903,7 +899,7 @@ class H(SimpleHTTPRequestHandler):
                 if ended: out.append(public_item(i))
             self.sendj({'items':out}); return
         if p=='/api/seller/market':
-            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('approved') and x.get('verified') and not x.get('blocked') and not x.get('archived')),None)
             if not person: self.sendj({'error':'الحساب غير موثق'},403); return
             perm=participant_permissions(pid)
             if not (perm.get('sellerMarket') or perm.get('marketSupervision')): self.sendj({'error':'لا توجد صلاحية لمتابعة السوق'},403); return
@@ -1181,19 +1177,12 @@ class H(SimpleHTTPRequestHandler):
                     items.append(item); save(items); row['itemId']=item_id
                 save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
                 pid=row.get('participantId'); title=f"{row.get('country','')} — {row.get('denomination','')}".strip(' —')
-                if action=='approved': nt=('✅ تم اعتماد المقتنى',f'تم اعتماد {title} وإضافته إلى سجل مقتنياتك. يمكنك طلب عرضه لاحقًا حسب الصلاحيات.')
+                if action=='approved': nt=('✅ تم اعتماد المقتنى',f'تم اعتماد {title} وإضافته إلى سجل مقتنياتك. يمكنك متابعة عرضه من حسابك.')
                 elif action=='needs_changes': nt=('✏️ يحتاج المقتنى إلى استكمال',f'طلب {title} يحتاج تعديل/استكمال بيانات.'+((' ملاحظة الإدارة: '+note) if note else ''))
                 else: nt=('تم رفض طلب اعتماد المقتنى',f'لم يتم اعتماد {title}.'+((' السبب: '+note) if note else ''))
                 add_notification('participant',pid,'approval',nt[0],nt[1],row.get('itemId',''),'/account')
                 append_operation('تحديث طلب اعتماد مقتنى',{'submissionId':sid,'status':action,'itemId':row.get('itemId',''),'note':note})
                 self.sendj({'ok':True,'submission':row}); return
-            if p=='/api/permissions/update':
-                pid=str(d.get('participantId') or ''); people=load_people()
-                if not any(str(x.get('id'))==pid for x in people): self.sendj({'error':'المشارك غير موجود'},404); return
-                allowed=('sellerEndedAuctions','sellerMarket','marketSupervision','auctionSupervision','ordersView','ordersManage'); perms=load_user_permissions(); current=participant_permissions(pid)
-                for k in allowed:
-                    if k in d: current[k]=bool(d.get(k))
-                perms[pid]=current; save_json(USER_PERMISSIONS,{'users':perms}); append_operation('تحديث صلاحيات مستخدم',{'participantId':pid,'permissions':current}); self.sendj({'ok':True,'permissions':current}); return
             if p=='/api/dues/status':
                 did=str(d.get('id') or ''); status=str(d.get('status') or '');
                 if status not in ('unpaid','paid','cancelled'): self.sendj({'error':'حالة المستحق غير صالحة'},400); return
@@ -1565,7 +1554,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.0.27-FREE-WHATSAPP-VERIFY'
+VERSION='4.0.28-SIMPLE-ACCESS-RELIABLE-REFRESH'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
