@@ -178,11 +178,11 @@ html body nav.visitor-floating-nav>button{
 
 /* V4.2.3.4 — توسيط شريط التنقل داخل الجزء المرئي فعلياً من شاشة الجوال */
 html body nav.visitor-floating-nav{
-  left:var(--visitor-floating-center,50%)!important;
-  right:auto!important;
   inset-inline-start:auto!important;
   inset-inline-end:auto!important;
   margin-left:0!important;
   margin-right:0!important;
+  right:auto!important;
+  left:var(--visitor-floating-center,50%)!important;
   transform:translate3d(-50%,0,0)!important;
 }
