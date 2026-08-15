@@ -5723,3 +5723,54 @@ main {
 .warehouse-item-quantities{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0}.warehouse-item-quantities span{padding:7px 9px;border-radius:9px;background:#edf1f7;color:#43506a}.warehouse-item-quantities b{color:#102659}
 @media(max-width:1050px){.warehouse-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.inventory-entry-grid,.serial-auto-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.warehouse-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.warehouse-metric{min-height:106px;padding:11px}.warehouse-metric b{font-size:25px}.warehouse-controls{grid-template-columns:1fr}.warehouse-repair-bar{align-items:stretch;flex-direction:column}.warehouse-item{grid-template-columns:82px minmax(0,1fr)}.warehouse-item>img,.warehouse-no-photo{width:82px;height:72px}.warehouse-item>.actions{grid-column:1/-1}.inventory-entry-grid,.serial-auto-grid{grid-template-columns:1fr}}
+
+/* V4.2.2.1 — final containment for warehouse thumbnails */
+#warehouseItems{
+  width:100% !important;
+  max-width:100% !important;
+  min-width:0 !important;
+  overflow:hidden !important;
+}
+#warehouseItems > .warehouse-item{
+  width:100% !important;
+  max-width:100% !important;
+  min-width:0 !important;
+  overflow:hidden !important;
+  box-sizing:border-box !important;
+  grid-template-columns:120px minmax(0,1fr) auto !important;
+}
+#warehouseItems > .warehouse-item > img{
+  display:block !important;
+  width:120px !important;
+  height:90px !important;
+  min-width:120px !important;
+  min-height:90px !important;
+  max-width:120px !important;
+  max-height:90px !important;
+  margin:0 !important;
+  padding:4px !important;
+  box-sizing:border-box !important;
+  object-fit:contain !important;
+  object-position:center !important;
+  overflow:hidden !important;
+  border-radius:12px !important;
+  background:#f3f5f8 !important;
+}
+#warehouseItems .warehouse-item-main{
+  min-width:0 !important;
+  max-width:100% !important;
+  overflow:hidden !important;
+}
+@media(max-width:700px){
+  #warehouseItems > .warehouse-item{
+    grid-template-columns:82px minmax(0,1fr) !important;
+  }
+  #warehouseItems > .warehouse-item > img{
+    width:82px !important;
+    height:68px !important;
+    min-width:82px !important;
+    min-height:68px !important;
+    max-width:82px !important;
+    max-height:68px !important;
+  }
+}
