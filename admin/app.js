@@ -513,8 +513,12 @@ function card(i) {
       ? "نشط"
       : "غير نشط"
     : "غير مخصص";
-  const photo = i.frontImg
-    ? `<img src="${esc(i.frontImg)}" alt="${esc(`${i.country || ""} ${i.denomination || ""}`)}" loading="lazy">`
+  const recordImages = [
+    [i.frontImg, "الوجه الأمامي"],
+    [i.backImg, "الوجه الخلفي"],
+  ].filter(([src]) => src);
+  const photo = recordImages.length
+    ? `<div class="record-card-images">${recordImages.map(([src, label]) => `<figure><img src="${esc(src)}" alt="${esc(label)}" loading="lazy"><figcaption>${label}</figcaption></figure>`).join("")}</div>`
     : '<div class="record-no-photo" aria-label="لا توجد صورة"><span>🖼️</span><b>لا توجد صورة</b></div>';
   return `<article class="item record-card">${photo}<div class="record-card-body"><h3>${esc(i.country)} — ${esc(i.denomination)}</h3><div class="record-strips record-strips-v403"><div><span>الفئة</span><b>${esc(i.denomination || "—")}</b></div><div><span>حالة الحفظ</span><b>${esc(i.condition || "—")}</b></div><div class="quantity-stack"><span>الكميات</span><b><em>الكمية الأصلية</em><strong>${Number(i.quantity || 0)}</strong></b><b><em>المباعة</em><strong>${Number(i.soldQuantity || 0)}</strong></b><b><em>المتبقية</em><strong>${remain}</strong></b></div><div class="display-status"><span>حالة العرض</span><b><em>السوق العام</em><strong class="state ${marketState === "نشط" ? "on" : marketState === "غير نشط" ? "off" : "neutral"}">${marketState}</strong></b><b><em>المزاد</em><strong class="state ${auctionState === "نشط" || auctionState.includes("فائز") ? "on" : auctionState === "غير نشط" || auctionState.includes("دون بيع") ? "off" : "neutral"}">${auctionState}</strong></b></div><div><span>موقع التخزين</span><b>${esc(loc(i))}</b></div></div><div class="actions record-actions"><button onclick="detail('${i.id}')">عرض</button><button class="ghost" onclick="editItem('${i.id}')">تعديل</button><button class="danger" onclick="removeItem('${i.id}')">حذف</button></div></div></article>`;
 }
@@ -669,7 +673,14 @@ function renderWarehouseRows() {
     rows = lastInventoryRows.filter((x) => inventoryFilter === "all" || Number(x[inventoryFilter] || 0) > 0)
       .filter((x) => !q || JSON.stringify(x).toLowerCase().includes(q));
   $("warehouseItems").innerHTML = rows.map((x) => {
-    let location = warehouseLocationText(x.location || {}), photo = x.frontImg ? `<img src="${esc(x.frontImg)}" alt="صورة المقتنى" loading="lazy">` : '<div class="warehouse-no-photo">لا توجد صورة</div>';
+    let location = warehouseLocationText(x.location || {});
+    const warehouseImages = [
+      [x.frontImg, "الوجه"],
+      [x.backImg, "الخلف"],
+    ].filter(([src]) => src);
+    const photo = warehouseImages.length
+      ? `<div class="warehouse-thumb-pair">${warehouseImages.map(([src, label]) => `<figure><img src="${esc(src)}" alt="${esc(label)}" loading="lazy"><figcaption>${label}</figcaption></figure>`).join("")}</div>`
+      : '<div class="warehouse-no-photo">لا توجد صورة</div>';
     let returnActions = Number(x.returned || 0) > 0 ? `<button onclick="resolveInventoryReturn('${x.itemId}','warehouse')">↩ إعادة للمستودع</button><button class="danger" onclick="resolveInventoryReturn('${x.itemId}','damaged')">تسجيل تالف</button>` : "";
     let classification = ({graded:"مُقيَّم",ungraded:"غير مُقيَّم",set:"طقم"})[x.inventoryClassification] || "غير مُقيَّم";
     return `<article class="warehouse-item">${photo}<div class="warehouse-item-main"><div class="warehouse-item-title"><h3>${esc(x.country)} — ${esc(x.denomination)}</h3><span>${esc(x.year || "بدون سنة")}</span></div><div class="warehouse-item-quantities"><span>التصنيف <b>${classification}</b></span><span>الإجمالي <b>${x.total}</b></span><span>المتاح <b>${x.warehouse}</b></span><span>السوق <b>${x.market}</b></span><span>المزاد <b>${x.auction}</b></span><span>المحجوز <b>${x.reserved}</b></span><span>المرتجع <b>${x.returned}</b></span><span>المباع <b>${x.sold}</b></span></div><p class="storage-path">${esc(location)}</p><small>${x.unitCount} ${esc(inventoryUnitLabel(x.unitType))} × ${x.piecesPerUnit} ورقة/قطعة${x.sourceSubmissionId ? " — محوّل من طلب اعتماد" : ""}</small></div><div class="actions"><button onclick="detail('${x.itemId}')">عرض</button><button class="ghost" onclick="editItem('${x.itemId}')">تعديل / نقل</button>${returnActions}</div></article>`;
@@ -3064,16 +3075,18 @@ if ($("coinLightboxStage")) {
     lbDraw();
   };
 }
-// Make record images open lightbox without disturbing existing buttons
+// Make record and warehouse images open together in the lightbox.
 setInterval(
   () =>
-    document.querySelectorAll(".record-card img").forEach((img) => {
+    document.querySelectorAll(".record-card-images img, .warehouse-thumb-pair img").forEach((img) => {
       if (img.dataset.lbready) return;
       img.dataset.lbready = "1";
       img.style.cursor = "zoom-in";
       img.addEventListener("click", (e) => {
         e.stopPropagation();
-        openCoinLightbox([img.src], 0, "صورة المقتنى");
+        const group = img.closest(".record-card-images, .warehouse-thumb-pair");
+        const images = [...group.querySelectorAll("img")].map((node) => node.src);
+        openCoinLightbox(images, Math.max(0, images.indexOf(img.src)), "صور المقتنى — الوجه والخلف");
       });
     }),
   1200,
