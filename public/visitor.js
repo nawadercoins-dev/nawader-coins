@@ -20,10 +20,23 @@ function installVisitorNavigation(){
  nav.querySelector('[data-visitor-back]').addEventListener('click',()=>{if(history.length>1)history.back();else location.href='/home'});
  nav.querySelector('[data-visitor-forward]').addEventListener('click',()=>history.forward());
 }
+function centerVisitorNavigation(){
+ const viewport=window.visualViewport;
+ const center=viewport
+  ? viewport.offsetLeft+(viewport.width/2)
+  : window.innerWidth/2;
+ document.documentElement.style.setProperty('--visitor-floating-center',`${Math.round(center)}px`);
+}
+window.addEventListener('resize',centerVisitorNavigation,{passive:true});
+window.addEventListener('orientationchange',centerVisitorNavigation,{passive:true});
+if(window.visualViewport){
+ window.visualViewport.addEventListener('resize',centerVisitorNavigation,{passive:true});
+ window.visualViewport.addEventListener('scroll',centerVisitorNavigation,{passive:true});
+}
 function refresh(){let v=read(K,null),n=read(C,[]).reduce((s,x)=>s+Number(x.quantity||1),0);document.querySelectorAll('[data-cart-count]').forEach(e=>e.textContent=n);document.querySelectorAll('[data-account-name]').forEach(e=>e.textContent=v?.name?`مرحباً ${v.name}`:'زائر');document.querySelectorAll('[data-logout]').forEach(e=>e.hidden=!v);document.querySelectorAll('[data-notification-count]').forEach(e=>e.textContent='0');if(v?.id)fetch('/api/participant/status?id='+encodeURIComponent(v.id),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.participant)write(K,{...v,...d.participant})}).catch(()=>{});if(v?.verified)fetch('/api/notifications?participantId='+encodeURIComponent(v.id),{cache:'no-store'}).then(r=>r.json()).then(d=>document.querySelectorAll('[data-notification-count]').forEach(e=>e.textContent=Number(d.unread||0))).catch(()=>{})}
 document.addEventListener('click',e=>{if(e.target.closest('[data-back]'))history.back();if(e.target.closest('[data-logout]'))window.NawaderVisitor.logout();});
-document.addEventListener('DOMContentLoaded',()=>{installVisitorNavigation();refresh()});
-if(document.body)installVisitorNavigation();
+document.addEventListener('DOMContentLoaded',()=>{installVisitorNavigation();centerVisitorNavigation();refresh()});
+if(document.body){installVisitorNavigation();centerVisitorNavigation()}
 refresh();
 })();
 
