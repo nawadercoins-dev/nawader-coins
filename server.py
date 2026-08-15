@@ -54,15 +54,14 @@ def safe_participant(person):
     hidden={'otp','otpExpires','otpAttempts','whatsappClaimHash','whatsappRequestCode','whatsappRequestId'}
     return {k:v for k,v in person.items() if k not in hidden}
 
-def whatsapp_verification_url(person,request_code):
+def whatsapp_verification_url(person):
     settings=load_settings(); number=whatsapp_digits(settings.get('whatsappNumber'))
     if not number: raise ValueError('رقم واتساب الإدارة غير مضبوط. أضفه من إعدادات لوحة التحكم.')
     phone=str(person.get('phone') or '')
     message=(f"السلام عليكم، أرغب في توثيق حسابي في نوادر العملات.\n"
              f"الاسم: {person.get('name','')}\n"
              f"رقم الجوال المسجل: {phone}\n"
-             f"رمز طلب التوثيق: {request_code}\n"
-             "أرسل هذا الطلب من نفس رقم واتساب المسجل، ثم انتظر اعتماد الإدارة.")
+             "أرسل هذه الرسالة من نفس رقم واتساب المسجل، ثم انتظر اعتماد الإدارة.")
     return 'https://wa.me/'+number+'?text='+quote(message,safe='')
 
 # تهيئة القرص في أول تشغيل فقط من الملفات المرفقة مع المشروع، دون استبدال أي بيانات دائمة.
@@ -798,7 +797,7 @@ class H(SimpleHTTPRequestHandler):
             self.send_header('Cache-Control','no-store')
             if fresh_frontend:
                 self.send_header('Clear-Site-Data','"cache"')
-                self.send_header('X-Nawader-Frontend-Version','4.0.31')
+                self.send_header('X-Nawader-Frontend-Version','4.1.0')
             self.end_headers(); self.wfile.write(data)
         except FileNotFoundError:
             self.send_error(404,'File not found')
@@ -827,7 +826,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
         if p=='/api/version':
-            self.sendj({'version':'4.0.31','name':'Khazinat Al-Muqtaniat','port':getattr(self.server,'server_port',None)}); return
+            self.sendj({'version':'4.1.0','name':'Khazinat Al-Muqtaniat','port':getattr(self.server,'server_port',None)}); return
         if p=='/api/settings/public':
             st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'whatsappVerification':True}); return
         if p=='/api/settings/admin':
@@ -948,7 +947,7 @@ class H(SimpleHTTPRequestHandler):
                     except Exception: expired=True
                     if expired and request_row.get('status')=='pending': self.sendj({'error':'انتهت صلاحية طلب التوثيق. أرسل طلبًا جديدًا.'},409); return
                     if request_row.get('status')=='pending':
-                        self.sendj({'found':True,'loginGranted':False,'pending':True,'requestCode':request_row.get('requestCode','')}); return
+                        self.sendj({'found':True,'loginGranted':False,'pending':True}); return
                     if request_row.get('status')=='approved':
                         person=next((x for x in load_people() if str(x.get('id'))==str(request_row.get('participantId'))),None)
                         if person and person.get('approved') and person.get('verified') and not person.get('blocked'):
@@ -1401,17 +1400,17 @@ class H(SimpleHTTPRequestHandler):
                     person=existing; person['name']=name or person.get('name',''); person['phone']=phone; person['lastSeen']=nowiso
                 else:
                     person={'id':'p-'+secrets.token_hex(6),'name':name,'phone':phone,'approved':False,'verified':False,'blocked':False,'created':nowiso,'lastSeen':nowiso}; a.append(person)
-                request_code='NW-'+secrets.token_hex(3).upper(); claim=secrets.token_urlsafe(32); request_id='wr-'+secrets.token_hex(8)
-                request_row={'id':request_id,'participantId':person['id'],'name':name,'phone':phone,'requestCode':request_code,'claimHash':claim_hash(claim),'status':'pending','created':nowiso,'expires':(now+datetime.timedelta(hours=24)).isoformat(),'previouslyApproved':bool(person.get('approved') and person.get('verified'))}
+                claim=secrets.token_urlsafe(32); request_id='wr-'+secrets.token_hex(8)
+                request_row={'id':request_id,'participantId':person['id'],'name':name,'phone':phone,'claimHash':claim_hash(claim),'status':'pending','created':nowiso,'expires':(now+datetime.timedelta(hours=24)).isoformat(),'previouslyApproved':bool(person.get('approved') and person.get('verified'))}
                 requests=load_whatsapp_requests()
                 for old in requests:
                     if str(old.get('participantId'))==str(person['id']) and old.get('status')=='pending': old['status']='superseded'; old['updated']=nowiso
                 requests.append(request_row); requests=requests[-4000:]
-                person.update({'whatsappRequestPending':True,'whatsappRequestCode':request_code,'whatsappRequestId':request_id,'whatsappRequestedAt':nowiso,'authProvider':'whatsapp-admin'})
+                person.update({'whatsappRequestPending':True,'whatsappRequestId':request_id,'whatsappRequestedAt':nowiso,'authProvider':'whatsapp-admin'})
                 save_json(PEOPLE,{'participants':a})
                 save_json(WHATSAPP_REQUESTS,{'requests':requests})
-                add_notification('admin','','approval','طلب توثيق واتساب',f"{name} — {phone} — الرمز {request_code}. طابق رقم مرسل واتساب قبل الاعتماد.",person.get('id',''),'/admin')
-                self.sendj({'ok':True,'verified':False,'approvalRequired':True,'requestId':request_id,'requestCode':request_code,'claimToken':claim,'whatsappUrl':whatsapp_verification_url(person,request_code),'expiresHours':24,'message':'أرسل الطلب عبر واتساب من الرقم نفسه ثم انتظر اعتماد الإدارة.'}); return
+                add_notification('admin','','approval','طلب اعتماد حساب عبر واتساب',f"{name} — {phone}. طابق رقم مرسل واتساب مع الرقم المسجل قبل الاعتماد.",person.get('id',''),'/admin')
+                self.sendj({'ok':True,'verified':False,'approvalRequired':True,'requestId':request_id,'claimToken':claim,'whatsappUrl':whatsapp_verification_url(person),'expiresHours':24,'message':'أرسل الرسالة الجاهزة من رقم واتساب نفسه؛ ستتابع الصفحة اعتماد الإدارة تلقائيًا.'}); return
             if p=='/api/participant/verify':
                 self.sendj({'error':'أُلغي التحقق بالرمز المدفوع. استخدم طلب التوثيق المجاني عبر واتساب.'},410); return
             if p=='/api/participant/approve':
@@ -1561,7 +1560,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.0.31-MOBILE-NAV-VIEWPORT-CENTER'
+VERSION='4.1.0-WHATSAPP-ADMIN-APPROVAL-NO-CODE'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
