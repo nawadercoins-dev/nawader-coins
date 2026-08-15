@@ -113,6 +113,26 @@ def inventory_int(value, default=0):
     try: return max(0,int(float(value)))
     except Exception: return max(0,int(default))
 
+def submission_inventory_values(source):
+    """Normalize submission classification and physical quantity."""
+    collection_class=str(source.get('collectionClass') or 'single').strip().lower()
+    if collection_class not in ('single','set'): collection_class='single'
+    unit_type=str(source.get('inventoryUnitType') or ('set' if collection_class=='set' else 'piece')).strip().lower()
+    if unit_type not in ('piece','coin','set','bundle','strap','lot'): unit_type='piece'
+    if collection_class=='set': unit_type='set'
+    unit_count=max(1,inventory_int(source.get('inventoryUnitCount'),1))
+    default_pieces=100 if unit_type=='strap' else (2 if unit_type=='set' else 1)
+    pieces_per_unit=max(1,inventory_int(source.get('piecesPerUnit'),default_pieces))
+    if unit_type=='strap' and source.get('piecesPerUnit') in (None,''): pieces_per_unit=100
+    is_graded=bool(source.get('isGraded'))
+    classification='set' if collection_class=='set' else ('graded' if is_graded else 'ungraded')
+    return {'collectionClass':collection_class,'inventoryClassification':classification,
+            'isSet':collection_class=='set','isGraded':is_graded,
+            'inventoryUnitType':unit_type,'inventoryUnitCount':unit_count,
+            'piecesPerUnit':pieces_per_unit,
+            'setPieces':pieces_per_unit if collection_class=='set' else 0,
+            'quantity':unit_count*pieces_per_unit}
+
 def inventory_unit_count(item):
     if item.get('inventoryUnitCount') not in (None,''): return max(1,inventory_int(item.get('inventoryUnitCount'),1))
     return max(1,inventory_int(item.get('quantity'),1))
@@ -185,9 +205,46 @@ def inventory_summary():
     items=load(); orders=load_orders(); rows=[]
     totals={k:0 for k in ('total','current','warehouse','market','auction','reserved','sold','returned','damaged','special')}
     for item in items:
-        snap=inventory_snapshot(item,orders); rows.append({**snap,'country':item.get('country',''),'denomination':item.get('denomination',''),'year':item.get('year',''),'frontImg':item.get('frontImg',''),'location':storage_location(item),'specialNumberEnabled':bool(item.get('specialNumberEnabled'))})
+        snap=inventory_snapshot(item,orders); rows.append({**snap,'country':item.get('country',''),'denomination':item.get('denomination',''),'year':item.get('year',''),'frontImg':item.get('frontImg',''),'backImg':item.get('backImg',''),'location':storage_location(item),'specialNumberEnabled':bool(item.get('specialNumberEnabled')),'inventoryClassification':item.get('inventoryClassification') or ('set' if item.get('isSet') else ('graded' if item.get('isGraded') else 'ungraded')),'sourceSubmissionId':item.get('sourceSubmissionId','')})
         for key in totals: totals[key]+=inventory_int(snap.get(key),0)
     return {'totals':totals,'items':rows,'generatedAt':datetime.datetime.now().isoformat()}
+
+def repair_approved_submission_inventory():
+    """Repair approved customer submissions while preserving existing item data."""
+    items=load(); rows=load_collectible_submissions(); repaired=created=0; skipped=[]; changed=False
+    for row in rows:
+        if row.get('status')!='approved': continue
+        sid=str(row.get('id') or '')
+        item=next((x for x in items if str(x.get('id'))==str(row.get('itemId') or '')),None)
+        if not item: item=next((x for x in items if str(x.get('sourceSubmissionId') or '')==sid),None)
+        inv=submission_inventory_values(row)
+        if not item:
+            serial=str(row.get('serial') or '').strip(); norm=re.sub(r'\s+','',serial).upper(); duplicate=False
+            if norm:
+                for other in items:
+                    values=other.get('serials') or [other.get('serial')]
+                    if not isinstance(values,list): values=[values]
+                    if norm in {re.sub(r'\s+','',str(v or '')).upper() for v in values if str(v or '').strip()}: duplicate=True; break
+            if duplicate:
+                skipped.append({'submissionId':sid,'reason':'duplicate_serial'}); continue
+            now=datetime.datetime.now().isoformat(); item_id='k-'+secrets.token_hex(8)
+            item={'id':item_id,'country':row.get('country',''),'denomination':row.get('denomination',''),'issueEdition':row.get('issueEdition',''),'year':row.get('year',''),'type':row.get('type') or 'عملة ورقية','condition':row.get('condition','UNC'),'soldQuantity':0,'damagedQuantity':0,'serial':serial,'serials':[serial] if serial else [],'frontImg':row.get('frontImage',''),'backImg':row.get('backImage',''),'notes':row.get('notes',''),'ownerName':row.get('participantName',''),'ownerPhone':row.get('participantPhone',''),'ownerParticipantId':row.get('participantId',''),'sourceSubmissionId':sid,'storageStatus':'warehouse','warehouse':'المستودع الرئيسي','forMarket':False,'marketApproved':False,'forAuction':False,'auctionApproved':False,'created':now,'updated':int(time.time()*1000),**inv}
+            items.append(item); created+=1; changed=True
+        else:
+            before=json.dumps(item,ensure_ascii=False,sort_keys=True)
+            for key,value in (('country',row.get('country','')),('denomination',row.get('denomination','')),('issueEdition',row.get('issueEdition','')),('year',row.get('year','')),('type',row.get('type') or 'عملة ورقية'),('condition',row.get('condition','UNC')),('frontImg',row.get('frontImage','')),('backImg',row.get('backImage',''))):
+                if item.get(key) in (None,'') and value not in (None,''): item[key]=value
+            for key,value in inv.items():
+                if item.get(key) in (None,''): item[key]=value
+            item['inventoryClassification']=item.get('inventoryClassification') or inv['inventoryClassification']
+            item['collectionClass']='set' if item['inventoryClassification']=='set' else 'single'; item['isSet']=item['inventoryClassification']=='set'
+            item['warehouse']=item.get('warehouse') or 'المستودع الرئيسي'; item['storageStatus']='warehouse'; item['sourceSubmissionId']=sid
+            if json.dumps(item,ensure_ascii=False,sort_keys=True)!=before: repaired+=1; changed=True
+        row['itemId']=item['id']; row['warehouseVerified']=True; row['warehouseVerifiedAt']=datetime.datetime.now().isoformat(); changed=True
+    if changed:
+        save(items); save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
+        append_operation('فحص وإصلاح تحويلات المقتنيات إلى المستودع',{'repaired':repaired,'created':created,'skipped':skipped})
+    return {'ok':True,'repaired':repaired,'created':created,'skipped':skipped,'inventory':inventory_summary()}
 
 def storage_location(item):
     return {'warehouse':item.get('warehouse',''),'cabinet':item.get('cabinet',''),'shelf':item.get('shelf',''),'box':item.get('box',''),'album':item.get('album',''),'pocket':item.get('pocket','')}
@@ -896,7 +953,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
         if p=='/api/version':
-            self.sendj({'version':'4.2.1','name':'Nawader Coins Warehouse + Auto Approval','port':getattr(self.server,'server_port',None)}); return
+            self.sendj({'version':'4.2.2','name':'Nawader Coins Verified Warehouse Transfer + Auto Approval','port':getattr(self.server,'server_port',None)}); return
         if p=='/api/settings/public':
             st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours']}); return
         if p=='/api/settings/admin':
@@ -1205,11 +1262,13 @@ class H(SimpleHTTPRequestHandler):
                     row=next((x for x in rows if str(x.get('id'))==sid and str(x.get('participantId'))==pid),None)
                     if not row: self.sendj({'error':'السجل غير موجود أو لا تملك صلاحية تعديله'},404); return
                     if row.get('itemId') or row.get('status')=='approved': self.sendj({'error':'تم اعتماد السجل؛ اطلب من الإدارة تعديله'},409); return
-                    row.update({'country':country,'denomination':denomination,'year':str(d.get('year') or '').strip(),'issueEdition':str(d.get('issueEdition') or '').strip(),'condition':str(d.get('condition') or 'UNC').strip(),'serial':str(d.get('serial') or '').strip(),'notes':str(d.get('notes') or '').strip(),'desiredDestination':str(d.get('desiredDestination') or 'vault'),'frontImage':front,'backImage':back,'status':'pending','adminNote':'','updated':now})
+                    inv=submission_inventory_values(d)
+                    row.update({'country':country,'denomination':denomination,'year':str(d.get('year') or '').strip(),'issueEdition':str(d.get('issueEdition') or '').strip(),'type':str(d.get('type') or 'عملة ورقية').strip(),'condition':str(d.get('condition') or 'UNC').strip(),'serial':str(d.get('serial') or '').strip(),'notes':str(d.get('notes') or '').strip(),'desiredDestination':str(d.get('desiredDestination') or 'vault'),'frontImage':front,'backImage':back,'status':'pending','adminNote':'','updated':now,**inv})
                     save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
                     add_notification('admin','','approval','✏️ تم تعديل طلب مقتنى',f"عدّل {person.get('name','عميل')} مقتنى {country} — {denomination} وأعاده للمراجعة.",'','/admin')
                     self.sendj({'ok':True,'submission':{k:v for k,v in row.items() if k not in ('frontImage','backImage')}}); return
-                row={'id':'cs-'+secrets.token_hex(6),'participantId':pid,'participantName':person.get('name',''),'participantPhone':person.get('phone',''),'country':country,'denomination':denomination,'year':str(d.get('year') or '').strip(),'issueEdition':str(d.get('issueEdition') or '').strip(),'condition':str(d.get('condition') or 'UNC').strip(),'serial':str(d.get('serial') or '').strip(),'notes':str(d.get('notes') or '').strip(),'desiredDestination':str(d.get('desiredDestination') or 'vault'),'frontImage':front,'backImage':back,'status':'pending','adminNote':'','created':now,'updated':now,'itemId':''}
+                inv=submission_inventory_values(d)
+                row={'id':'cs-'+secrets.token_hex(6),'participantId':pid,'participantName':person.get('name',''),'participantPhone':person.get('phone',''),'country':country,'denomination':denomination,'year':str(d.get('year') or '').strip(),'issueEdition':str(d.get('issueEdition') or '').strip(),'type':str(d.get('type') or 'عملة ورقية').strip(),'condition':str(d.get('condition') or 'UNC').strip(),'serial':str(d.get('serial') or '').strip(),'notes':str(d.get('notes') or '').strip(),'desiredDestination':str(d.get('desiredDestination') or 'vault'),'frontImage':front,'backImage':back,'status':'pending','adminNote':'','created':now,'updated':now,'itemId':'',**inv}
                 rows.append(row); save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
                 add_notification('admin','','approval','🪙 طلب اعتماد مقتنى جديد',f"أرسل {person.get('name','عميل')} مقتنى {country} — {denomination} للمراجعة والاعتماد.",'','/admin')
                 add_notification('participant',pid,'approval','تم استلام المقتنى للمراجعة',f'تم استلام {country} — {denomination}. الحالة الآن: قيد المراجعة.','','/account')
@@ -1230,20 +1289,39 @@ class H(SimpleHTTPRequestHandler):
                 if action not in ('approved','needs_changes','rejected'): self.sendj({'error':'الإجراء غير صالح'},400); return
                 rows=load_collectible_submissions(); row=next((x for x in rows if str(x.get('id'))==sid),None)
                 if not row: self.sendj({'error':'طلب الاعتماد غير موجود'},404); return
-                now=datetime.datetime.now().isoformat(); row['status']=action; row['adminNote']=note; row['updated']=now
+                now=datetime.datetime.now().isoformat()
                 if action=='approved' and not row.get('itemId'):
                     items=load(); item_id='k-'+secrets.token_hex(8)
                     serial=str(row.get('serial') or '').strip()
-                    item={'id':item_id,'country':row.get('country',''),'denomination':row.get('denomination',''),'issueEdition':row.get('issueEdition',''),'year':row.get('year',''),'type':'عملة ورقية','condition':row.get('condition','UNC'),'quantity':1,'soldQuantity':0,'serial':serial,'serials':[serial] if serial else [],'frontImg':row.get('frontImage',''),'backImg':row.get('backImage',''),'notes':row.get('notes',''),'ownerName':row.get('participantName',''),'ownerPhone':row.get('participantPhone',''),'ownerParticipantId':row.get('participantId',''),'sourceSubmissionId':sid,'forMarket':False,'marketApproved':False,'forAuction':False,'auctionApproved':False,'created':now,'updated':int(time.time()*1000)}
-                    items.append(item); save(items); row['itemId']=item_id
+                    normalized_serial=re.sub(r'\s+','',serial).upper()
+                    if normalized_serial:
+                        for other in items:
+                            other_serials=other.get('serials') or [other.get('serial')]
+                            if not isinstance(other_serials,list): other_serials=[other_serials]
+                            if normalized_serial in {re.sub(r'\s+','',str(s or '')).upper() for s in other_serials if str(s or '').strip()}:
+                                self.sendj({'error':'لا يمكن الاعتماد: الرقم التسلسلي مسجل مسبقًا في المستودع'},409); return
+                    inv=submission_inventory_values(row)
+                    item={'id':item_id,'country':row.get('country',''),'denomination':row.get('denomination',''),'issueEdition':row.get('issueEdition',''),'year':row.get('year',''),'type':row.get('type') or 'عملة ورقية','condition':row.get('condition','UNC'),'soldQuantity':0,'damagedQuantity':0,'serial':serial,'serials':[serial] if serial else [],'frontImg':row.get('frontImage',''),'backImg':row.get('backImage',''),'notes':row.get('notes',''),'ownerName':row.get('participantName',''),'ownerPhone':row.get('participantPhone',''),'ownerParticipantId':row.get('participantId',''),'sourceSubmissionId':sid,'storageStatus':'warehouse','warehouse':'المستودع الرئيسي','forMarket':False,'marketApproved':False,'forAuction':False,'auctionApproved':False,'created':now,'updated':int(time.time()*1000),**inv}
+                    items.append(item); save(items)
+                    saved=next((x for x in load() if str(x.get('id'))==item_id),None)
+                    snap=inventory_snapshot(saved) if saved else None
+                    preserved=bool(saved and saved.get('country')==row.get('country') and saved.get('denomination')==row.get('denomination') and saved.get('frontImg','')==row.get('frontImage','') and saved.get('backImg','')==row.get('backImage','') and saved.get('inventoryClassification')==inv['inventoryClassification'] and inventory_total(saved)==inv['quantity'] and snap and snap.get('warehouse')==inv['quantity'])
+                    if not preserved:
+                        save([x for x in load() if str(x.get('id'))!=item_id])
+                        append_save_audit({'id':item_id,'ok':False,'created':now,'reason':'submission_warehouse_verification_failed'})
+                        self.sendj({'error':'تعذر التحقق من حفظ التصنيف أو الصور أو الكمية داخل المستودع؛ لم يُعتمد الطلب'},500); return
+                    row['itemId']=item_id; row['warehouseVerified']=True; row['warehouseVerifiedAt']=now
+                    append_save_audit({'id':item_id,'ok':True,'country':item.get('country'),'denomination':item.get('denomination'),'created':now,'source':'collectible_submission','warehouse':snap})
+                row['status']=action; row['adminNote']=note; row['updated']=now
                 save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
                 pid=row.get('participantId'); title=f"{row.get('country','')} — {row.get('denomination','')}".strip(' —')
-                if action=='approved': nt=('✅ تم اعتماد المقتنى',f'تم اعتماد {title} وإضافته إلى سجل مقتنياتك. يمكنك طلب عرضه لاحقًا حسب الصلاحيات.')
+                if action=='approved': nt=('✅ تم اعتماد المقتنى وإيداعه في المستودع',f'تم اعتماد {title} وحفظ تصنيفه وصوره وكميته في المستودع. يمكنك طلب عرضه لاحقًا حسب الصلاحيات.')
                 elif action=='needs_changes': nt=('✏️ يحتاج المقتنى إلى استكمال',f'طلب {title} يحتاج تعديل/استكمال بيانات.'+((' ملاحظة الإدارة: '+note) if note else ''))
                 else: nt=('تم رفض طلب اعتماد المقتنى',f'لم يتم اعتماد {title}.'+((' السبب: '+note) if note else ''))
                 add_notification('participant',pid,'approval',nt[0],nt[1],row.get('itemId',''),'/account')
-                append_operation('تحديث طلب اعتماد مقتنى',{'submissionId':sid,'status':action,'itemId':row.get('itemId',''),'note':note})
-                self.sendj({'ok':True,'submission':row}); return
+                append_operation('تحديث طلب اعتماد مقتنى',{'submissionId':sid,'status':action,'itemId':row.get('itemId',''),'warehouseVerified':bool(row.get('warehouseVerified')),'note':note})
+                saved_item=next((x for x in load() if str(x.get('id'))==str(row.get('itemId') or '')),None)
+                self.sendj({'ok':True,'submission':row,'inventory':inventory_snapshot(saved_item) if saved_item else None}); return
             if p=='/api/permissions/update':
                 pid=str(d.get('participantId') or ''); people=load_people()
                 if not any(str(x.get('id'))==pid for x in people): self.sendj({'error':'المشارك غير موجود'},404); return
@@ -1313,6 +1391,8 @@ class H(SimpleHTTPRequestHandler):
                 item['updated']=int(datetime.datetime.now().timestamp()*1000)
                 save(items); save_json(ORDERS,{'orders':orders}); append_operation('معالجة مرتجع',{'itemId':iid,'action':action,'quantity':physical,'orders':affected})
                 self.sendj({'ok':True,'itemId':iid,'action':action,'quantity':physical,'inventory':inventory_snapshot(item,orders)}); return
+            if p=='/api/inventory/repair-approved-submissions':
+                self.sendj(repair_approved_submission_inventory()); return
             if p=='/api/subscription/add':
                 typ=str(d.get('type','daily')).strip(); customer=str(d.get('customer','')).strip(); note=str(d.get('note','')).strip(); amount=float(d.get('amount') or 0)
                 if typ not in {'daily','seasonal','package'}: self.sendj({'error':'نوع الاشتراك غير صالح'},400); return
@@ -1580,6 +1660,14 @@ class H(SimpleHTTPRequestHandler):
                 denom=str(x.get('denomination') or '').strip()
                 if not iid or not country or not denom:
                     self.sendj({'ok':False,'error':'بيانات الحفظ الأساسية ناقصة: رقم السجل أو الدولة أو الفئة'},400); return
+                classification=str(x.get('inventoryClassification') or '').strip().lower()
+                if classification not in ('graded','ungraded','set'):
+                    classification='set' if (x.get('isSet') or str(x.get('marketOfferType') or '')=='set') else ('graded' if x.get('isGraded') else 'ungraded')
+                x['inventoryClassification']=classification
+                x['collectionClass']='set' if classification=='set' else 'single'
+                x['isSet']=classification=='set'
+                if not str(x.get('warehouse') or '').strip(): x['warehouse']='المستودع الرئيسي'
+                if not str(x.get('storageStatus') or '').strip(): x['storageStatus']='warehouse'
                 # V3.5: validate requested publication before writing. Market and auction may both be selected.
                 if x.get('forAuction') and x.get('auctionApproved'):
                     end=str(x.get('auctionEnd') or '').strip()
@@ -1669,7 +1757,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.2.1-WAREHOUSE-AUTOMATIC-APPROVAL'
+VERSION='4.2.2-WAREHOUSE-VERIFIED-TRANSFER-AUTOMATIC-APPROVAL'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
