@@ -1125,6 +1125,10 @@ async function analyzeCurrentImage() {
 $("analyzeImage").onclick = analyzeCurrentImage;
 window.editItem = async (id) => {
   let i = (await all()).find((x) => x.id === id);
+  if (!i) {
+    alert("تعذر العثور على المقتنى. حدّث صفحة المستودع ثم حاول مرة أخرى.");
+    return;
+  }
   Object.keys(i).forEach((k) => {
     if ($(k) && !["front", "back", "year"].includes(k)) $(k).value = i[k] ?? "";
   });
@@ -1276,14 +1280,22 @@ $("form").onsubmit = async (e) => {
       wantsMarket = !!$("forMarket")?.checked,
       auctionPublish = wantsAuction && $("auctionApproved").checked,
       marketPublish = wantsMarket && !!$("marketApproved")?.checked;
+    // تعديل بيانات المستودع لا يعيد فتح مزاد قديم منتهٍ.
+    // الموعد المستقبلي مطلوب فقط للنشر الجديد أو عند تغيير موعد الانتهاء.
+    let oldAuctionApproved = !!(old?.forAuction && old?.auctionApproved),
+      auctionEndChanged = String(v("auctionEnd") || "") !== String(old?.auctionEnd || ""),
+      auctionNeedsFreshSchedule = auctionPublish &&
+        (!old || !oldAuctionApproved || auctionEndChanged),
+      auctionEndMs = auctionPublish ? new Date(v("auctionEnd")).getTime() : NaN;
     if (auctionPublish) {
       let end = v("auctionEnd");
       if (!end)
         throw new Error(
           "اعتماد المزاد للنشر يتطلب تحديد تاريخ ووقت انتهاء المزاد",
         );
-      let endMs = new Date(end).getTime();
-      if (!Number.isFinite(endMs) || endMs <= Date.now())
+      if (!Number.isFinite(auctionEndMs))
+        throw new Error("صيغة تاريخ انتهاء المزاد غير صحيحة");
+      if (auctionNeedsFreshSchedule && auctionEndMs <= Date.now())
         throw new Error("موعد انتهاء المزاد يجب أن يكون في المستقبل");
     }
     if (marketPublish) {
@@ -1423,7 +1435,8 @@ $("form").onsubmit = async (e) => {
         );
     }
     let published = [];
-    if (auctionPublish) {
+    // المزادات العامة تعرض النشط فقط؛ المزاد المنتهي يبقى محفوظًا في السجل.
+    if (auctionPublish && auctionEndMs > Date.now()) {
       let pub = await api("/api/public/auctions");
       if (!(pub.items || []).some((x) => String(x.id) === String(id)))
         throw new Error(
