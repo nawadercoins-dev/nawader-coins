@@ -237,24 +237,33 @@ function setPreview(which, data) {
     if (clr) clr.hidden = true;
   }
 }
+let generatedSerials = [];
 function serialValues() {
+  if ($("autoSerialEnabled")?.checked) return generatedSerials.slice();
   return [...document.querySelectorAll(".serial-input")]
     .map((x) => x.value.trim())
     .filter(Boolean);
 }
 function renderSerialFields(values) {
+  if ($("autoSerialEnabled")?.checked) {
+    $("serialFields").innerHTML = generatedSerials.length
+      ? `<details><summary>تم توليد ${generatedSerials.length} رقمًا — اضغط لعرض القائمة</summary><div class="serial-generated-list">${generatedSerials.map((x) => `<span dir="ltr">${esc(x)}</span>`).join("")}</div></details>`
+      : '<p class="muted">أدخل أول رقم ثم اضغط «توليد ومعاينة».</p>';
+    return;
+  }
   let q = Math.max(1, n("quantity") || 1),
     old = Array.isArray(values)
       ? values
       : [...document.querySelectorAll(".serial-input")].map((x) => x.value),
+    manualCount = Math.min(q, 200),
     fields = Array.from(
-      { length: q },
+      { length: manualCount },
       (_, i) =>
         `<label>القطعة ${i + 1}<input class="serial-input" data-i="${i}" value="${esc(old[i] || "")}" placeholder="الرقم التسلسلي"><small class="muted serial-analysis">${esc(serial(old[i] || ""))}</small></label>`,
     ).join("");
   $("serialFields").innerHTML =
     q > 3
-      ? `<details ${q <= 5 ? "open" : ""}><summary>إدخال ${q} أرقام تسلسلية — اضغط للفتح أو الإغلاق</summary><div class="serial-fields-inner">${fields}</div></details>`
+      ? `<details ${q <= 5 ? "open" : ""}><summary>إدخال ${manualCount} أرقام تسلسلية — اضغط للفتح أو الإغلاق</summary><div class="serial-fields-inner">${fields}</div>${q > manualCount ? '<p class="muted">للكميات الكبيرة استخدم التوليد الآلي حتى لا تتكدس الصفحة.</p>' : ""}</details>`
       : `<div class="serial-fields-inner">${fields}</div>`;
   document
     .querySelectorAll(".serial-input")
@@ -264,6 +273,33 @@ function renderSerialFields(values) {
           (x.parentElement.querySelector(".serial-analysis").textContent =
             serial(x.value))),
     );
+}
+function inventoryUnitLabel(type) {
+  return ({ piece: "ورقة/قطعة", coin: "عملة معدنية", set: "طقم", bundle: "حزمة", strap: "ربطة", lot: "بندل/مجموعة" })[type] || "وحدة";
+}
+function updateInventoryQuantity() {
+  let units = Math.max(1, n("inventoryUnitCount") || 1),
+    pieces = Math.max(1, n("piecesPerUnit") || 1),
+    total = units * pieces;
+  $("quantity").value = total;
+  if ($("inventoryQuantityPreview"))
+    $("inventoryQuantityPreview").textContent = `${units} ${inventoryUnitLabel(v("inventoryUnitType"))} × ${pieces} = ${total} ورقة/قطعة`;
+  if ($("serialCount") && !$('serialCount').dataset.userChanged) $("serialCount").value = total;
+  renderSerialFields();
+}
+function generateSerialSequence(start, count) {
+  start = String(start || "").trim();
+  count = Math.max(1, Math.min(5000, Number(count) || 1));
+  let match = start.match(/^(.*?[\/\-:]\s*)(\d(?:\s*\d)*)(\D*)$/) || start.match(/^(.*?)(\d+)(\D*)$/);
+  if (!match) throw new Error("يجب أن ينتهي الرقم الأول بجزء رقمي يمكن تسلسله");
+  let prefix = match[1], digits = match[2].replace(/\s/g, ""), suffix = match[3] || "", first = BigInt(digits), width = digits.length;
+  return Array.from({ length: count }, (_, i) => prefix + (first + BigInt(i)).toString().padStart(width, "0") + suffix);
+}
+function updateAutoSerialUI() {
+  let enabled = !!$("autoSerialEnabled")?.checked;
+  if ($("autoSerialFields")) $("autoSerialFields").hidden = !enabled;
+  if (!enabled) generatedSerials = [];
+  renderSerialFields();
 }
 function auctionText(end) {
   if (!end) return "";
@@ -336,6 +372,7 @@ document.querySelectorAll("nav button").forEach(
       if (
         [
           "home",
+          "warehouse",
           "list",
           "auction",
           "ended-auctions",
@@ -346,6 +383,7 @@ document.querySelectorAll("nav button").forEach(
       )
         await refresh(true);
       if (b.dataset.v === "participants") await renderParticipants();
+      if (b.dataset.v === "warehouse") await renderWarehouse();
       if (b.dataset.v === "ended-auctions") await renderEndedAuctions();
       if (b.dataset.v === "market") await renderMarketAdmin();
       if (b.dataset.v === "finance") await renderFinance();
@@ -359,6 +397,7 @@ document.querySelectorAll(".dashboard-go").forEach((b) =>
     if (
       [
         "home",
+        "warehouse",
         "list",
         "auction",
         "ended-auctions",
@@ -369,6 +408,7 @@ document.querySelectorAll(".dashboard-go").forEach((b) =>
     )
       await refresh(true);
     if (vw === "participants") await renderParticipants();
+    if (vw === "warehouse") await renderWarehouse();
     if (vw === "ended-auctions") await renderEndedAuctions();
     if (vw === "market") await renderMarketAdmin();
     if (vw === "finance") await renderFinance();
@@ -483,10 +523,15 @@ function dataToken(a) {
         i.id,
         i.updated,
         i.quantity,
+        i.inventoryUnitType,
+        i.inventoryUnitCount,
+        i.piecesPerUnit,
         i.soldQuantity,
+        i.damagedQuantity,
         (i.serials || []).join(","),
         i.forAuction,
         i.auctionEnd,
+        i.auctionQuantity,
         i.forMarket,
         i.marketApproved,
         i.marketSalePrice,
@@ -559,6 +604,8 @@ async function refresh(force = false) {
     $("recent").innerHTML =
       a.slice(0, 12).map(card).join("") || "<p>لا توجد بيانات.</p>";
     renderList(a);
+    if (document.getElementById("warehouse")?.classList.contains("active"))
+      await renderWarehouse();
   } catch (e) {
     console.warn("تعذر تحديث البيانات المشتركة", e);
   } finally {
@@ -571,6 +618,7 @@ let recordFilter = "all",
   marketSetFilter = "all";
 function isSet(i) {
   return (
+    i.inventoryClassification === "set" || i.collectionClass === "set" ||
     i.marketOfferType === "set" || i.offerType === "set" || i.isSet === true
   );
 }
@@ -579,8 +627,9 @@ function setSizeClass(i) {
   return p <= 3 ? "mini" : p <= 5 ? "small" : p <= 10 ? "medium" : "large";
 }
 function classMatch(i, f, sf) {
-  if (f === "graded" && !i.isGraded) return false;
-  if (f === "ungraded" && (i.isGraded || isSet(i))) return false;
+  let classification = i.inventoryClassification || (isSet(i) ? "set" : (i.isGraded ? "graded" : "ungraded"));
+  if (f === "graded" && classification !== "graded") return false;
+  if (f === "ungraded" && classification !== "ungraded") return false;
   if (f === "sets" && !isSet(i)) return false;
   if (f === "sets" && sf !== "all" && setSizeClass(i) !== sf) return false;
   return true;
@@ -602,6 +651,61 @@ function renderList(a) {
       .map(card)
       .join("") || "<p>لا توجد نتيجة في هذا التصنيف.</p>";
 }
+let inventoryFilter = "all",
+  lastInventoryRows = [];
+function warehouseLocationText(location = {}) {
+  return [
+    ["مستودع", location.warehouse], ["خزانة", location.cabinet],
+    ["رف", location.shelf], ["صندوق", location.box],
+    ["ألبوم", location.album], ["صفحة/جيب", location.pocket],
+  ].filter((x) => x[1]).map((x) => x.join(" ")).join(" ← ") || "غير محدد";
+}
+function renderWarehouseRows() {
+  let q = String($("warehouseSearch")?.value || "").trim().toLowerCase(),
+    rows = lastInventoryRows.filter((x) => inventoryFilter === "all" || Number(x[inventoryFilter] || 0) > 0)
+      .filter((x) => !q || JSON.stringify(x).toLowerCase().includes(q));
+  $("warehouseItems").innerHTML = rows.map((x) => {
+    let location = warehouseLocationText(x.location || {}), photo = x.frontImg ? `<img src="${esc(x.frontImg)}" alt="صورة المقتنى" loading="lazy">` : '<div class="warehouse-no-photo">لا توجد صورة</div>';
+    let returnActions = Number(x.returned || 0) > 0 ? `<button onclick="resolveInventoryReturn('${x.itemId}','warehouse')">↩ إعادة للمستودع</button><button class="danger" onclick="resolveInventoryReturn('${x.itemId}','damaged')">تسجيل تالف</button>` : "";
+    let classification = ({graded:"مُقيَّم",ungraded:"غير مُقيَّم",set:"طقم"})[x.inventoryClassification] || "غير مُقيَّم";
+    return `<article class="warehouse-item">${photo}<div class="warehouse-item-main"><div class="warehouse-item-title"><h3>${esc(x.country)} — ${esc(x.denomination)}</h3><span>${esc(x.year || "بدون سنة")}</span></div><div class="warehouse-item-quantities"><span>التصنيف <b>${classification}</b></span><span>الإجمالي <b>${x.total}</b></span><span>المتاح <b>${x.warehouse}</b></span><span>السوق <b>${x.market}</b></span><span>المزاد <b>${x.auction}</b></span><span>المحجوز <b>${x.reserved}</b></span><span>المرتجع <b>${x.returned}</b></span><span>المباع <b>${x.sold}</b></span></div><p class="storage-path">${esc(location)}</p><small>${x.unitCount} ${esc(inventoryUnitLabel(x.unitType))} × ${x.piecesPerUnit} ورقة/قطعة${x.sourceSubmissionId ? " — محوّل من طلب اعتماد" : ""}</small></div><div class="actions"><button onclick="detail('${x.itemId}')">عرض</button><button class="ghost" onclick="editItem('${x.itemId}')">تعديل / نقل</button>${returnActions}</div></article>`;
+  }).join("") || '<p class="muted">لا توجد مقتنيات في هذا المؤشر.</p>';
+}
+async function renderWarehouse() {
+  try {
+    let data = await api("/api/inventory/summary"), totals = data.totals || {};
+    lastInventoryRows = data.items || [];
+    let ids = { total: "invTotal", current: "invCurrent", warehouse: "invWarehouse", market: "invMarket", auction: "invAuction", special: "invSpecial", reserved: "invReserved", sold: "invSold", returned: "invReturned", damaged: "invDamaged" };
+    Object.entries(ids).forEach(([key, id]) => { if ($(id)) $(id).textContent = Number(totals[key] || 0).toLocaleString("ar-SA"); });
+    if ($("warehouseEquation")) $("warehouseEquation").textContent = `الرصيد الحالي ${Number(totals.current || 0).toLocaleString("ar-SA")} = المستودع ${Number(totals.warehouse || 0).toLocaleString("ar-SA")} + السوق ${Number(totals.market || 0).toLocaleString("ar-SA")} + المزاد ${Number(totals.auction || 0).toLocaleString("ar-SA")} + المحجوز ${Number(totals.reserved || 0).toLocaleString("ar-SA")} + المرتجع للفحص ${Number(totals.returned || 0).toLocaleString("ar-SA")}`;
+    renderWarehouseRows();
+  } catch (e) {
+    $("warehouseItems").innerHTML = `<p class="analysis-warn">تعذر تحميل المستودع: ${esc(e.message)}</p>`;
+  }
+}
+document.querySelectorAll(".warehouse-metric").forEach((b) => b.addEventListener("click", () => {
+  inventoryFilter = b.dataset.inventoryFilter || "all";
+  document.querySelectorAll(".warehouse-metric").forEach((x) => x.classList.toggle("active", x === b));
+  renderWarehouseRows();
+}));
+if ($("warehouseSearch")) $("warehouseSearch").oninput = renderWarehouseRows;
+if ($("refreshWarehouse")) $("refreshWarehouse").onclick = renderWarehouse;
+if ($("repairWarehouseSubmissions")) $("repairWarehouseSubmissions").onclick = async () => {
+  if (!confirm("فحص المقتنيات المعتمدة سابقًا وإصلاح ربطها بالمستودع؟ لن يتم نشر أي مقتنى في السوق أو المزاد.")) return;
+  try {
+    let result = await api("/api/inventory/repair-approved-submissions", { method: "POST", body: "{}" });
+    await refresh(true); await renderWarehouse(); await renderCollectibleApprovals();
+    toast(`اكتمل الفحص: أُصلح ${Number(result.repaired || 0)}، وأُعيد إنشاء ${Number(result.created || 0)}.`);
+  } catch (e) { alert(e.message); }
+};
+window.resolveInventoryReturn = async (itemId, action) => {
+  let label = action === "warehouse" ? "إعادة المرتجع إلى المستودع وإيقاف عرضه الحالي؟" : "تسجيل الكمية المرتجعة كتالف/مفقود؟";
+  if (!confirm(label)) return;
+  try {
+    await api("/api/inventory/return-resolution", { method: "POST", body: JSON.stringify({ itemId, action }) });
+    await refresh(true); await renderWarehouse(); toast(action === "warehouse" ? "تمت إعادة المرتجع إلى المستودع." : "تم تسجيل المرتجع كتالف.");
+  } catch (e) { alert("تعذر معالجة المرتجع: " + e.message); }
+};
 window.removeItem = async (id) => {
   if (confirm("حذف السجل؟")) {
     try {
@@ -650,8 +754,12 @@ window.detail = async (id) => {
       ["ملاحظات التقييم", i.isGraded ? i.gradingNotes || "—" : "—"],
       ["النوع", i.type],
       ["الحالة", i.condition],
-      ["الكمية", i.quantity],
+      ["نوع الوحدة", inventoryUnitLabel(i.inventoryUnitType || "piece")],
+      ["عدد الوحدات", i.inventoryUnitCount || i.quantity || 1],
+      ["القطع في الوحدة", i.piecesPerUnit || 1],
+      ["إجمالي الأوراق/القطع", i.quantity],
       ["المباعة", i.soldQuantity || 0],
+      ["التالفة/المفقودة", i.damagedQuantity || 0],
       [
         "المتبقية",
         Math.max(0, (Number(i.quantity) || 0) - (Number(i.soldQuantity) || 0)),
@@ -670,6 +778,7 @@ window.detail = async (id) => {
         "اعتماد المزاد",
         i.forAuction ? (i.auctionApproved ? "معتمد" : "غير معتمد") : "—",
       ],
+      ["كمية المزاد", i.forAuction ? i.auctionQuantity || 1 : "—"],
       [
         "سعر فتح المزايدة",
         i.forAuction
@@ -785,7 +894,7 @@ async function renderParticipants() {
       a
         .map(
           (x) =>
-            `<div class="participant ${x.approved ? "approved" : "pending"}"><b>${esc(x.name || "")}</b> — ${esc(x.phone || "")}<br><span class="muted">${x.approved && x.verified ? "✅ موثق ومعتمد" : x.approved ? "✅ معتمد إداريًا" : "⏳ بانتظار التحقق/الاعتماد"}</span><br><small class="muted">رمز المشاركة: ${esc(x.id || "")} ${x.created ? "— الطلب: " + new Date(x.created).toLocaleString("ar-SA") : ""}</small><div class="actions"><button onclick="participantSet('${x.id}',true,true)">✅ اعتماد مباشر بدون رمز</button><button class="danger" onclick="participantSet('${x.id}',false,false)">${x.approved ? "إلغاء الاعتماد ونقل للأرشيف" : "رفض ونقل للأرشيف"}</button></div></div>`,
+            `<div class="participant ${x.approved ? "approved" : "pending"}"><b>${esc(x.name || "")}</b> — ${esc(x.phone || "")}<br><span class="muted">${x.approved && x.verified ? "✅ مفعل ومعتمد تلقائيًا" : x.approved ? "✅ معتمد إداريًا" : "⏳ غير معتمد"}</span><br><small class="muted">رمز المشاركة: ${esc(x.id || "")} ${x.created ? "— التسجيل: " + new Date(x.created).toLocaleString("ar-SA") : ""}</small><div class="actions">${x.approved ? "" : `<button onclick="participantSet('${x.id}',true,true)">✅ اعتماد الحساب</button>`}<button class="danger" onclick="participantSet('${x.id}',false,false)">${x.approved ? "إلغاء الاعتماد ونقل للأرشيف" : "نقل للأرشيف"}</button></div></div>`,
         )
         .join("") || "<p>لا توجد طلبات مشاركة.</p>";
     if ($("participantsArchiveList"))
@@ -1067,6 +1176,10 @@ window.editItem = async (id) => {
     $("marketPartialAllowed").checked = !!i.marketPartialAllowed;
   if ($("marketNegotiationEnabled"))
     $("marketNegotiationEnabled").checked = !!i.marketNegotiationEnabled;
+  if ($("inventoryUnitType")) $("inventoryUnitType").value = i.inventoryUnitType || "piece";
+  if ($("inventoryUnitCount")) $("inventoryUnitCount").value = Number(i.inventoryUnitCount || i.quantity || 1);
+  if ($("piecesPerUnit")) $("piecesPerUnit").value = Number(i.piecesPerUnit || 1);
+  updateInventoryQuantity();
   if (
     !i.marketPriceUnit &&
     i.marketOfferType === "set" &&
@@ -1080,6 +1193,11 @@ window.editItem = async (id) => {
   frontImageRemoved = backImageRemoved = false;
   setPreview("front", frontImg);
   setPreview("back", backImg);
+  if ($("autoSerialEnabled")) $("autoSerialEnabled").checked = !!i.autoSerialEnabled;
+  if ($("serialStart")) $("serialStart").value = i.serialStart || "";
+  if ($("serialCount")) $("serialCount").value = Number(i.serialCount || (i.serials || []).length || i.quantity || 1);
+  generatedSerials = i.autoSerialEnabled ? (i.serials || [i.serial || ""]).filter(Boolean) : [];
+  updateAutoSerialUI();
   renderSerialFields(i.serials || [i.serial || ""]);
   updateAuctionUI();
   updateMarketUI();
@@ -1087,7 +1205,24 @@ window.editItem = async (id) => {
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
 $("close").onclick = () => $("dlg").close();
-$("quantity").oninput = () => renderSerialFields();
+if ($("inventoryUnitType")) $("inventoryUnitType").onchange = () => {
+  if ($("inventoryUnitType").value === "strap" && Number($("piecesPerUnit").value || 1) === 1) $("piecesPerUnit").value = 100;
+  updateInventoryQuantity();
+};
+if ($("inventoryUnitCount")) $("inventoryUnitCount").oninput = updateInventoryQuantity;
+if ($("piecesPerUnit")) $("piecesPerUnit").oninput = updateInventoryQuantity;
+if ($("autoSerialEnabled")) $("autoSerialEnabled").onchange = updateAutoSerialUI;
+if ($("serialCount")) $("serialCount").oninput = () => { $("serialCount").dataset.userChanged = "1"; };
+if ($("generateSerials")) $("generateSerials").onclick = () => {
+  try {
+    generatedSerials = generateSerialSequence(v("serialStart"), n("serialCount"));
+    let first = generatedSerials[0], last = generatedSerials[generatedSerials.length - 1];
+    $("serialRangePreview").textContent = `من ${first} إلى ${last} — العدد ${generatedSerials.length}`;
+    renderSerialFields();
+  } catch (e) {
+    generatedSerials = []; $("serialRangePreview").textContent = "⚠️ " + e.message; renderSerialFields();
+  }
+};
 $("forAuction").onchange = () => {
   updateAuctionUI();
 };
@@ -1170,6 +1305,16 @@ $("form").onsubmit = async (e) => {
       if ((n("marketQuantity") || 0) < 1)
         throw new Error("الكمية المعروضة في السوق يجب أن تكون 1 على الأقل");
     }
+    if ($("autoSerialEnabled")?.checked) {
+      if (!generatedSerials.length) generatedSerials = generateSerialSequence(v("serialStart"), n("serialCount"));
+      if (generatedSerials.length !== Math.max(1, n("serialCount") || 1)) throw new Error("تعذر إكمال التسلسل الآلي بالأعداد المطلوبة");
+    }
+    let totalPhysical = n("quantity") || 1,
+      piecesPerUnit = Math.max(1, n("piecesPerUnit") || 1),
+      marketPhysical = marketPublish ? (n("marketQuantity") || 1) * (v("marketOfferType") === "set" ? Math.max(1, n("marketSetPieces") || piecesPerUnit) : v("marketOfferType") === "bundle" ? piecesPerUnit : 1) : 0,
+      auctionPhysical = auctionPublish ? Math.max(1, n("auctionQuantity") || 1) : 0;
+    if (!old && n("soldQuantity") + n("damagedQuantity") + marketPhysical + auctionPhysical > totalPhysical)
+      throw new Error(`توزيع الكمية يتجاوز الرصيد الفعلي ${totalPhysical}. خفّض كمية السوق أو المزاد أو الكميات الخارجة.`);
     let payload = {
       id,
       country: v("country"),
@@ -1191,14 +1336,21 @@ $("form").onsubmit = async (e) => {
       gradingNotes: $("isGraded").checked ? v("gradingNotes") : "",
       type: v("type"),
       condition: v("condition"),
-      quantity: n("quantity") || 1,
+      inventoryUnitType: v("inventoryUnitType") || "piece",
+      inventoryUnitCount: Math.max(1, n("inventoryUnitCount") || 1),
+      piecesPerUnit,
+      quantity: totalPhysical,
       soldQuantity: Math.min(
-        n("quantity") || 1,
+        totalPhysical,
         Math.max(0, n("soldQuantity")),
       ),
+      damagedQuantity: Math.min(totalPhysical, Math.max(0, n("damagedQuantity"))),
       serials: serialValues(),
       serial: serialValues()[0] || "",
       serialType: serial(serialValues()[0] || ""),
+      autoSerialEnabled: !!$("autoSerialEnabled")?.checked,
+      serialStart: $("autoSerialEnabled")?.checked ? v("serialStart") : "",
+      serialCount: $("autoSerialEnabled")?.checked ? generatedSerials.length : serialValues().length,
       specialNumberEnabled: !!$("specialNumberEnabled")?.checked,
       specialNumberTypes: $("specialNumberEnabled")?.checked
         ? [...document.querySelectorAll(".special-number-type:checked")].map(
@@ -1220,6 +1372,7 @@ $("form").onsubmit = async (e) => {
       auctionBidStep: n("auctionBidStep") || 1,
       auctionTargetPrice: n("auctionTargetPrice"),
       auctionCurrentPrice: n("auctionCurrentPrice"),
+      auctionQuantity: wantsAuction ? Math.max(1, n("auctionQuantity") || 1) : 0,
       auctionApproved: auctionPublish,
       negotiationEnabled: wantsAuction && $("negotiationEnabled").checked,
       negotiationPercent: n("negotiationPercent") || 5,
@@ -1325,6 +1478,17 @@ function resetItemForm() {
   $("year").value = "";
   $("quantity").value = 1;
   $("soldQuantity").value = 0;
+  if ($("damagedQuantity")) $("damagedQuantity").value = 0;
+  if ($("inventoryUnitType")) $("inventoryUnitType").value = "piece";
+  if ($("inventoryUnitCount")) $("inventoryUnitCount").value = 1;
+  if ($("piecesPerUnit")) $("piecesPerUnit").value = 1;
+  if ($("auctionQuantity")) $("auctionQuantity").value = 1;
+  if ($("autoSerialEnabled")) $("autoSerialEnabled").checked = false;
+  if ($("autoSerialFields")) $("autoSerialFields").hidden = true;
+  if ($("serialStart")) $("serialStart").value = "";
+  if ($("serialCount")) { $("serialCount").value = 1; delete $("serialCount").dataset.userChanged; }
+  if ($("serialRangePreview")) $("serialRangePreview").textContent = "";
+  generatedSerials = [];
   frontImg = backImg = "";
   frontImageRemoved = backImageRemoved = false;
   setPreview("front", "");
@@ -1365,6 +1529,7 @@ function resetItemForm() {
   updateGradingUI();
   updateAuctionUI();
   updateMarketUI();
+  updateInventoryQuantity();
 }
 if ($("reset"))
   $("reset").addEventListener("click", (e) => {
@@ -1540,6 +1705,7 @@ setInterval(() => {
 }, 2000);
 refreshParticipantBadge();
 renderSerialFields([]);
+updateInventoryQuantity();
 updateAuctionUI();
 function paintAdminAuctionClocks() {
   document.querySelectorAll(".auction-clock").forEach((x) => {
@@ -3016,7 +3182,7 @@ async function renderCollectibleApprovals() {
       rows
         .map(
           (x) =>
-            `<article class="collectible-approval-card"><div class="collectible-approval-images">${x.frontImage ? `<img src="${x.frontImage}" onclick='openCoinLightbox([${JSON.stringify(x.frontImage)},${JSON.stringify(x.backImage || "")}].filter(Boolean),0,${JSON.stringify((x.country || "") + " — " + (x.denomination || ""))})'>` : ""}${x.backImage ? `<img src="${x.backImage}" onclick='openCoinLightbox([${JSON.stringify(x.frontImage || "")},${JSON.stringify(x.backImage)}].filter(Boolean),${x.frontImage ? 1 : 0},${JSON.stringify((x.country || "") + " — " + (x.denomination || ""))})'>` : ""}</div><div class="collectible-approval-info"><h3>${esc(x.country)} — ${esc(x.denomination)}</h3><div><b>${esc(x.participantName || "عميل")}</b> — ${esc(x.participantPhone || "")}</div><div class="collectible-meta"><span>${esc(x.year || "بدون سنة")}</span><span>${esc(x.condition || "—")}</span>${x.serial ? `<span>رقم: ${esc(x.serial)}</span>` : ""}<span>الرغبة: ${x.desiredDestination === "market" ? "السوق" : x.desiredDestination === "auction" ? "المزاد" : "المقتنيات"}</span><span class="collectible-state ${esc(x.status)}">${collectibleApprovalStatus(x.status)}</span></div>${x.notes ? `<p>${esc(x.notes)}</p>` : ""}${x.itemId ? `<p><b>أضيف للسجل:</b> ${esc(x.itemId)}</p>` : ""}<textarea id="cap-note-${esc(x.id)}" class="collectible-admin-note" placeholder="ملاحظة للعميل عند طلب الاستكمال أو الرفض">${esc(x.adminNote || "")}</textarea><div class="collectible-actions"><button class="approve" onclick="setCollectibleApproval('${esc(x.id)}','approved')" ${x.status === "approved" ? "disabled" : ""}>✓ اعتماد وإضافة للسجل</button><button class="changes" onclick="setCollectibleApproval('${esc(x.id)}','needs_changes')">✎ طلب استكمال</button><button class="reject" onclick="setCollectibleApproval('${esc(x.id)}','rejected')">رفض</button></div><small>${x.created ? new Date(x.created).toLocaleString("ar-SA") : ""}</small></div></article>`,
+            `<article class="collectible-approval-card"><div class="collectible-approval-images">${x.frontImage ? `<img src="${x.frontImage}" onclick='openCoinLightbox([${JSON.stringify(x.frontImage)},${JSON.stringify(x.backImage || "")}].filter(Boolean),0,${JSON.stringify((x.country || "") + " — " + (x.denomination || ""))})'>` : ""}${x.backImage ? `<img src="${x.backImage}" onclick='openCoinLightbox([${JSON.stringify(x.frontImage || "")},${JSON.stringify(x.backImage)}].filter(Boolean),${x.frontImage ? 1 : 0},${JSON.stringify((x.country || "") + " — " + (x.denomination || ""))})'>` : ""}</div><div class="collectible-approval-info"><h3>${esc(x.country)} — ${esc(x.denomination)}</h3><div><b>${esc(x.participantName || "عميل")}</b> — ${esc(x.participantPhone || "")}</div><div class="collectible-meta"><span>${esc(x.year || "بدون سنة")}</span><span>${esc(x.condition || "—")}</span>${x.serial ? `<span>رقم: ${esc(x.serial)}</span>` : ""}<span>التصنيف: ${x.inventoryClassification === "set" ? "طقم" : x.inventoryClassification === "graded" ? "مُقيَّم" : "غير مُقيَّم"}</span><span>الكمية الفعلية: ${Number(x.quantity || 1)}</span><span>الرغبة: ${x.desiredDestination === "market" ? "السوق" : x.desiredDestination === "auction" ? "المزاد" : "المستودع"}</span><span class="collectible-state ${esc(x.status)}">${collectibleApprovalStatus(x.status)}</span></div>${x.notes ? `<p>${esc(x.notes)}</p>` : ""}${x.itemId ? `<p><b>${x.warehouseVerified ? "✓ محفوظ ومتحقق داخل المستودع:" : "أضيف للسجل:"}</b> ${esc(x.itemId)}</p>` : ""}<textarea id="cap-note-${esc(x.id)}" class="collectible-admin-note" placeholder="ملاحظة للعميل عند طلب الاستكمال أو الرفض">${esc(x.adminNote || "")}</textarea><div class="collectible-actions"><button class="approve" onclick="setCollectibleApproval('${esc(x.id)}','approved')" ${x.status === "approved" ? "disabled" : ""}>✓ اعتماد وإيداع بالمستودع</button><button class="changes" onclick="setCollectibleApproval('${esc(x.id)}','needs_changes')">✎ طلب استكمال</button><button class="reject" onclick="setCollectibleApproval('${esc(x.id)}','rejected')">رفض</button></div><small>${x.created ? new Date(x.created).toLocaleString("ar-SA") : ""}</small></div></article>`,
         )
         .join("") ||
       '<p class="muted">لا توجد طلبات اعتماد مقتنيات حتى الآن.</p>';

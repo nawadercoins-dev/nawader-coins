@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#071b35" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="styles.css?v=4.0.25.2-image-record-fix" />
-    <title>نوادر العملات — الإدارة V4.0.24</title>
+    <link rel="stylesheet" href="styles.css?v=4.2.2-warehouse-verified" />
+    <title>نوادر العملات — الإدارة V4.2.2</title>
   </head>
   <body>
     <header>
@@ -22,7 +22,7 @@
     <nav>
       <a class="site-home-link" href="/home" target="_blank">⌂ واجهة الموقع</a
       ><button data-v="home" class="active">لوحة التحكم</button
-      ><button data-v="add">إضافة</button><button data-v="list">السجل</button
+      ><button data-v="add">إضافة</button><button data-v="warehouse">المستودع</button><button data-v="list">السجل</button
       ><button data-v="auction">المزاد</button
       ><button data-v="ended-auctions">
         المزادات المنتهية
@@ -146,11 +146,10 @@
               ><small>تنظيم الصور — قيد التطوير</small
               ><span class="pending-badge">قيد التطوير</span>
             </div>
-            <div class="module-card module-pending">
-              <span class="module-icon">⌂</span><b>المستودعات</b
-              ><small>تنظيم مواقع الحفظ — قيد التطوير</small
-              ><span class="pending-badge">قيد التطوير</span>
-            </div>
+            <button type="button" class="module-card dashboard-go" data-go="warehouse">
+              <span class="module-icon">⌂</span><b>المستودع</b
+              ><small>الكميات والمواقع والحجز والسوق والمزاد</small>
+            </button>
           </div>
         </div>
 
@@ -471,19 +470,32 @@
               <option>VF</option>
               <option>F</option>
             </select></label
-          ><label
-            >الكمية<input
-              id="quantity"
-              type="number"
-              min="1"
-              value="1" /></label
-          ><label
+          ><div class="wide inventory-entry-box">
+            <h3>الوحدة والكمية الفعلية</h3>
+            <p class="muted">مثال: 3 ربطات × 100 ورقة = 300 ورقة. إجمالي القطع هو الرصيد الذي يوزعه النظام بين المستودع والسوق والمزاد والحجز.</p>
+            <div class="inventory-entry-grid">
+              <label>نوع الوحدة<select id="inventoryUnitType">
+                <option value="piece">ورقة / قطعة</option>
+                <option value="coin">عملة معدنية</option>
+                <option value="set">طقم</option>
+                <option value="bundle">حزمة</option>
+                <option value="strap">ربطة</option>
+                <option value="lot">بندل / مجموعة</option>
+              </select></label>
+              <label>عدد الوحدات<input id="inventoryUnitCount" type="number" min="1" value="1" /></label>
+              <label>عدد الأوراق/القطع في الوحدة<input id="piecesPerUnit" type="number" min="1" value="1" /></label>
+              <label>إجمالي الأوراق/القطع<input id="quantity" type="number" min="1" value="1" readonly /></label>
+            </div>
+            <p id="inventoryQuantityPreview" class="inventory-quantity-preview">1 وحدة — 1 قطعة</p>
+          </div>
+          <label
             >الكمية المباعة<input
               id="soldQuantity"
               type="number"
               min="0"
               value="0"
           /></label>
+          <label>الكمية التالفة أو المفقودة<input id="damagedQuantity" type="number" min="0" value="0" /></label>
           <div class="wide grading-box">
             <h3>التقييم والتغليف الاحترافي</h3>
             <label class="check"
@@ -530,9 +542,16 @@
               /></label>
             </div>
           </div>
-          <div class="wide">
+          <div class="wide serial-entry-box">
             <h3>الأرقام التسلسلية</h3>
-            <p class="muted">يظهر حقل مستقل لكل قطعة حسب الكمية.</p>
+            <p class="muted">يمكن إدخال الأرقام يدويًا، أو إدخال أول رقم ليولد النظام بقية أرقام الربطة أو الحزمة آليًا مع حفظ الأصفار والجزء الثابت.</p>
+            <label class="check"><input id="autoSerialEnabled" type="checkbox" /> توليد تسلسل آلي</label>
+            <div id="autoSerialFields" class="serial-auto-grid" hidden>
+              <label>الرقم الأول<input id="serialStart" dir="ltr" placeholder="مثال: 120/001278654" /></label>
+              <label>عدد الأرقام<input id="serialCount" type="number" min="1" max="5000" value="1" /></label>
+              <button type="button" id="generateSerials" class="ghost">توليد ومعاينة</button>
+              <p id="serialRangePreview" class="muted wide"></p>
+            </div>
             <div id="serialFields" class="serial-grid"></div>
           </div>
           <div class="wide form-section-title">
@@ -761,9 +780,8 @@
                 ونشره في السوق العام</label
               >
               <p class="muted wide">
-                سعر الشراء يبقى في الدفتر المالي السري ولا يظهر للمشتري. السوق
-                العام مستقل في طريقة البيع، ويمكن تخصيص المقتنى للسوق والمزاد
-                معًا إذا رغبت الإدارة؛ لا يتم النشر إلا عند تفعيل اعتماد كل قسم.
+                سعر الشراء يبقى في الدفتر المالي السري ولا يظهر للمشتري. يمكن
+                توزيع الرصيد بين السوق والمزاد، ويمنع النظام تجاوز الكمية الفعلية.
               </p>
             </div>
           </div>
@@ -773,6 +791,7 @@
               ><input id="forAuction" type="checkbox" /> مخصص للمزاد</label
             >
             <div id="auctionFields" hidden>
+              <label>الكمية الفعلية المخصصة للمزاد<input id="auctionQuantity" type="number" min="1" value="1" /></label>
               <label
                 >تاريخ ووقت انتهاء المزاد<input
                   id="auctionEnd"
@@ -1150,8 +1169,9 @@
             <div>
               <h2>🪙 طلبات اعتماد المقتنيات</h2>
               <p class="muted">
-                المقتنيات التي يرسلها العملاء من صفحة حسابي. الاعتماد يضيف
-                المقتنى إلى السجل فقط ولا ينشره تلقائيًا في السوق أو المزاد.
+                المقتنيات التي يرسلها العملاء من صفحة حسابي. الاعتماد يحفظ
+                التصنيف والصور والكميات ثم يودع المقتنى في المستودع، دون نشره
+                تلقائيًا في السوق أو المزاد.
               </p>
             </div>
             <button
@@ -1181,16 +1201,15 @@
       </section>
       <section id="participants" class="view">
         <div class="panel">
-          <h2>اعتماد المشاركين في المزاد</h2>
+          <h2>المشاركون المعتمدون تلقائيًا</h2>
           <div class="participant-summary">
             <span>بانتظار الاعتماد: <b id="pendingParticipantsCount">0</b></span
             ><span>القائمة النشطة: <b id="participantsTotalCount">0</b></span
             ><span>الأرشيف: <b id="participantsArchiveCount">0</b></span>
           </div>
           <p class="muted">
-            التحقق بالرمز يعمل تلقائيًا. وللحالات المستثناة يمكنك استخدام
-            «اعتماد مباشر بدون رمز» من هنا، ويبقى الاعتماد دائمًا ما لم تلغه
-            يدويًا.
+            التسجيل والتفعيل والاعتماد يتم تلقائيًا بالاسم ورقم الجوال دون رمز
+            أو واتساب. ويمكن للإدارة إلغاء الاعتماد أو الأرشفة أو الاستعادة.
           </p>
           <div id="participantsList" class="participants-list"></div>
         </div>
@@ -1200,6 +1219,38 @@
             يمكن استعادة العميل. الحذف النهائي لا يمكن التراجع عنه.
           </p>
           <div id="participantsArchiveList" class="participants-list"></div>
+        </div>
+      </section>
+      <section id="warehouse" class="view warehouse-view">
+        <div class="panel warehouse-panel">
+          <div class="auction-title-row">
+            <div>
+              <h2>⌂ المستودع ومراقبة الكميات</h2>
+              <p class="muted">السجل المركزي للكميات الفعلية. الأرقام المميزة والنادرة تصنيف مستقل ولا تُجمع مرة ثانية ضمن الإجمالي.</p>
+            </div>
+            <button type="button" id="refreshWarehouse" class="ghost">↻ تحديث المؤشرات</button>
+          </div>
+          <div class="warehouse-metrics">
+            <button class="warehouse-metric total active" data-inventory-filter="all"><span>إجمالي الكمية الأصلية</span><b id="invTotal">0</b><small>جميع الأوراق والقطع المسجلة</small></button>
+            <button class="warehouse-metric current" data-inventory-filter="current"><span>الرصيد الحالي العام</span><b id="invCurrent">0</b><small>دون المباعة والتالفة</small></button>
+            <button class="warehouse-metric warehouse" data-inventory-filter="warehouse"><span>المتاح في المستودع</span><b id="invWarehouse">0</b><small>جاهز للتخصيص</small></button>
+            <button class="warehouse-metric market" data-inventory-filter="market"><span>في السوق العام</span><b id="invMarket">0</b><small>معروض وغير محجوز</small></button>
+            <button class="warehouse-metric auction" data-inventory-filter="auction"><span>في المزادات</span><b id="invAuction">0</b><small>مزادات نشطة</small></button>
+            <button class="warehouse-metric special" data-inventory-filter="special"><span>مميزة ونادرة</span><b id="invSpecial">0</b><small>تصنيف فقط — لا يضاعف الإجمالي</small></button>
+            <button class="warehouse-metric reserved" data-inventory-filter="reserved"><span>محجوزة في الطلبات</span><b id="invReserved">0</b><small>بانتظار إكمال الدورة</small></button>
+            <button class="warehouse-metric sold" data-inventory-filter="sold"><span>المباعة</span><b id="invSold">0</b><small>خارج الرصيد الحالي</small></button>
+            <button class="warehouse-metric returned" data-inventory-filter="returned"><span>المرتجعة</span><b id="invReturned">0</b><small>تحتاج فحص الإدارة</small></button>
+            <button class="warehouse-metric damaged" data-inventory-filter="damaged"><span>تالف / مفقود</span><b id="invDamaged">0</b><small>خارج الرصيد المتاح</small></button>
+          </div>
+          <div class="warehouse-controls">
+            <input id="warehouseSearch" placeholder="بحث بالدولة أو الفئة أو السنة أو رقم المقتنى أو موقع التخزين" />
+            <span id="warehouseEquation" class="inventory-equation"></span>
+          </div>
+          <div class="warehouse-repair-bar">
+            <button type="button" id="repairWarehouseSubmissions" class="ghost">فحص وإصلاح المقتنيات المعتمدة سابقًا</button>
+            <small>يعيد ربط المقتنيات القديمة بالمستودع ويحفظ التصنيف والصور والكميات دون نشرها في السوق أو المزاد.</small>
+          </div>
+          <div id="warehouseItems" class="warehouse-items"></div>
         </div>
       </section>
       <section id="list" class="view">
@@ -1515,6 +1566,6 @@
       <div id="quickResults"></div>
       <div id="recent"></div>
     </div>
-    <script src="app.js?v=4.0.25.2-image-record-fix"></script>
+    <script src="app.js?v=4.2.2-warehouse-verified"></script>
   </body>
 </html>
