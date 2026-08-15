@@ -5775,3 +5775,14 @@ main {
     max-height:68px !important;
   }
 }
+
+/* V4.2.3.1 — mobile lightbox containment */
+@media (max-width:700px){
+  .coin-lightbox{width:96vw!important;height:90vh!important;max-width:96vw!important;max-height:90vh!important;overflow:hidden!important}
+  .lightbox-close{top:8px!important;left:8px!important;width:42px!important;height:42px!important;font-size:22px!important}
+  .lightbox-toolbar{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:5px!important;padding:54px 8px 8px!important;min-height:0!important;max-height:170px!important;overflow:auto!important}
+  .lightbox-toolbar button{width:100%!important;min-width:0!important;min-height:34px!important;padding:5px 3px!important;font-size:.78rem!important}
+  .lightbox-stage{height:calc(90vh - 220px)!important;min-height:220px!important}
+  .lightbox-stage img{max-width:96%!important;max-height:96%!important;object-fit:contain!important}
+  .lightbox-caption{font-size:.82rem!important;padding:5px!important}
+}

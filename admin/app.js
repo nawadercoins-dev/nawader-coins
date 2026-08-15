@@ -64,6 +64,10 @@ async function api(path, opt = {}) {
   try {
     j = await r.json();
   } catch (e) {}
+  if (r.status === 401) {
+    location.href = "/admin-login";
+    throw new Error("انتهت جلسة الإدارة؛ جارٍ فتح صفحة الدخول من جديد.");
+  }
   if (!r.ok || j?.ok === false)
     throw new Error(j?.error || "تعذر الاتصال بقاعدة البيانات المشتركة");
   return j || {};
@@ -893,13 +897,13 @@ async function renderParticipants() {
     if ($("participantsTotalCount"))
       $("participantsTotalCount").textContent = r.total || a.length;
     if ($("participantsArchiveCount"))
-      $("participantsArchiveCount").textContent = r.archived || archived.length;
+      $("participantsArchiveCount").textContent = Number(r.archived || 0);
     document.querySelectorAll("[data-count]").forEach(el=>el.textContent=counts[el.dataset.count]||0);
     $("participantsList").innerHTML=a.map(x=>`<div class="participant status-${esc(x.approvalStatus||'new')}"><div class="participant-head"><b>${esc(x.name||"")}</b>${approvalBadge(x)}</div><div>${esc(x.phone||"")}</div><small class="muted">رمز المشاركة: ${esc(x.id||"")} ${x.created?"— التسجيل: "+new Date(x.created).toLocaleString("ar-SA"):""}</small>${x.archiveReason?`<p class="participant-reason">السبب: ${esc(x.archiveReason)}</p>`:""}<div class="actions participant-approval-actions">${participantActions(x)}</div></div>`).join("")||"<p>لا يوجد مشاركون في هذا التصنيف.</p>";
     window.__participantRows=all;
     await refreshParticipantBadge();
   } catch (e) {
-    $("participantsList").innerHTML = "<p>تعذر تحميل المشاركين.</p>";
+    $("participantsList").innerHTML = `<p>تعذر تحميل المشاركين: ${esc(e.message || "خطأ غير معروف")}</p>`;
   }
 }
 async function refreshParticipantBadge() {
