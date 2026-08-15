@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#071b35" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="styles.css?v=4.2.2.1-warehouse-image-fix" />
-    <title>نوادر العملات — الإدارة V4.2.2.1</title>
+    <link rel="stylesheet" href="styles.css?v=4.2.3-approval-control" />
+    <title>نوادر العملات — الإدارة V4.2.3</title>
   </head>
   <body>
     <header>
@@ -47,7 +47,6 @@
         <span id="adminNotificationsBadge" class="nav-badge" hidden
           >0</span
         ></button
-      ><button data-v="permissions">الصلاحيات</button
       ><button data-v="dues">المستحقات</button
       ><button data-v="settings">الإعدادات</button
       ><button data-v="backup">النسخ الاحتياطي</button
@@ -232,14 +231,6 @@
             >
               <span class="module-icon">◎</span><b>المشاركون والاعتمادات</b
               ><small>توثيق واعتماد وإدارة المشاركين</small>
-            </button>
-            <button
-              type="button"
-              class="module-card dashboard-go"
-              data-go="permissions"
-            >
-              <span class="module-icon">♙</span><b>الصلاحيات المرنة</b
-              ><small>منح البائع والمشرف صلاحيات الصفحات والمهام</small>
             </button>
             <button
               type="button"
@@ -1201,24 +1192,17 @@
       </section>
       <section id="participants" class="view">
         <div class="panel">
-          <h2>المشاركون المعتمدون تلقائيًا</h2>
+          <h2>إدارة اعتماد المشاركين</h2>
           <div class="participant-summary">
-            <span>بانتظار الاعتماد: <b id="pendingParticipantsCount">0</b></span
-            ><span>القائمة النشطة: <b id="participantsTotalCount">0</b></span
-            ><span>الأرشيف: <b id="participantsArchiveCount">0</b></span>
+            <span>مبدئي/جديد: <b id="pendingParticipantsCount">0</b></span><span>النشطون: <b id="participantsTotalCount">0</b></span><span>الملغون: <b id="participantsArchiveCount">0</b></span>
           </div>
           <p class="muted">
-            التسجيل والتفعيل والاعتماد يتم تلقائيًا بالاسم ورقم الجوال دون رمز
-            أو واتساب. ويمكن للإدارة إلغاء الاعتماد أو الأرشفة أو الاستعادة.
+            التحقق آلي دون رمز أو واتساب ويمنح اعتمادًا مبدئيًا فقط. المشاركة المالية والمزايدة والبيع تتطلب الاعتماد النهائي.
           </p>
+          <div class="participant-filters" id="participantFilters">
+            <button class="active" data-participant-filter="all">الكل</button><button data-participant-filter="preliminary">مبدئي <b data-count="preliminary">0</b></button><button data-participant-filter="final">نهائي <b data-count="final">0</b></button><button data-participant-filter="suspended">معلّق <b data-count="suspended">0</b></button><button data-participant-filter="stopped">موقوف <b data-count="stopped">0</b></button><button data-participant-filter="cancelled">ملغى <b data-count="cancelled">0</b></button>
+          </div>
           <div id="participantsList" class="participants-list"></div>
-        </div>
-        <div class="panel participants-archive-panel">
-          <h2>🗄️ أرشيف المشاركين</h2>
-          <p class="muted">
-            يمكن استعادة العميل. الحذف النهائي لا يمكن التراجع عنه.
-          </p>
-          <div id="participantsArchiveList" class="participants-list"></div>
         </div>
       </section>
       <section id="warehouse" class="view warehouse-view">
@@ -1311,28 +1295,6 @@
             </button>
           </div>
           <div id="adminNotificationsList" class="notifications-list"></div>
-        </div>
-      </section>
-      <section id="permissions" class="view">
-        <div class="panel">
-          <div class="auction-title-row">
-            <div>
-              <h2>🔐 الصلاحيات المرنة</h2>
-              <p class="muted">
-                تُمنح الصلاحيات لكل مستخدم بصورة مستقلة. البائع يرى بياناته
-                المصرح بها فقط، ولا يحصل على صلاحيات الإدارة العامة.
-              </p>
-            </div>
-            <button type="button" id="refreshPermissions" class="ghost">
-              ↻ تحديث
-            </button>
-          </div>
-          <div class="permission-legend">
-            <span>المزادات المنتهية الخاصة به</span
-            ><span>متابعة سوقه وطلباته</span><span>الإشراف على السوق</span
-            ><span>الإشراف على المزادات</span>
-          </div>
-          <div id="permissionsList" class="permissions-list"></div>
         </div>
       </section>
       <section id="dues" class="view">
@@ -1434,13 +1396,6 @@
             >
           </div>
           <p id="settingsStatus" class="muted"></p>
-          <div class="settings-note">
-            <b>الصلاحيات التفصيلية</b>
-            <p>
-              تم تفعيل إدارة الصلاحيات في هذا الإصدار بصورة مستقلة عن منطق النسخ
-              الاحتياطي والاستعادة.
-            </p>
-          </div>
         </div>
       </section>
       <section id="backup" class="view">
@@ -1566,6 +1521,6 @@
       <div id="quickResults"></div>
       <div id="recent"></div>
     </div>
-    <script src="app.js?v=4.2.2-warehouse-verified"></script>
+    <script src="app.js?v=4.2.3-approval-control"></script>
   </body>
 </html>

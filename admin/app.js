@@ -879,32 +879,24 @@ function initViewers() {
     };
   });
 }
+let participantFilter = "all";
+const approvalMeta = {new:["طلب جديد","new"],preliminary:["اعتماد مبدئي","preliminary"],final:["اعتماد نهائي","final"],suspended:["معلّق","suspended"],stopped:["موقوف","stopped"],cancelled:["ملغى","cancelled"]};
+function approvalBadge(x){let s=x.approvalStatus||"new",m=approvalMeta[s]||approvalMeta.new;return `<span class="approval-badge ${m[1]}">${m[0]}</span>`}
+function participantActions(x){if((x.approvalStatus||"")==="cancelled")return `<button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`;return `<button class="approval-preliminary" onclick="participantSetStatus('${x.id}','preliminary')">اعتماد مبدئي</button><button class="approval-final" onclick="participantSetStatus('${x.id}','final')">اعتماد نهائي</button><button class="approval-suspended" onclick="participantSetStatus('${x.id}','suspended')">تعليق الاعتماد</button><button class="approval-stopped" onclick="participantSetStatus('${x.id}','stopped')">إيقاف الاعتماد</button><button class="approval-cancelled" onclick="participantSetStatus('${x.id}','cancelled')">إلغاء الاعتماد</button><button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`}
 async function renderParticipants() {
   try {
     let r = await api("/api/participants");
-    let a = r.participants || [];
-    let archived = r.archive || [];
+    let all=[...(r.participants||[]),...(r.archive||[])],counts=r.counts||{};
+    let a=participantFilter==="all"?all:all.filter(x=>(x.approvalStatus||"new")===participantFilter);
     if ($("pendingParticipantsCount"))
       $("pendingParticipantsCount").textContent = r.pending || 0;
     if ($("participantsTotalCount"))
       $("participantsTotalCount").textContent = r.total || a.length;
     if ($("participantsArchiveCount"))
       $("participantsArchiveCount").textContent = r.archived || archived.length;
-    $("participantsList").innerHTML =
-      a
-        .map(
-          (x) =>
-            `<div class="participant ${x.approved ? "approved" : "pending"}"><b>${esc(x.name || "")}</b> — ${esc(x.phone || "")}<br><span class="muted">${x.approved && x.verified ? "✅ مفعل ومعتمد تلقائيًا" : x.approved ? "✅ معتمد إداريًا" : "⏳ غير معتمد"}</span><br><small class="muted">رمز المشاركة: ${esc(x.id || "")} ${x.created ? "— التسجيل: " + new Date(x.created).toLocaleString("ar-SA") : ""}</small><div class="actions">${x.approved ? "" : `<button onclick="participantSet('${x.id}',true,true)">✅ اعتماد الحساب</button>`}<button class="danger" onclick="participantSet('${x.id}',false,false)">${x.approved ? "إلغاء الاعتماد ونقل للأرشيف" : "نقل للأرشيف"}</button></div></div>`,
-        )
-        .join("") || "<p>لا توجد طلبات مشاركة.</p>";
-    if ($("participantsArchiveList"))
-      $("participantsArchiveList").innerHTML =
-        archived
-          .map(
-            (x) =>
-              `<div class="participant archived"><b>${esc(x.name || "")}</b> — ${esc(x.phone || "")}<br><span class="muted">🗄️ ${esc(x.archiveReason || "مؤرشف")}</span><br><small class="muted">رمز المشاركة: ${esc(x.id || "")} ${x.archivedAt ? "— الأرشفة: " + new Date(x.archivedAt).toLocaleString("ar-SA") : ""}</small><div class="actions"><button onclick="participantRestore('${x.id}',false)">↩️ استعادة إلى الانتظار</button><button onclick="participantRestore('${x.id}',true)">✅ استعادة واعتماد</button><button class="danger" onclick="participantDeleteForever('${x.id}')">🗑️ حذف نهائي</button></div></div>`,
-          )
-          .join("") || "<p>لا يوجد مشاركون في الأرشيف.</p>";
+    document.querySelectorAll("[data-count]").forEach(el=>el.textContent=counts[el.dataset.count]||0);
+    $("participantsList").innerHTML=a.map(x=>`<div class="participant status-${esc(x.approvalStatus||'new')}"><div class="participant-head"><b>${esc(x.name||"")}</b>${approvalBadge(x)}</div><div>${esc(x.phone||"")}</div><small class="muted">رمز المشاركة: ${esc(x.id||"")} ${x.created?"— التسجيل: "+new Date(x.created).toLocaleString("ar-SA"):""}</small>${x.archiveReason?`<p class="participant-reason">السبب: ${esc(x.archiveReason)}</p>`:""}<div class="actions participant-approval-actions">${participantActions(x)}</div></div>`).join("")||"<p>لا يوجد مشاركون في هذا التصنيف.</p>";
+    window.__participantRows=all;
     await refreshParticipantBadge();
   } catch (e) {
     $("participantsList").innerHTML = "<p>تعذر تحميل المشاركين.</p>";
@@ -928,29 +920,9 @@ async function refreshParticipantBadge() {
       $("dashboardParticipantsPending").textContent = r.pending || 0;
   } catch (e) {}
 }
-window.participantSet = async (id, approved, direct = false) => {
-  await api("/api/participant/approve", {
-    method: "POST",
-    body: JSON.stringify({ id, approved, direct }),
-  });
-  await renderParticipants();
-};
-window.participantRestore = async (id, approve = false) => {
-  await api("/api/participant/restore", {
-    method: "POST",
-    body: JSON.stringify({ id, approve }),
-  });
-  await renderParticipants();
-};
-window.participantDeleteForever = async (id) => {
-  if (!confirm("حذف هذا العميل نهائيًا؟ لا يمكن التراجع عن هذا الإجراء."))
-    return;
-  await api("/api/participant/delete", {
-    method: "POST",
-    body: JSON.stringify({ id }),
-  });
-  await renderParticipants();
-};
+window.participantSetStatus=async(id,status)=>{let labels={preliminary:"الاعتماد المبدئي",final:"الاعتماد النهائي",suspended:"تعليق الاعتماد",stopped:"إيقاف الاعتماد",cancelled:"إلغاء الاعتماد نهائيًا"},reason="";if(["suspended","stopped","cancelled"].includes(status)){reason=prompt("اكتب سبب القرار (إلزامي):","")?.trim()||"";if(!reason){alert("لم ينفذ القرار: كتابة السبب إلزامية.");return}}if(!confirm(`تأكيد ${labels[status]} لهذا المستخدم؟${reason?"\nالسبب: "+reason:""}`))return;try{await api("/api/participant/approval-status",{method:"POST",body:JSON.stringify({id,status,reason})});await renderParticipants();await renderAdminNotifications()}catch(e){alert("تعذر تحديث الاعتماد: "+e.message)}};
+window.showParticipantHistory=id=>{let x=(window.__participantRows||[]).find(p=>p.id===id),rows=x?.approvalHistory||[];let lines=rows.length?rows.slice().reverse().map(h=>`${new Date(h.at).toLocaleString("ar-SA")} — ${(approvalMeta[h.status]||[h.status])[0]} — ${h.actor||"الإدارة"}${h.reason?" — "+h.reason:""}`).join("\n"):"لا يوجد سجل سابق.";alert(`سجل المستخدم: ${x?.name||""}\n\n${lines}`)};
+document.querySelectorAll("[data-participant-filter]").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("[data-participant-filter]").forEach(x=>x.classList.remove("active"));b.classList.add("active");participantFilter=b.dataset.participantFilter;renderParticipants()}));
 async function loadAdminBids() {
   try {
     let r = await api("/api/bids");
@@ -969,7 +941,7 @@ async function loadAdminBids() {
           ? z
               .slice(0, 5)
               .map(
-                (b) => `<p>${money(b.amount)} — ${esc(b.bidderName || "")}</p>`,
+                (b) => `<p>${money(b.amount)} — ${esc(b.bidderName || "")} <span class="approval-badge ${esc(b.approvalStatus||'new')}">${esc(b.approvalLabel||'طلب جديد')}</span></p>`,
               )
               .join("")
           : "<p>لا توجد مزايدات في هذه الجولة</p>"
@@ -2588,7 +2560,7 @@ async function renderAdminNotifications() {
       show
         .map((x) => {
           let approval = x.category === "approval" && x.participantId;
-          return `<article class="notification-row ${x.read ? "" : "unread"}"><span class="notification-icon">${notificationIcon(x.category)}</span><div><b>${esc(x.title)}</b><p>${esc(x.message)}</p><small>${fmtDate(x.created)}</small></div><div class="actions notification-actions">${approval ? `<button type="button" onclick="approveParticipantFromNotification('${esc(x.participantId)}',true)">✅ اعتماد مباشر</button><button type="button" class="danger" onclick="approveParticipantFromNotification('${esc(x.participantId)}',false)">❌ رفض/إلغاء</button><button type="button" class="ghost" onclick="openParticipantsFromNotification()">عرض المشاركين</button>` : x.actionUrl ? `<a href="${esc(x.actionUrl)}" class="ghost button-link">فتح</a>` : ""}</div></article>`;
+          return `<article class="notification-row ${x.read ? "" : "unread"}"><span class="notification-icon">${notificationIcon(x.category)}</span><div><b>${esc(x.title)}</b><p>${esc(x.message)}</p><small>${fmtDate(x.created)}</small></div><div class="actions notification-actions">${approval ? `<button type="button" class="ghost" onclick="openParticipantsFromNotification()">فتح إدارة الاعتماد</button>` : x.actionUrl ? `<a href="${esc(x.actionUrl)}" class="ghost button-link">فتح</a>` : ""}</div></article>`;
         })
         .join("") || '<p class="muted">لا توجد إشعارات في هذا القسم.</p>';
   } catch (e) {
@@ -2622,24 +2594,6 @@ window.openParticipantsFromNotification = async () => {
   show("participants");
   await renderParticipants();
   window.scrollTo({ top: 0, behavior: "smooth" });
-};
-window.approveParticipantFromNotification = async (id, approved) => {
-  try {
-    if (!approved && !confirm("هل تريد رفض/إلغاء اعتماد هذا الحساب؟")) return;
-    await api("/api/participant/approve", {
-      method: "POST",
-      body: JSON.stringify({ id, approved, direct: approved }),
-    });
-    await renderAdminNotifications();
-    await refreshParticipantBadge();
-    alert(
-      approved
-        ? "✅ تم اعتماد الحساب مباشرة وأصبح بإمكانه المشاركة."
-        : "تم رفض/إلغاء اعتماد الحساب.",
-    );
-  } catch (e) {
-    alert("تعذر تنفيذ الاعتماد: " + e.message);
-  }
 };
 
 function permissionCheck(pid, key, checked) {
@@ -2816,7 +2770,6 @@ if ($("refreshOperations")) $("refreshOperations").onclick = renderOperations;
 
 async function loadV395Page(vw) {
   if (vw === "notifications") await renderAdminNotifications();
-  if (vw === "permissions") await renderPermissions();
   if (vw === "dues") await renderDues();
   if (vw === "operations") await renderOperations();
   if (vw === "settings") await loadAdminSettingsPanel();
