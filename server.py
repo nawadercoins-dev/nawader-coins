@@ -977,7 +977,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
         if p=='/api/version':
-            self.sendj({'version':'4.2.3','name':'Nawader Coins Warehouse + Approval Control','port':getattr(self.server,'server_port',None)}); return
+            self.sendj({'version':'4.2.3.8','name':'Nawader Coins GitHub Base + Warehouse Edit Save','port':getattr(self.server,'server_port',None)}); return
         if p=='/api/settings/public':
             st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours']}); return
         if p=='/api/settings/admin':
@@ -1699,6 +1699,11 @@ class H(SimpleHTTPRequestHandler):
                 denom=str(x.get('denomination') or '').strip()
                 if not iid or not country or not denom:
                     self.sendj({'ok':False,'error':'بيانات الحفظ الأساسية ناقصة: رقم السجل أو الدولة أو الفئة'},400); return
+                old_item=next((i for i in items if str(i.get('id'))==iid),None)
+                # نموذج الإدارة يرسل الحقول القابلة للتعديل فقط. نحافظ على حقول
+                # التاريخ والنتائج والمعرّفات التي لا تظهر في النموذج.
+                if old_item:
+                    x={**old_item,**x}
                 classification=str(x.get('inventoryClassification') or '').strip().lower()
                 if classification not in ('graded','ungraded','set'):
                     classification='set' if (x.get('isSet') or str(x.get('marketOfferType') or '')=='set') else ('graded' if x.get('isGraded') else 'ungraded')
@@ -1707,13 +1712,18 @@ class H(SimpleHTTPRequestHandler):
                 x['isSet']=classification=='set'
                 if not str(x.get('warehouse') or '').strip(): x['warehouse']='المستودع الرئيسي'
                 if not str(x.get('storageStatus') or '').strip(): x['storageStatus']='warehouse'
-                # V3.5: validate requested publication before writing. Market and auction may both be selected.
+                # يسمح بتعديل بيانات المستودع لمزاد محفوظ انتهى سابقًا. الموعد
+                # المستقبلي مطلوب فقط للنشر الجديد أو عند تغيير موعد الانتهاء.
                 if x.get('forAuction') and x.get('auctionApproved'):
                     end=str(x.get('auctionEnd') or '').strip()
                     if not end:
                         self.sendj({'ok':False,'error':'اعتماد المزاد للنشر يتطلب تاريخ ووقت انتهاء'},400); return
                     try:
-                        if datetime.datetime.fromisoformat(end) <= datetime.datetime.now():
+                        end_dt=datetime.datetime.fromisoformat(end)
+                        old_was_approved=bool(old_item and old_item.get('forAuction') and old_item.get('auctionApproved'))
+                        end_changed=str((old_item or {}).get('auctionEnd') or '').strip()!=end
+                        needs_fresh_schedule=not old_was_approved or end_changed
+                        if needs_fresh_schedule and end_dt <= datetime.datetime.now():
                             self.sendj({'ok':False,'error':'موعد انتهاء المزاد يجب أن يكون في المستقبل'},400); return
                     except ValueError:
                         self.sendj({'ok':False,'error':'صيغة تاريخ انتهاء المزاد غير صحيحة'},400); return
@@ -1724,21 +1734,37 @@ class H(SimpleHTTPRequestHandler):
                         self.sendj({'ok':False,'error':'الكمية المعروضة في السوق يجب أن تكون 1 على الأقل'},400); return
                 total=inventory_total(x); sold=inventory_int(x.get('soldQuantity'),0); damaged=inventory_int(x.get('damagedQuantity'),0)
                 market_alloc=market_listing_physical(x); auction_alloc=auction_listing_physical(x)
-                old_item=next((i for i in items if str(i.get('id'))==iid),None)
                 reserved,_,reserved_by_source=item_order_quantities(iid,item=old_item or x)
                 market_alloc=max(0,market_alloc-reserved_by_source.get('market',0)); auction_alloc=max(0,auction_alloc-reserved_by_source.get('auction',0))
-                if sold+damaged+reserved+market_alloc+auction_alloc>total:
+                new_used=sold+damaged+reserved+market_alloc+auction_alloc
+                # بعض السجلات القديمة حُفظت قبل اعتماد حساب الأطقم الفيزيائي.
+                # يسمح بتعديل موقعها ما دام التعديل لا يزيد التجاوز القديم.
+                old_overflow=0
+                if old_item:
+                    old_total=inventory_total(old_item)
+                    old_sold=inventory_int(old_item.get('soldQuantity'),0)
+                    old_damaged=inventory_int(old_item.get('damagedQuantity'),0)
+                    old_market=max(0,market_listing_physical(old_item)-reserved_by_source.get('market',0))
+                    old_auction=max(0,auction_listing_physical(old_item)-reserved_by_source.get('auction',0))
+                    old_used=old_sold+old_damaged+reserved+old_market+old_auction
+                    old_overflow=max(0,old_used-old_total)
+                new_overflow=max(0,new_used-total)
+                if new_overflow>old_overflow:
                     self.sendj({'ok':False,'error':f'توزيع الكمية يتجاوز الرصيد: الإجمالي {total}، والموزع/المباع/المحجوز {sold+damaged+reserved+market_alloc+auction_alloc}'},409); return
                 serials=x.get('serials') or []
                 if not isinstance(serials,list): serials=[serials]
                 normalized=[re.sub(r'\s+','',str(s or '')).upper() for s in serials if str(s or '').strip()]
-                if len(normalized)!=len(set(normalized)):
+                old_serials=(old_item or {}).get('serials') or [(old_item or {}).get('serial')]
+                if not isinstance(old_serials,list): old_serials=[old_serials]
+                old_normalized=[re.sub(r'\s+','',str(s or '')).upper() for s in old_serials if str(s or '').strip()]
+                if len(normalized)!=len(set(normalized)) and normalized!=old_normalized:
                     self.sendj({'ok':False,'error':'يوجد رقم تسلسلي مكرر داخل السجل نفسه'},409); return
+                newly_added_serials=set(normalized)-set(old_normalized)
                 for other in items:
                     if str(other.get('id'))==iid: continue
                     other_serials=other.get('serials') or [other.get('serial')]
                     if not isinstance(other_serials,list): other_serials=[other_serials]
-                    duplicate=set(normalized)&{re.sub(r'\s+','',str(s or '')).upper() for s in other_serials if str(s or '').strip()}
+                    duplicate=newly_added_serials&{re.sub(r'\s+','',str(s or '')).upper() for s in other_serials if str(s or '').strip()}
                     if duplicate:
                         self.sendj({'ok':False,'error':'الرقم التسلسلي مسجل مسبقًا: '+next(iter(duplicate))},409); return
                 before=len(items)
@@ -1796,7 +1822,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.2.3-WAREHOUSE-APPROVAL-CONTROL'
+VERSION='4.2.3.8-GITHUB-BASE-WAREHOUSE-EDIT-SAVE'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
