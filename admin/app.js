@@ -1130,6 +1130,7 @@ window.editItem = async (id) => {
     alert("تعذر العثور على المقتنى. حدّث صفحة المستودع ثم حاول مرة أخرى.");
     return;
   }
+ editingItemId = String(i.id || id);
   Object.keys(i).forEach((k) => {
     if ($(k) && !["front", "back", "year"].includes(k)) $(k).value = i[k] ?? "";
   });
@@ -1273,8 +1274,8 @@ $("form").onsubmit = async (e) => {
   btn.disabled = true;
   btn.textContent = "جارٍ الحفظ والتحقق...";
   try {
-    let id = v("id") || newId(),
-      old = (await all()).find((x) => x.id === id);
+  let id = editingItemId || v("id") || newId(),
+    old = (await all()).find((x) => String(x.id) === String(id));
     let year = composedYear();
     $("year").value = year;
     let wantsAuction = $("forAuction").checked,
@@ -1473,6 +1474,7 @@ $("form").onsubmit = async (e) => {
   }
 };
 function resetItemForm() {
+editingItemId = "";
   let f = $("form");
   if (f && typeof f.reset === "function") f.reset();
   $("id").value = "";
