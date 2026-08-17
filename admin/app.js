@@ -1130,7 +1130,11 @@ window.editItem = async (id) => {
     alert("تعذر العثور على المقتنى. حدّث صفحة المستودع ثم حاول مرة أخرى.");
     return;
   }
- editingItemId = String(i.id || id);
+resetItemForm();
+editingItemId = String(i.id || id);
+$("id").value = editingItemId;
+let saveBtn = $("form")?.querySelector("button[type=submit]");
+if (saveBtn) saveBtn.disabled = false;
   Object.keys(i).forEach((k) => {
     if ($(k) && !["front", "back", "year"].includes(k)) $(k).value = i[k] ?? "";
   });
