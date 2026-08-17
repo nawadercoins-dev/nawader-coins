@@ -7,7 +7,8 @@ let db,
   backImageRemoved = false,
   promptInstall,
   isSaving = false,
-  mediaPicking = false;
+  mediaPicking = false,
+  editingItemId = "";
 function newId() {
   try {
     if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function")
@@ -1129,6 +1130,12 @@ window.editItem = async (id) => {
     alert("تعذر العثور على المقتنى. حدّث صفحة المستودع ثم حاول مرة أخرى.");
     return;
   }
+  // تثبيت وضع التعديل عند الدخول من المستودع حتى لا يُفقد رقم السجل.
+  resetItemForm();
+  editingItemId = String(i.id || id);
+  $("id").value = editingItemId;
+  let saveBtn = $("form")?.querySelector("button[type=submit]");
+  if (saveBtn) saveBtn.disabled = false;
   Object.keys(i).forEach((k) => {
     if ($(k) && !["front", "back", "year"].includes(k)) $(k).value = i[k] ?? "";
   });
@@ -1272,7 +1279,7 @@ $("form").onsubmit = async (e) => {
   btn.disabled = true;
   btn.textContent = "جارٍ الحفظ والتحقق...";
   try {
-    let id = v("id") || newId(),
+    let id = editingItemId || v("id") || newId(),
       old = (await all()).find((x) => x.id === id);
     let year = composedYear();
     $("year").value = year;
@@ -1474,6 +1481,7 @@ $("form").onsubmit = async (e) => {
 function resetItemForm() {
   let f = $("form");
   if (f && typeof f.reset === "function") f.reset();
+  editingItemId = "";
   $("id").value = "";
   $("year").value = "";
   $("quantity").value = 1;
