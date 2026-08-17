@@ -1322,6 +1322,7 @@ $("form").onsubmit = async (e) => {
     if (!old && n("soldQuantity") + n("damagedQuantity") + marketPhysical + auctionPhysical > totalPhysical)
       throw new Error(`توزيع الكمية يتجاوز الرصيد الفعلي ${totalPhysical}. خفّض كمية السوق أو المزاد أو الكميات الخارجة.`);
     let payload = {
+      ...(old || {}),
       id,
       country: v("country"),
       denomination: v("denomination"),
