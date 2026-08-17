@@ -7,7 +7,8 @@ let db,
   backImageRemoved = false,
   promptInstall,
   isSaving = false,
-  mediaPicking = false;
+ mediaPicking = false,
+editingItemId = "";
 function newId() {
   try {
     if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function")
