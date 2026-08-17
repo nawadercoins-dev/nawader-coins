@@ -1425,6 +1425,16 @@ $("form").onsubmit = async (e) => {
         "اختر التصنيف: متكرر أو متسلسل أو متطابق أو نادر أو أخطاء نادرة",
       );
     let savedResult = await put(payload);
+    if (old) {
+  for (const [key, value] of Object.entries(payload)) {
+    const isEmptyString = typeof value === "string" && value.trim() === "";
+    const isEmptyArray = Array.isArray(value) && value.length === 0;
+
+    if ((isEmptyString || isEmptyArray) && old[key] !== undefined) {
+      payload[key] = old[key];
+    }
+  }
+}
     if (
       savedResult?.verified !== true ||
       String(savedResult?.saved?.id || "") !== String(id)
