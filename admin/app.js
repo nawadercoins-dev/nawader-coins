@@ -1418,7 +1418,14 @@ $("form").onsubmit = async (e) => {
       throw new Error(
         "اختر التصنيف: متكرر أو متسلسل أو متطابق أو نادر أو أخطاء نادرة",
       );
-    let savedResult = await put(payload);
+   console.log("EDIT SAVE", {
+  editingItemId,
+  id,
+  old,
+  payload
+});
+
+let savedResult = await put(payload);
     if (
       savedResult?.verified !== true ||
       String(savedResult?.saved?.id || "") !== String(id)
