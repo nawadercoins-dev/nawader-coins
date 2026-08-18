@@ -460,6 +460,7 @@ document.querySelectorAll("nav button").forEach(
         [
           "home",
           "warehouse",
+          "special",
           "list",
           "auction",
           "ended-auctions",
@@ -471,6 +472,7 @@ document.querySelectorAll("nav button").forEach(
         await refresh(true);
       if (b.dataset.v === "participants") await renderParticipants();
       if (b.dataset.v === "warehouse") await renderWarehouse();
+      if (b.dataset.v === "special") await renderSpecialAdmin();
       if (b.dataset.v === "ended-auctions") await renderEndedAuctions();
       if (b.dataset.v === "market") await renderMarketAdmin();
       if (b.dataset.v === "finance") await renderFinance();
@@ -485,6 +487,7 @@ document.querySelectorAll(".dashboard-go").forEach((b) =>
       [
         "home",
         "warehouse",
+        "special",
         "list",
         "auction",
         "ended-auctions",
@@ -496,6 +499,7 @@ document.querySelectorAll(".dashboard-go").forEach((b) =>
       await refresh(true);
     if (vw === "participants") await renderParticipants();
     if (vw === "warehouse") await renderWarehouse();
+    if (vw === "special") await renderSpecialAdmin();
     if (vw === "ended-auctions") await renderEndedAuctions();
     if (vw === "market") await renderMarketAdmin();
     if (vw === "finance") await renderFinance();
@@ -699,6 +703,8 @@ async function refresh(force = false) {
     renderList(a);
     if (document.getElementById("warehouse")?.classList.contains("active"))
       await renderWarehouse();
+    if (document.getElementById("special")?.classList.contains("active"))
+      await renderSpecialAdmin(a);
   } catch (e) {
     console.warn("تعذر تحديث البيانات المشتركة", e);
   } finally {
@@ -806,6 +812,89 @@ window.resolveInventoryReturn = async (itemId, action) => {
     await refresh(true); await renderWarehouse(); toast(action === "warehouse" ? "تمت إعادة المرتجع إلى المستودع." : "تم تسجيل المرتجع كتالف.");
   } catch (e) { alert("تعذر معالجة المرتجع: " + e.message); }
 };
+
+const SPECIAL_TYPE_LABELS = {
+  repeated: "أرقام متكررة",
+  sequential: "أرقام متسلسلة",
+  matching: "أرقام متطابقة",
+  radar: "أرقام متناظرة / رادار",
+  ascending: "أرقام تصاعدية",
+  descending: "أرقام تنازلية",
+  rare: "أرقام نادرة / مميزة",
+  errors: "عملات بأخطاء نادرة",
+};
+let specialAdminFilter = "all", specialAdminRows = [];
+function specialTypesOf(i) {
+  let a = Array.isArray(i.specialNumberTypes) ? i.specialNumberTypes : [i.specialNumberType].filter(Boolean);
+  return [...new Set(a.filter(Boolean))];
+}
+function specialIsForSale(i) {
+  let price = Number(i.marketSalePrice || i.marketUnitPrice || 0);
+  return !!(i.forMarket && i.marketApproved && price > 0);
+}
+function specialAdminCard(i) {
+  let types = specialTypesOf(i), serials = Array.isArray(i.serials) ? i.serials.filter(Boolean) : [], price = Number(i.marketSalePrice || i.marketUnitPrice || 0);
+  let sale = specialIsForSale(i), imgs = [i.frontImg, i.backImg].filter(Boolean);
+  let tags = types.map(t => `<span class="special-tag ${t === "errors" ? "error" : ""}">${esc(SPECIAL_TYPE_LABELS[t] || t)}</span>`).join("");
+  return `<article class="special-admin-card">
+    <div class="special-admin-images">${imgs.length ? imgs.map((src,idx)=>`<img src="${esc(src)}" alt="${idx?"الخلف":"الوجه"}" loading="lazy" onclick="openCoinLightbox(${JSON.stringify(imgs).replace(/"/g,'&quot;')},${idx},'صور المميزة والنادرة')">`).join("") : '<div class="special-no-photo">لا توجد صورة</div>'}</div>
+    <div class="special-admin-main">
+      <div class="special-admin-title"><div><h3>${esc(i.country || "—")} — ${esc(i.denomination || "—")}</h3><small>${esc(i.year || "بدون سنة")} • رقم السجل ${esc(i.id || "")}</small></div><span class="approval-chip ${sale ? "ok" : "pending"}">${sale ? "للبيع" : "عرض فقط"}</span></div>
+      <div class="special-tags">${tags || '<span class="special-tag">غير محدد</span>'}</div>
+      <p class="special-reason">${esc(i.specialNumberReason || "لا يوجد وصف لسبب التميز بعد.")}</p>
+      <div class="special-admin-data"><span>السعر <b>${price > 0 ? money(price) : "غير محدد"}</b></span><span>الكمية <b>${Number(i.marketQuantity || i.quantity || 0)}</b></span><span>الأرقام <b>${serials.length}</b></span><span>الموقع <b>${esc(loc(i))}</b></span></div>
+      ${serials.length ? `<details class="special-serials"><summary>عرض الأرقام التسلسلية (${serials.length})</summary><div>${serials.slice(0,200).map(x=>`<span dir="ltr">${esc(x)}</span>`).join("")}${serials.length>200?`<em>+ ${serials.length-200} رقم إضافي</em>`:""}</div></details>` : ""}
+    </div>
+    <div class="actions special-admin-actions"><button onclick="detail('${esc(i.id)}')">عرض</button><button class="ghost" onclick="editItem('${esc(i.id)}')">✎ تعديل التصنيف والسعر</button><a class="public-link" href="/special-numbers#item-${encodeURIComponent(i.id)}" target="_blank">معاينة للعميل</a><button class="danger" onclick="disableSpecialItem('${esc(i.id)}')">إيقاف من الصفحة</button></div>
+  </article>`;
+}
+function renderSpecialAdminRows() {
+  if (!$("specialAdminItems")) return;
+  let q = String($("specialSearch")?.value || "").trim().toLowerCase(), tf = $("specialTypeFilter")?.value || "all";
+  let rows = specialAdminRows.filter(i => i.specialNumberEnabled).filter(i => {
+    if (specialAdminFilter === "sale" && !specialIsForSale(i)) return false;
+    if (specialAdminFilter === "display" && specialIsForSale(i)) return false;
+    if (specialAdminFilter === "errors" && !specialTypesOf(i).includes("errors")) return false;
+    if (specialAdminFilter === "serial" && specialTypesOf(i).includes("errors") && specialTypesOf(i).length === 1) return false;
+    if (tf !== "all" && !specialTypesOf(i).includes(tf)) return false;
+    return !q || JSON.stringify(i).toLowerCase().includes(q);
+  });
+  $("specialAdminItems").innerHTML = rows.map(specialAdminCard).join("") || '<p class="muted special-empty">لا توجد مقتنيات مطابقة لهذا الفلتر.</p>';
+}
+async function renderSpecialAdmin(items = null) {
+  try {
+    specialAdminRows = Array.isArray(items) ? items : await all();
+    let rows = specialAdminRows.filter(i => i.specialNumberEnabled), errors = rows.filter(i => specialTypesOf(i).includes("errors"));
+    if ($("specialTotal")) $("specialTotal").textContent = rows.length.toLocaleString("ar-SA");
+    if ($("specialForSale")) $("specialForSale").textContent = rows.filter(specialIsForSale).length.toLocaleString("ar-SA");
+    if ($("specialDisplayOnly")) $("specialDisplayOnly").textContent = rows.filter(i => !specialIsForSale(i)).length.toLocaleString("ar-SA");
+    if ($("specialErrors")) $("specialErrors").textContent = errors.length.toLocaleString("ar-SA");
+    if ($("specialSerials")) $("specialSerials").textContent = rows.filter(i => specialTypesOf(i).some(t => t !== "errors")).length.toLocaleString("ar-SA");
+    renderSpecialAdminRows();
+  } catch (e) {
+    if ($("specialAdminItems")) $("specialAdminItems").innerHTML = `<p class="analysis-warn">تعذر تحميل قسم المميزة والنادرة: ${esc(e.message)}</p>`;
+  }
+}
+window.disableSpecialItem = async (id) => {
+  if (!confirm("إيقاف ظهور هذا المقتنى في صفحة الأرقام المميزة والأخطاء النادرة؟ لن يُحذف من المستودع ولن تُحذف بيانات التميز.")) return;
+  try {
+    let rows = await all(), item = rows.find(x => String(x.id) === String(id));
+    if (!item) throw new Error("المقتنى غير موجود");
+    item = { ...item, specialNumberEnabled: false, updated: Date.now() };
+    await put(item); await refresh(true); await renderSpecialAdmin();
+    toast("تم إيقاف المقتنى من صفحة المميزة والنادرة مع بقائه في المستودع.");
+  } catch (e) { alert("تعذر الإيقاف: " + e.message); }
+};
+document.querySelectorAll(".special-metric").forEach(b => b.addEventListener("click", () => {
+  specialAdminFilter = b.dataset.specialFilter || "all";
+  document.querySelectorAll(".special-metric").forEach(x => x.classList.toggle("active", x === b));
+  renderSpecialAdminRows();
+}));
+if ($("specialSearch")) $("specialSearch").oninput = renderSpecialAdminRows;
+if ($("specialTypeFilter")) $("specialTypeFilter").onchange = renderSpecialAdminRows;
+if ($("refreshSpecial")) $("refreshSpecial").onclick = () => renderSpecialAdmin();
+if ($("specialAddNew")) $("specialAddNew").onclick = () => { show("add"); setTimeout(() => $("specialNumberEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}), 80); };
+
 window.removeItem = async (id) => {
   if (confirm("حذف السجل؟")) {
     try {
@@ -1509,7 +1598,7 @@ $("form").onsubmit = async (e) => {
         !payload.specialNumberTypes.length)
     )
       throw new Error(
-        "اختر التصنيف: متكرر أو متسلسل أو متطابق أو نادر أو أخطاء نادرة",
+        "اختر التصنيف: متكرر أو متسلسل أو متطابق أو متناظر أو تصاعدي أو تنازلي أو نادر أو أخطاء نادرة",
       );
    console.log("EDIT SAVE", {
   editingItemId,

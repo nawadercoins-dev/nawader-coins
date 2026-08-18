@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#071b35" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="/admin/styles.css?v=4.2.4-simplified-add-ui" />
-    <title>نوادر العملات — الإدارة V4.2.3</title>
+    <link rel="stylesheet" href="/admin/styles.css?v=4.3.0-special-admin" />
+    <title>نوادر العملات — الإدارة V4.3.0</title>
   </head>
   <body>
     <header>
@@ -22,7 +22,7 @@
     <nav>
       <a class="site-home-link" href="/home" target="_blank">⌂ واجهة الموقع</a
       ><button data-v="home" class="active">لوحة التحكم</button
-      ><button data-v="add">إضافة</button><button data-v="warehouse">المستودع</button><button data-v="list">السجل</button
+      ><button data-v="add">إضافة</button><button data-v="warehouse">المستودع</button><button data-v="special">المميزة والنادرة</button><button data-v="list">السجل</button
       ><button data-v="auction">المزاد</button
       ><button data-v="ended-auctions">
         المزادات المنتهية
@@ -580,6 +580,27 @@
                   value="matching"
                 />
                 أرقام متطابقة</label
+              ><label class="check"
+                ><input
+                  class="special-number-type"
+                  type="checkbox"
+                  value="radar"
+                />
+                أرقام متناظرة / رادار</label
+              ><label class="check"
+                ><input
+                  class="special-number-type"
+                  type="checkbox"
+                  value="ascending"
+                />
+                أرقام تصاعدية</label
+              ><label class="check"
+                ><input
+                  class="special-number-type"
+                  type="checkbox"
+                  value="descending"
+                />
+                أرقام تنازلية</label
               ><label class="check"
                 ><input
                   class="special-number-type"
@@ -1227,6 +1248,47 @@
             <small>يعيد ربط المقتنيات القديمة بالمستودع ويحفظ التصنيف والصور والكميات دون نشرها في السوق أو المزاد.</small>
           </div>
           <div id="warehouseItems" class="warehouse-items"></div>
+        </div>
+      </section>
+      <section id="special" class="view special-admin-view">
+        <div class="panel special-admin-panel">
+          <div class="special-admin-head">
+            <div>
+              <span class="dashboard-kicker">إدارة مستقلة مرتبطة بالمستودع</span>
+              <h2>✦ الأرقام المميزة والعملات النادرة والأخطاء</h2>
+              <p class="muted">المستودع هو المصدر الوحيد للبيانات. هذه الصفحة لا تنشئ مخزونًا جديدًا؛ بل تدير التصنيف والنشر والسعر والتسلسلات للمقتنيات الأصلية.</p>
+            </div>
+            <div class="actions">
+              <button type="button" class="gold-action" id="specialAddNew">＋ إضافة / تصنيف مقتنى</button>
+              <a class="public-link" href="/special-numbers" target="_blank">فتح صفحة العملاء ↗</a>
+            </div>
+          </div>
+          <div class="special-admin-metrics">
+            <button class="special-metric active" data-special-filter="all"><span>إجمالي المصنف</span><b id="specialTotal">0</b></button>
+            <button class="special-metric" data-special-filter="sale"><span>معروض للبيع</span><b id="specialForSale">0</b></button>
+            <button class="special-metric" data-special-filter="display"><span>عرض فقط</span><b id="specialDisplayOnly">0</b></button>
+            <button class="special-metric" data-special-filter="errors"><span>أخطاء نادرة</span><b id="specialErrors">0</b></button>
+            <button class="special-metric" data-special-filter="serial"><span>أرقام مميزة</span><b id="specialSerials">0</b></button>
+          </div>
+          <div class="special-admin-tools">
+            <input id="specialSearch" placeholder="بحث بالدولة أو الفئة أو السنة أو الرقم أو سبب التميز" />
+            <select id="specialTypeFilter">
+              <option value="all">كل الأنواع</option>
+              <option value="repeated">أرقام متكررة</option>
+              <option value="sequential">أرقام متسلسلة</option>
+              <option value="matching">أرقام متطابقة</option>
+              <option value="radar">أرقام متناظرة / رادار</option>
+              <option value="ascending">أرقام تصاعدية</option>
+              <option value="descending">أرقام تنازلية</option>
+              <option value="rare">أرقام نادرة / مميزة</option>
+              <option value="errors">عملات بأخطاء نادرة</option>
+            </select>
+            <button type="button" class="ghost" id="refreshSpecial">↻ تحديث</button>
+          </div>
+          <div class="special-admin-note">
+            <b>مسار الربط:</b> المستودع ← تصنيف مميز/نادر/خطأ ← هذه الصفحة ← صفحة العملاء ← السلة والطلب ← الطلبات والشحن ← المالية.
+          </div>
+          <div id="specialAdminItems" class="special-admin-list"></div>
         </div>
       </section>
       <section id="list" class="view">
