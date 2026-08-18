@@ -5928,3 +5928,162 @@ main {
 .storage-intro{margin:0!important;padding:0!important}
 .storage-details:not([open]){box-shadow:none}
 @media(max-width:700px){.storage-details>summary{padding:13px 14px}.storage-details-grid{gap:10px}}
+
+/* ============================================================
+   V4.2.8 — Mobile admin records compact layout
+   Fixes inherited .item flex rules that stretched image galleries
+   and removes excessive empty vertical space on the records page.
+   UI-only: no data/save/API behavior changes.
+   ============================================================ */
+.record-card > .record-card-images {
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  align-self: stretch !important;
+}
+.record-card > .record-card-images figure {
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+}
+.record-card > .record-card-images figure > img {
+  flex: 0 0 auto !important;
+}
+
+@media (max-width: 700px) {
+  /* records page: one compact card after another */
+  #list .grid {
+    gap: 10px !important;
+    align-items: start !important;
+  }
+  #list .record-card {
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    border-radius: 12px !important;
+  }
+
+  /* two small previews; never allow the gallery to stretch vertically */
+  #list .record-card > .record-card-images {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 5px !important;
+    padding: 6px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: 150px !important;
+    overflow: hidden !important;
+  }
+  #list .record-card > .record-card-images figure {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: 138px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  #list .record-card > .record-card-images img {
+    width: 100% !important;
+    height: 104px !important;
+    min-height: 104px !important;
+    max-height: 104px !important;
+    object-fit: contain !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  #list .record-card > .record-card-images figcaption {
+    padding: 3px 4px !important;
+    margin: 0 !important;
+    line-height: 1.2 !important;
+    font-size: .70rem !important;
+  }
+
+  /* no-photo state should also remain compact */
+  #list .record-card > .record-no-photo {
+    height: 92px !important;
+    min-height: 92px !important;
+    max-height: 92px !important;
+    flex: 0 0 92px !important;
+    padding: 6px !important;
+  }
+
+  #list .record-card-body {
+    height: auto !important;
+    min-height: 0 !important;
+    flex: 0 0 auto !important;
+    padding: 9px !important;
+  }
+  #list .record-card-body h3 {
+    min-height: 0 !important;
+    margin: 0 0 7px !important;
+    padding: 0 !important;
+    font-size: .98rem !important;
+    line-height: 1.45 !important;
+  }
+
+  /* facts become a compact two-column summary on phones */
+  #list .record-strips-v403 {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    margin: 0 0 8px !important;
+  }
+  #list .record-strips-v403 > div {
+    min-height: 0 !important;
+    padding: 7px 8px !important;
+    border-radius: 9px !important;
+  }
+  #list .record-strips-v403 > div > span {
+    margin: 0 0 2px !important;
+    font-size: .70rem !important;
+    line-height: 1.2 !important;
+  }
+  #list .record-strips-v403 > div > b {
+    margin: 0 !important;
+    font-size: .90rem !important;
+    line-height: 1.35 !important;
+  }
+  #list .record-strips-v403 .quantity-stack,
+  #list .record-strips-v403 .display-status {
+    grid-column: span 1 !important;
+  }
+  #list .quantity-stack b,
+  #list .display-status b {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 5px !important;
+    padding: 3px 0 !important;
+    font-size: .78rem !important;
+    line-height: 1.2 !important;
+  }
+  #list .quantity-stack strong,
+  #list .display-status strong {
+    font-size: .82rem !important;
+  }
+  #list .state {
+    padding: 2px 6px !important;
+    font-size: .68rem !important;
+  }
+
+  #list .record-actions {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 5px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  #list .record-actions button {
+    min-height: 36px !important;
+    padding: 6px 4px !important;
+    font-size: .82rem !important;
+  }
+}
+
+@media (max-width: 390px) {
+  #list .record-strips-v403 {
+    grid-template-columns: 1fr !important;
+  }
+  #list .record-strips-v403 .quantity-stack,
+  #list .record-strips-v403 .display-status {
+    grid-column: auto !important;
+  }
+}
