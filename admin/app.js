@@ -1167,6 +1167,8 @@ if (saveBtn) saveBtn.disabled = false;
     $("specialNumberReason").value = i.specialNumberReason || "";
   if ($("specialNumberFields"))
     $("specialNumberFields").hidden = !i.specialNumberEnabled;
+  if ($("advancedSerialSection")) $("advancedSerialSection").open = !!((i.serialNumbers || []).length || i.autoSerialEnabled);
+  if ($("financialDetails")) $("financialDetails").open = !!(Number(i.purchase||0) || Number(i.shipping||0) || Number(i.other||0) || Number(i.expectedPrice||0) || String(i.notes||"").trim());
   if ($("forMarket")) $("forMarket").checked = !!i.forMarket;
   if ($("marketApproved")) $("marketApproved").checked = !!i.marketApproved;
   if ($("marketPartialAllowed"))
@@ -1527,6 +1529,8 @@ editingItemId = "";
     .forEach((x) => (x.checked = false));
   if ($("specialNumberReason")) $("specialNumberReason").value = "";
   if ($("specialNumberFields")) $("specialNumberFields").hidden = true;
+  if ($("advancedSerialSection")) $("advancedSerialSection").open = false;
+  if ($("financialDetails")) $("financialDetails").open = false;
   if ($("forMarket")) $("forMarket").checked = false;
   if ($("marketApproved")) $("marketApproved").checked = false;
   if ($("marketOfferType")) $("marketOfferType").value = "single";
@@ -3330,3 +3334,13 @@ else {
   enforceMarketRequestImageSize();
 }
 window.addEventListener("resize", enforceMarketRequestImageSize);
+
+
+// V4.2.4 — مساعدة صغيرة للأقسام المطوية بدون تغيير منطق الحفظ
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest?.(".mini-help");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  alert(btn.dataset.help || "تفاصيل إضافية عند الحاجة.");
+});

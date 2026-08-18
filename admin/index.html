@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#071b35" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="/admin/styles.css?v=4.2.3.3-images-path-fix" />
+    <link rel="stylesheet" href="/admin/styles.css?v=4.2.4-simplified-add-ui" />
     <title>نوادر العملات — الإدارة V4.2.3</title>
   </head>
   <body>
@@ -463,7 +463,7 @@
             </select></label
           ><div class="wide inventory-entry-box">
             <h3>الوحدة والكمية الفعلية</h3>
-            <p class="muted">مثال: 3 ربطات × 100 ورقة = 300 ورقة. إجمالي القطع هو الرصيد الذي يوزعه النظام بين المستودع والسوق والمزاد والحجز.</p>
+            <p class="muted">حدد الوحدة والعدد؛ ويحسب النظام إجمالي القطع تلقائيًا.</p>
             <div class="inventory-entry-grid">
               <label>نوع الوحدة<select id="inventoryUnitType">
                 <option value="piece">ورقة / قطعة</option>
@@ -488,7 +488,7 @@
           /></label>
           <label>الكمية التالفة أو المفقودة<input id="damagedQuantity" type="number" min="0" value="0" /></label>
           <div class="wide grading-box">
-            <h3>التقييم والتغليف الاحترافي</h3>
+            <h3>التقييم والتغليف الاحترافي <button type="button" class="mini-help" data-help="فعّل التقييم فقط إذا كانت العملة مغلفة أو معتمدة من جهة تقييم، ثم أدخل بيانات الشهادة.">؟</button></h3>
             <label class="check"
               ><input id="isGraded" type="checkbox" /> المقتنى مُقيَّم / مغلف من
               جهة تقييم</label
@@ -533,9 +533,9 @@
               /></label>
             </div>
           </div>
-          <div class="wide serial-entry-box">
-            <h3>الأرقام التسلسلية</h3>
-            <p class="muted">يمكن إدخال الأرقام يدويًا، أو إدخال أول رقم ليولد النظام بقية أرقام الربطة أو الحزمة آليًا مع حفظ الأصفار والجزء الثابت.</p>
+          <details id="advancedSerialSection" class="wide compact-details serial-entry-box">
+            <summary>الأرقام التسلسلية <button type="button" class="mini-help" data-help="افتح هذا القسم عند الحاجة لإدخال الأرقام يدويًا أو توليد تسلسل كامل تلقائيًا.">؟</button></summary>
+            <p class="muted">إدخال يدوي أو توليد تلقائي للتسلسل.</p>
             <label class="check"><input id="autoSerialEnabled" type="checkbox" /> توليد تسلسل آلي</label>
             <div id="autoSerialFields" class="serial-auto-grid" hidden>
               <label>الرقم الأول<input id="serialStart" dir="ltr" placeholder="مثال: 120/001278654" /></label>
@@ -544,14 +544,10 @@
               <p id="serialRangePreview" class="muted wide"></p>
             </div>
             <div id="serialFields" class="serial-grid"></div>
-          </div>
+          </details>
           <div class="wide form-section-title">
-            <h3>✦ الأرقام المميزة والأخطاء النادرة</h3>
-            <p class="muted">
-              فعّل هذا الخيار إذا كان المقتنى يحمل رقمًا متكررًا أو متسلسلًا أو
-              متطابقًا أو نادرًا، أو خطأً طباعيًا نادرًا. يظهر بعدها تلقائيًا في
-              الصفحة المخصصة.
-            </p>
+            <h3>✦ الأرقام المميزة والأخطاء النادرة <button type="button" class="mini-help" data-help="مفتاح واحد يفتح جميع أنواع الأرقام المميزة والأخطاء النادرة، ولا يحذف أي بيانات عند إغلاقه.">؟</button></h3>
+            <p class="muted">فعّل المفتاح لتظهر التفاصيل عند الحاجة.</p>
           </div>
           <label class="wide special-number-toggle"
             ><input id="specialNumberEnabled" type="checkbox" /> إضافة هذا
@@ -609,9 +605,7 @@
           <div class="wide mobile-photo-section">
             <h3>صور المقتنى</h3>
             <p class="muted">
-              رفع الصور وحفظ المقتنى يعملان بصورة مستقلة عن OCR. اختر الصورة من
-              الجوال أو الكاميرا، ثم عدّلها وثبّتها قبل الحفظ. قراءة البيانات
-              اختيارية فقط.
+              اختر الصور من الكاميرا أو الجهاز؛ تحليل الصور اختياري.
             </p>
             <div class="actions">
               <button type="button" id="analyzeImage" class="ghost">
@@ -854,8 +848,7 @@
           <div class="wide storage-section">
             <h3>موقع التخزين</h3>
             <p class="muted">
-              مسار واحد منظم: المستودع ← الخزانة ← الرف ← الصندوق/الألبوم ←
-              الصفحة/الجيب.
+              حدد مكان الحفظ الفعلي للمقتنى.
             </p>
           </div>
           <label>المستودع<input id="warehouse" /></label
@@ -864,18 +857,16 @@
           ><label>الصندوق<input id="box" /></label
           ><label>الألبوم<input id="album" /></label
           ><label>الصفحة أو الجيب<input id="pocket" /></label>
-          <h3>الدفتر المالي السري</h3>
-          <label
-            >سعر الشراء<input id="purchase" type="number" step="0.01" /></label
-          ><label>الشحن<input id="shipping" type="number" step="0.01" /></label
-          ><label
-            >تكاليف أخرى<input id="other" type="number" step="0.01" /></label
-          ><label
-            >سعر البيع المتوقع<input
-              id="expectedPrice"
-              type="number"
-              step="0.01" /></label
-          ><label class="wide">ملاحظات<textarea id="notes"></textarea></label>
+          <details id="financialDetails" class="wide compact-details">
+            <summary>الدفتر المالي السري <button type="button" class="mini-help" data-help="هذه البيانات داخلية للإدارة ولا تظهر للزائر أو المشتري.">؟</button></summary>
+            <div class="compact-details-grid">
+              <label>سعر الشراء<input id="purchase" type="number" step="0.01" /></label>
+              <label>الشحن<input id="shipping" type="number" step="0.01" /></label>
+              <label>تكاليف أخرى<input id="other" type="number" step="0.01" /></label>
+              <label>سعر البيع المتوقع<input id="expectedPrice" type="number" step="0.01" /></label>
+              <label class="wide">ملاحظات<textarea id="notes"></textarea></label>
+            </div>
+          </details>
           <div class="wide actions">
             <button type="submit">حفظ</button
             ><button type="button" id="reset" class="ghost">تفريغ</button>
@@ -1521,6 +1512,6 @@
       <div id="quickResults"></div>
       <div id="recent"></div>
     </div>
-    <script src="/admin/app.js?v=4.2.3.8-github-warehouse-save"></script>
+    <script src="/admin/app.js?v=4.2.4-simplified-add-ui"></script>
   </body>
 </html>
