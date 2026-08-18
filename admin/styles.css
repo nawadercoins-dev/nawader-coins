@@ -5919,3 +5919,12 @@ main {
   .storage-hint { display: block; }
   .storage-hint span { display: block; margin: 3px 0; }
 }
+
+
+/* V4.2.6 — قسم موقع التخزين مطوي بالكامل */
+.storage-details{margin-top:2px}
+.storage-details>summary{font-size:1.05rem}
+.storage-details-grid{padding-top:12px}
+.storage-intro{margin:0!important;padding:0!important}
+.storage-details:not([open]){box-shadow:none}
+@media(max-width:700px){.storage-details>summary{padding:13px 14px}.storage-details-grid{gap:10px}}

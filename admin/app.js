@@ -1254,6 +1254,7 @@ if (saveBtn) saveBtn.disabled = false;
   if ($("specialNumberFields"))
     $("specialNumberFields").hidden = !i.specialNumberEnabled;
   if ($("advancedSerialSection")) $("advancedSerialSection").open = !!((i.serialNumbers || []).length || i.autoSerialEnabled);
+  if ($("storageDetails")) $("storageDetails").open = !!([i.warehouse,i.cabinet,i.shelf,i.box,i.album,i.pocket].some(x=>String(x||"").trim()));
   if ($("financialDetails")) $("financialDetails").open = !!(Number(i.purchase||0) || Number(i.shipping||0) || Number(i.other||0) || Number(i.expectedPrice||0) || String(i.notes||"").trim());
   if ($("forMarket")) $("forMarket").checked = !!i.forMarket;
   if ($("marketApproved")) $("marketApproved").checked = !!i.marketApproved;
@@ -1616,6 +1617,7 @@ editingItemId = "";
   if ($("specialNumberReason")) $("specialNumberReason").value = "";
   if ($("specialNumberFields")) $("specialNumberFields").hidden = true;
   if ($("advancedSerialSection")) $("advancedSerialSection").open = false;
+  if ($("storageDetails")) $("storageDetails").open = false;
   if ($("financialDetails")) $("financialDetails").open = false;
   if ($("forMarket")) $("forMarket").checked = false;
   if ($("marketApproved")) $("marketApproved").checked = false;

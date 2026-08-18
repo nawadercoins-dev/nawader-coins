@@ -845,19 +845,19 @@
               <p id="auctionCountdown" class="auction-countdown"></p>
             </div>
           </div>
-          <div class="wide storage-section">
-            <h3>موقع التخزين</h3>
-            <p class="muted">
-              حدد مكان الحفظ الفعلي للمقتنى.
-            </p>
-          </div>
-          <label>المستودع<select id="warehouse" class="storage-select"><option value="">اختر المستودع...</option></select></label
-          ><label>الخزانة<select id="cabinet" class="storage-select"><option value="">اختر الخزانة...</option></select></label
-          ><label>الرف<select id="shelf" class="storage-select"><option value="">اختر الرف...</option></select></label
-          ><label>الصندوق<select id="box" class="storage-select"><option value="">اختر الصندوق...</option></select></label
-          ><label>الألبوم<select id="album" class="storage-select"><option value="">اختر الألبوم...</option></select></label
-          ><label>الصفحة أو الجيب<select id="pocket" class="storage-select"><option value="">اختر الصفحة أو الجيب...</option></select></label>
-          <div class="wide storage-hint"><span>القوائم مترابطة حسب مواقع الحفظ المسجلة سابقًا.</span><span>لإضافة موقع جديد اختر «＋ إضافة جديد...» من القائمة المطلوبة.</span></div>
+          <details id="storageDetails" class="wide compact-details storage-details">
+            <summary>موقع التخزين <button type="button" class="mini-help" data-help="افتح القسم لتحديد المستودع والخزانة والرف وبقية موقع الحفظ. القيم المحفوظة لا تُحذف عند إغلاق القسم.">؟</button></summary>
+            <div class="compact-details-grid storage-details-grid">
+              <p class="muted wide storage-intro">حدد مكان الحفظ الفعلي للمقتنى. يمكن إغلاق هذا القسم بعد الاختيار.</p>
+              <label>المستودع<select id="warehouse" class="storage-select"><option value="">اختر المستودع...</option></select></label>
+              <label>الخزانة<select id="cabinet" class="storage-select"><option value="">اختر الخزانة...</option></select></label>
+              <label>الرف<select id="shelf" class="storage-select"><option value="">اختر الرف...</option></select></label>
+              <label>الصندوق<select id="box" class="storage-select"><option value="">اختر الصندوق...</option></select></label>
+              <label>الألبوم<select id="album" class="storage-select"><option value="">اختر الألبوم...</option></select></label>
+              <label>الصفحة أو الجيب<select id="pocket" class="storage-select"><option value="">اختر الصفحة أو الجيب...</option></select></label>
+              <div class="wide storage-hint"><span>القوائم مترابطة حسب مواقع الحفظ المسجلة سابقًا.</span><span>لإضافة موقع جديد اختر «＋ إضافة جديد...» من القائمة المطلوبة.</span></div>
+            </div>
+          </details>
           <details id="financialDetails" class="wide compact-details">
             <summary>الدفتر المالي السري <button type="button" class="mini-help" data-help="هذه البيانات داخلية للإدارة ولا تظهر للزائر أو المشتري.">؟</button></summary>
             <div class="compact-details-grid">
