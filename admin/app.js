@@ -362,6 +362,88 @@ function fillYearFields(value, from = "", to = "") {
   updateYearUI();
 }
 
+
+// V4.2.5 — قوائم موقع التخزين المترابطة مع الحفاظ على نفس حقول الحفظ القديمة
+const STORAGE_FIELDS = ["warehouse", "cabinet", "shelf", "box", "album", "pocket"];
+const STORAGE_LABELS = {
+  warehouse: "المستودع",
+  cabinet: "الخزانة",
+  shelf: "الرف",
+  box: "الصندوق",
+  album: "الألبوم",
+  pocket: "الصفحة أو الجيب",
+};
+let storageCatalogRows = [];
+const storageManualValues = Object.fromEntries(STORAGE_FIELDS.map((k) => [k, new Set()]));
+function cleanStorageValue(x) { return String(x ?? "").trim(); }
+function storageRowFromItem(i = {}) {
+  return Object.fromEntries(STORAGE_FIELDS.map((k) => [k, cleanStorageValue(i[k])]));
+}
+function updateStorageCatalogFromItems(items = []) {
+  storageCatalogRows = (Array.isArray(items) ? items : []).map(storageRowFromItem);
+}
+function storageParentsMatch(row, field, selected) {
+  const ix = STORAGE_FIELDS.indexOf(field);
+  for (let n = 0; n < ix; n++) {
+    const p = STORAGE_FIELDS[n], wanted = cleanStorageValue(selected[p]);
+    if (wanted && cleanStorageValue(row[p]) !== wanted) return false;
+  }
+  return true;
+}
+function storageSelectedValues() {
+  return Object.fromEntries(STORAGE_FIELDS.map((k) => [k, cleanStorageValue($(k)?.value)]));
+}
+function renderStorageSelectors(preferred = {}) {
+  const selected = { ...storageSelectedValues(), ...Object.fromEntries(STORAGE_FIELDS.map((k) => [k, preferred[k] !== undefined ? cleanStorageValue(preferred[k]) : storageSelectedValues()[k]])) };
+  STORAGE_FIELDS.forEach((field) => {
+    const el = $(field); if (!el || el.tagName !== "SELECT") return;
+    const values = new Set();
+    storageCatalogRows.forEach((row) => {
+      if (storageParentsMatch(row, field, selected) && cleanStorageValue(row[field])) values.add(cleanStorageValue(row[field]));
+    });
+    storageManualValues[field].forEach((x) => x && values.add(x));
+    if (field === "warehouse") values.add("المستودع الرئيسي");
+    if (selected[field]) values.add(selected[field]);
+    const placeholder = `اختر ${STORAGE_LABELS[field]}...`;
+    el.innerHTML = `<option value="">${placeholder}</option>` +
+      [...values].sort((a,b) => a.localeCompare(b, "ar")).map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join("") +
+      `<option value="__new__">＋ إضافة جديد...</option>`;
+    el.value = selected[field] || "";
+  });
+}
+function clearStorageBelow(field) {
+  const ix = STORAGE_FIELDS.indexOf(field);
+  STORAGE_FIELDS.slice(ix + 1).forEach((k) => { if ($(k)) $(k).value = ""; });
+}
+async function loadStorageCatalog(preferred = {}) {
+  try { updateStorageCatalogFromItems(await all()); } catch (e) { console.warn("تعذر تحديث قائمة مواقع التخزين", e); }
+  renderStorageSelectors(preferred);
+}
+function setupStorageSelectors() {
+  STORAGE_FIELDS.forEach((field) => {
+    const el = $(field); if (!el || el.tagName !== "SELECT") return;
+    el.addEventListener("change", () => {
+      if (el.value === "__new__") {
+        const name = cleanStorageValue(prompt(`اكتب اسم ${STORAGE_LABELS[field]} الجديد:`) || "");
+        if (!name) { el.value = ""; renderStorageSelectors(); return; }
+        storageManualValues[field].add(name);
+        el.value = name;
+      }
+      const current = storageSelectedValues();
+      current[field] = cleanStorageValue(el.value);
+      clearStorageBelow(field);
+      STORAGE_FIELDS.slice(STORAGE_FIELDS.indexOf(field) + 1).forEach((k) => current[k] = "");
+      renderStorageSelectors(current);
+    });
+  });
+  loadStorageCatalog();
+  document.querySelectorAll('nav button[data-v="add"],.dashboard-go[data-go="add"]').forEach((b) =>
+    b.addEventListener("click", () => loadStorageCatalog(storageSelectedValues()))
+  );
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupStorageSelectors);
+else setupStorageSelectors();
+
 function show(vw) {
   document
     .querySelectorAll(".view")
@@ -562,6 +644,8 @@ async function refresh(force = false) {
   refreshBusy = true;
   try {
     let a = await all();
+    updateStorageCatalogFromItems(a);
+    if (document.getElementById("add")?.classList.contains("active")) renderStorageSelectors();
     let token = dataToken(a);
     if (!force && token === lastDataToken) return;
     lastDataToken = token;
@@ -1131,6 +1215,7 @@ window.editItem = async (id) => {
     return;
   }
 resetItemForm();
+await loadStorageCatalog(i);
 editingItemId = String(i.id || id);
 $("id").value = editingItemId;
 let saveBtn = $("form")?.querySelector("button[type=submit]");
@@ -1138,6 +1223,7 @@ if (saveBtn) saveBtn.disabled = false;
   Object.keys(i).forEach((k) => {
     if ($(k) && !["front", "back", "year"].includes(k)) $(k).value = i[k] ?? "";
   });
+  renderStorageSelectors(i);
   if ($("issueEdition")) $("issueEdition").value = i.issueEdition || "";
   if ($("issueEditionOther"))
     $("issueEditionOther").value = i.issueEditionOther || "";
@@ -1542,6 +1628,7 @@ editingItemId = "";
   if ($("marketNegotiationEnabled"))
     $("marketNegotiationEnabled").checked = false;
   if ($("marketPartialAllowed")) $("marketPartialAllowed").checked = false;
+  renderStorageSelectors({ warehouse: "", cabinet: "", shelf: "", box: "", album: "", pocket: "" });
   updateEditionUI();
   updateYearUI();
   updateGradingUI();

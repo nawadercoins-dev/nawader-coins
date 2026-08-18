@@ -851,12 +851,13 @@
               حدد مكان الحفظ الفعلي للمقتنى.
             </p>
           </div>
-          <label>المستودع<input id="warehouse" /></label
-          ><label>الخزانة<input id="cabinet" /></label
-          ><label>الرف<input id="shelf" /></label
-          ><label>الصندوق<input id="box" /></label
-          ><label>الألبوم<input id="album" /></label
-          ><label>الصفحة أو الجيب<input id="pocket" /></label>
+          <label>المستودع<select id="warehouse" class="storage-select"><option value="">اختر المستودع...</option></select></label
+          ><label>الخزانة<select id="cabinet" class="storage-select"><option value="">اختر الخزانة...</option></select></label
+          ><label>الرف<select id="shelf" class="storage-select"><option value="">اختر الرف...</option></select></label
+          ><label>الصندوق<select id="box" class="storage-select"><option value="">اختر الصندوق...</option></select></label
+          ><label>الألبوم<select id="album" class="storage-select"><option value="">اختر الألبوم...</option></select></label
+          ><label>الصفحة أو الجيب<select id="pocket" class="storage-select"><option value="">اختر الصفحة أو الجيب...</option></select></label>
+          <div class="wide storage-hint"><span>القوائم مترابطة حسب مواقع الحفظ المسجلة سابقًا.</span><span>لإضافة موقع جديد اختر «＋ إضافة جديد...» من القائمة المطلوبة.</span></div>
           <details id="financialDetails" class="wide compact-details">
             <summary>الدفتر المالي السري <button type="button" class="mini-help" data-help="هذه البيانات داخلية للإدارة ولا تظهر للزائر أو المشتري.">؟</button></summary>
             <div class="compact-details-grid">

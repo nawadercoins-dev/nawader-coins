@@ -5888,3 +5888,34 @@ main {
 .compact-details-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px 16px 16px}
 .mini-help{width:24px!important;height:24px!important;min-width:24px!important;padding:0!important;border-radius:50%!important;font-size:13px!important;line-height:24px!important;background:#102659!important;color:#fff!important;border:0!important;display:inline-grid!important;place-items:center!important}
 @media(max-width:700px){.compact-details-grid{grid-template-columns:1fr}.compact-details-grid .wide{grid-column:1}}
+
+
+/* V4.2.5 — موقع التخزين كقوائم منسدلة مترابطة */
+.storage-select {
+  width: 100%;
+  min-height: 48px;
+  cursor: pointer;
+  background: #fff;
+}
+.storage-select:focus {
+  border-color: #b88718;
+  box-shadow: 0 0 0 3px rgba(184, 135, 24, .12);
+}
+.storage-hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: center;
+  margin-top: -3px;
+  padding: 9px 12px;
+  border: 1px dashed #d9c58e;
+  border-radius: 12px;
+  background: #fffdf7;
+  color: #566273;
+  font-size: .9rem;
+}
+.storage-hint span:first-child { font-weight: 700; color: #0a3159; }
+@media (max-width: 700px) {
+  .storage-hint { display: block; }
+  .storage-hint span { display: block; margin: 3px 0; }
+}
