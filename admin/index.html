@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#071b35" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="/admin/styles.css?v=4.3.0-special-admin" />
-    <title>نوادر العملات — الإدارة V4.3.0</title>
+    <title>نوادر العملات — الإدارة V4.3.1</title>
   </head>
   <body>
     <header>
@@ -361,48 +361,90 @@
             </div>
           </div>
           <label
-            >الدولة<input
-              id="country"
-              list="countryList"
-              required
-              placeholder="مثال: المملكة العربية السعودية" /><datalist
-              id="countryList"
-            >
-              <option value="المملكة العربية السعودية"></option>
-              <option value="الإمارات العربية المتحدة"></option>
-              <option value="الكويت"></option>
-              <option value="قطر"></option>
-              <option value="البحرين"></option>
-              <option value="سلطنة عمان"></option>
-              <option value="اليمن"></option>
-              <option value="العراق"></option>
-              <option value="سوريا"></option>
-              <option value="الأردن"></option>
-              <option value="لبنان"></option>
-              <option value="فلسطين"></option>
-              <option value="مصر"></option>
-              <option value="السودان"></option>
-              <option value="ليبيا"></option>
-              <option value="تونس"></option>
-              <option value="الجزائر"></option>
-              <option value="المغرب"></option>
-              <option value="موريتانيا"></option>
-              <option value="الصومال"></option>
-              <option value="جيبوتي"></option>
-              <option value="جزر القمر"></option>
-              <option value="تركيا"></option>
-              <option value="إيران"></option>
-              <option value="الهند"></option>
-              <option value="باكستان"></option>
-              <option value="الولايات المتحدة"></option>
-              <option value="المملكة المتحدة"></option>
-              <option value="فرنسا"></option>
-              <option value="ألمانيا"></option>
-              <option value="إيطاليا"></option>
-              <option value="إسبانيا"></option>
-              <option value="روسيا"></option>
-              <option value="الصين"></option>
-              <option value="اليابان"></option></datalist></label
+            >الدولة<select id="country" required>
+              <option value="">اختر الدولة</option>
+              <optgroup label="الدول العربية">
+                <option>المملكة العربية السعودية</option>
+                <option>الإمارات العربية المتحدة</option>
+                <option>الكويت</option>
+                <option>قطر</option>
+                <option>البحرين</option>
+                <option>سلطنة عمان</option>
+                <option>اليمن</option>
+                <option>العراق</option>
+                <option>سوريا</option>
+                <option>الأردن</option>
+                <option>لبنان</option>
+                <option>فلسطين</option>
+                <option>مصر</option>
+                <option>السودان</option>
+                <option>ليبيا</option>
+                <option>تونس</option>
+                <option>الجزائر</option>
+                <option>المغرب</option>
+                <option>موريتانيا</option>
+                <option>الصومال</option>
+                <option>جيبوتي</option>
+                <option>جزر القمر</option>
+              </optgroup>
+              <optgroup label="آسيا">
+                <option>أفغانستان</option><option>أذربيجان</option><option>أرمينيا</option><option>أوزبكستان</option>
+                <option>إندونيسيا</option><option>إيران</option><option>باكستان</option><option>بنغلاديش</option>
+                <option>بوتان</option><option>بروناي</option><option>تايلاند</option><option>تركمانستان</option>
+                <option>تركيا</option><option>تيمور الشرقية</option><option>جورجيا</option><option>الصين</option>
+                <option>الفلبين</option><option>فيتنام</option><option>قبرص</option><option>قرغيزستان</option>
+                <option>كازاخستان</option><option>كمبوديا</option><option>كوريا الجنوبية</option><option>كوريا الشمالية</option>
+                <option>لاوس</option><option>ماليزيا</option><option>المالديف</option><option>منغوليا</option>
+                <option>ميانمار</option><option>نيبال</option><option>الهند</option><option>اليابان</option>
+                <option>سنغافورة</option><option>سريلانكا</option><option>طاجيكستان</option>
+              </optgroup>
+              <optgroup label="أفريقيا">
+                <option>إثيوبيا</option><option>إريتريا</option><option>إسواتيني</option><option>أوغندا</option>
+                <option>أنغولا</option><option>بنين</option><option>بوتسوانا</option><option>بوركينا فاسو</option>
+                <option>بوروندي</option><option>تشاد</option><option>تنزانيا</option><option>توغو</option>
+                <option>جنوب أفريقيا</option><option>جنوب السودان</option><option>جمهورية أفريقيا الوسطى</option><option>جمهورية الكونغو</option>
+                <option>جمهورية الكونغو الديمقراطية</option><option>رواندا</option><option>زامبيا</option><option>زيمبابوي</option>
+                <option>ساحل العاج</option><option>ساو تومي وبرينسيب</option><option>السنغال</option><option>سيراليون</option>
+                <option>سيشل</option><option>الغابون</option><option>غامبيا</option><option>غانا</option>
+                <option>غينيا</option><option>غينيا الاستوائية</option><option>غينيا بيساو</option><option>الكاميرون</option>
+                <option>كينيا</option><option>ليسوتو</option><option>ليبيريا</option><option>مدغشقر</option>
+                <option>مالاوي</option><option>مالي</option><option>موريشيوس</option><option>موزمبيق</option>
+                <option>ناميبيا</option><option>النيجر</option><option>نيجيريا</option><option>الرأس الأخضر</option>
+              </optgroup>
+              <optgroup label="أوروبا">
+                <option>ألبانيا</option><option>ألمانيا</option><option>أندورا</option><option>أوكرانيا</option>
+                <option>أيرلندا</option><option>آيسلندا</option><option>إسبانيا</option><option>إستونيا</option>
+                <option>إيطاليا</option><option>البرتغال</option><option>بلجيكا</option><option>بلغاريا</option>
+                <option>البوسنة والهرسك</option><option>بيلاروس</option><option>بولندا</option><option>التشيك</option>
+                <option>الدنمارك</option><option>روسيا</option><option>رومانيا</option><option>سان مارينو</option>
+                <option>سلوفاكيا</option><option>سلوفينيا</option><option>السويد</option><option>سويسرا</option>
+                <option>صربيا</option><option>فرنسا</option><option>فنلندا</option><option>الفاتيكان</option>
+                <option>كرواتيا</option><option>لاتفيا</option><option>لوكسمبورغ</option><option>ليتوانيا</option>
+                <option>ليختنشتاين</option><option>مالطا</option><option>المجر</option><option>مقدونيا الشمالية</option>
+                <option>مولدوفا</option><option>موناكو</option><option>مونتينيغرو</option><option>النرويج</option>
+                <option>النمسا</option><option>هولندا</option><option>اليونان</option><option>المملكة المتحدة</option>
+              </optgroup>
+              <optgroup label="الأمريكتان">
+                <option>الأرجنتين</option><option>الإكوادور</option><option>أوروغواي</option><option>باراغواي</option>
+                <option>الباهاما</option><option>بربادوس</option><option>البرازيل</option><option>بليز</option>
+                <option>بنما</option><option>بوليفيا</option><option>بيرو</option><option>ترينيداد وتوباغو</option>
+                <option>جامايكا</option><option>جمهورية الدومينيكان</option><option>دومينيكا</option><option>سانت فنسنت والغرينادين</option>
+                <option>سانت كيتس ونيفيس</option><option>سانت لوسيا</option><option>السلفادور</option><option>سورينام</option>
+                <option>غرينادا</option><option>غواتيمالا</option><option>غيانا</option><option>فنزويلا</option>
+                <option>كندا</option><option>كوبا</option><option>كوستاريكا</option><option>كولومبيا</option>
+                <option>المكسيك</option><option>نيكاراغوا</option><option>هايتي</option><option>هندوراس</option>
+                <option>الولايات المتحدة</option><option>أنتيغوا وباربودا</option><option>تشيلي</option>
+              </optgroup>
+              <optgroup label="أوقيانوسيا">
+                <option>أستراليا</option><option>بابوا غينيا الجديدة</option><option>بالاو</option><option>توفالو</option>
+                <option>تونغا</option><option>جزر سليمان</option><option>جزر مارشال</option><option>ساموا</option>
+                <option>فانواتو</option><option>فيجي</option><option>كيريباتي</option><option>ميكرونيزيا</option>
+                <option>ناورو</option><option>نيوزيلندا</option>
+              </optgroup>
+              <option value="__other__">دولة / جهة إصدار أخرى أو تاريخية…</option>
+            </select></label
+          ><label id="countryOtherWrap" hidden
+            >اسم الدولة / جهة الإصدار<input id="countryOther" placeholder="اكتب الاسم كما تريد ظهوره في التصنيف" /></label
           ><label
             >الفئة / القيمة<input
               id="denomination"
@@ -1575,6 +1617,6 @@
       <div id="quickResults"></div>
       <div id="recent"></div>
     </div>
-    <script src="/admin/app.js?v=4.2.4-simplified-add-ui"></script>
+    <script src="/admin/app.js?v=4.3.1-country-classification"></script>
   </body>
 </html>

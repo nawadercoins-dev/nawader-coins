@@ -32,6 +32,36 @@ const $ = (x) => document.getElementById(x),
     const el = $(x);
     return Number(el?.value || 0);
   };
+
+function selectedCountryValue() {
+  const sel = $("country");
+  if (!sel) return "";
+  if (sel.value === "__other__") return v("countryOther");
+  return String(sel.value || "").trim();
+}
+function updateCountryUI() {
+  const sel = $("country"), wrap = $("countryOtherWrap"), other = $("countryOther");
+  if (!sel || !wrap || !other) return;
+  const isOther = sel.value === "__other__";
+  wrap.hidden = !isOther;
+  other.required = isOther;
+  if (!isOther) other.value = "";
+}
+function setCountryValue(value) {
+  const sel = $("country"), other = $("countryOther");
+  if (!sel) return;
+  const wanted = String(value || "").trim();
+  if (!wanted) { sel.value = ""; if (other) other.value = ""; updateCountryUI(); return; }
+  const exists = Array.from(sel.options).some((o) => o.value === wanted);
+  if (exists) {
+    sel.value = wanted;
+    if (other) other.value = "";
+  } else {
+    sel.value = "__other__";
+    if (other) other.value = wanted;
+  }
+  updateCountryUI();
+}
 async function api(path, opt = {}) {
   let req = {
       ...opt,
@@ -1214,7 +1244,8 @@ async function analyzeCurrentImage() {
     }
     // High-confidence fields only: fill empty form fields automatically, never overwrite user data.
     for (let [k, vv] of high) {
-      if (["country", "denomination", "year"].includes(k) && $(k) && !v(k))
+      if (k === "country" && !selectedCountryValue()) setCountryValue(vv.value);
+      else if (["denomination", "year"].includes(k) && $(k) && !v(k))
         $(k).value = vv.value;
       if (
         k === "serial" &&
@@ -1253,7 +1284,8 @@ async function analyzeCurrentImage() {
           b.className = "ghost ocr-accept";
           b.textContent = "اعتماد الاقتراح";
           b.onclick = () => {
-            if (["country", "denomination", "year"].includes(k) && $(k))
+            if (k === "country") setCountryValue(vv.value);
+            else if (["denomination", "year"].includes(k) && $(k))
               $(k).value = vv.value;
             if (k === "serial" && document.querySelector(".serial-input")) {
               let el = document.querySelector(".serial-input");
@@ -1310,8 +1342,9 @@ $("id").value = editingItemId;
 let saveBtn = $("form")?.querySelector("button[type=submit]");
 if (saveBtn) saveBtn.disabled = false;
   Object.keys(i).forEach((k) => {
-    if ($(k) && !["front", "back", "year"].includes(k)) $(k).value = i[k] ?? "";
+    if ($(k) && !["front", "back", "year", "country"].includes(k)) $(k).value = i[k] ?? "";
   });
+  setCountryValue(i.country || "");
   renderStorageSelectors(i);
   if ($("issueEdition")) $("issueEdition").value = i.issueEdition || "";
   if ($("issueEditionOther"))
@@ -1411,6 +1444,8 @@ if ($("marketQuantity")) $("marketQuantity").oninput = updateMarketUI;
 if ($("marketSetPieces")) $("marketSetPieces").oninput = updateMarketUI;
 if ($("marketSalePrice")) $("marketSalePrice").oninput = updateMarketUI;
 $("auctionEnd").oninput = updateAuctionUI;
+if ($("country")) $("country").onchange = updateCountryUI;
+updateCountryUI();
 if ($("issueEdition")) $("issueEdition").onchange = updateEditionUI;
 if ($("yearMode")) $("yearMode").onchange = updateYearUI;
 if ($("isGraded")) $("isGraded").onchange = updateGradingUI;
@@ -1488,6 +1523,8 @@ $("form").onsubmit = async (e) => {
       if ((n("marketQuantity") || 0) < 1)
         throw new Error("الكمية المعروضة في السوق يجب أن تكون 1 على الأقل");
     }
+    if (!selectedCountryValue()) throw new Error("اختر الدولة من القائمة، أو اكتب اسم دولة / جهة إصدار أخرى");
+    if ($("country")?.value === "__other__" && !v("countryOther")) throw new Error("اكتب اسم الدولة / جهة الإصدار الأخرى");
     if ($("autoSerialEnabled")?.checked) {
       if (!generatedSerials.length) generatedSerials = generateSerialSequence(v("serialStart"), n("serialCount"));
       if (generatedSerials.length !== Math.max(1, n("serialCount") || 1)) throw new Error("تعذر إكمال التسلسل الآلي بالأعداد المطلوبة");
@@ -1500,7 +1537,7 @@ $("form").onsubmit = async (e) => {
       throw new Error(`توزيع الكمية يتجاوز الرصيد الفعلي ${totalPhysical}. خفّض كمية السوق أو المزاد أو الكميات الخارجة.`);
     let payload = {
       id,
-      country: v("country"),
+      country: selectedCountryValue(),
       denomination: v("denomination"),
       issueEdition: v("issueEdition"),
       issueEditionOther: v("issueEditionOther"),
@@ -1666,6 +1703,7 @@ function resetItemForm() {
 editingItemId = "";
   let f = $("form");
   if (f && typeof f.reset === "function") f.reset();
+  setCountryValue("");
   $("id").value = "";
   $("year").value = "";
   $("quantity").value = 1;
