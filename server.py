@@ -169,7 +169,17 @@ def inventory_total(item):
     # تبقى متوافقة وتُعامل كل وحدة فيها كقطعة واحدة حتى يعدلها المسؤول.
     return max(1,inventory_int(item.get('quantity'),inventory_unit_count(item)*inventory_pieces_per_unit(item)))
 
+def inventory_schema_version(item):
+    # السجلات القديمة كانت تحفظ marketQuantity كعدد القطع الفعلي حتى لو كان
+    # نوع العرض "طقم". الإصدارات الجديدة تحفظ marketQuantity كعدد الوحدات
+    # وتستخدم marketSetPieces/piecesPerUnit لتحويلها إلى كمية فعلية.
+    # إبقاء النسخة 1 للسجلات القديمة يمنع إعادة تفسيرها عند مجرد التعديل.
+    try: return max(1,int(item.get('inventorySchemaVersion') or 1))
+    except Exception: return 1
+
 def market_physical_per_unit(item):
+    # توافق رجعي: لا نضرب كمية السوق القديمة في حجم الطقم مرة ثانية.
+    if inventory_schema_version(item) < 2: return 1
     offer=str(item.get('marketOfferType') or 'single')
     if offer=='set': return max(1,inventory_int(item.get('marketSetPieces'),inventory_pieces_per_unit(item)))
     if offer=='bundle': return inventory_pieces_per_unit(item)
@@ -1704,6 +1714,12 @@ class H(SimpleHTTPRequestHandler):
                 # التاريخ والنتائج والمعرّفات التي لا تظهر في النموذج.
                 if old_item:
                     x={**old_item,**x}
+                    # لا نرقّي تفسير الكمية تلقائيًا عند تعديل سجل قديم؛
+                    # فهذا قد يحول 3 قطع قديمة إلى 3 أطقم × 3 قطع ويخلق 409 وهمي.
+                    x['inventorySchemaVersion']=inventory_schema_version(old_item)
+                else:
+                    # السجلات الجديدة تستخدم نموذج الوحدة/الطقم الحديث.
+                    x['inventorySchemaVersion']=2
                 classification=str(x.get('inventoryClassification') or '').strip().lower()
                 if classification not in ('graded','ungraded','set'):
                     classification='set' if (x.get('isSet') or str(x.get('marketOfferType') or '')=='set') else ('graded' if x.get('isGraded') else 'ungraded')
@@ -1822,7 +1838,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.2.3.8-GITHUB-BASE-WAREHOUSE-EDIT-SAVE'
+VERSION='4.3.3-INVENTORY-COMPAT-409-FIX'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
