@@ -1,12 +1,19 @@
 (()=>{
 const K='nawaderVisitor',C='nawaderCart';
+const reactionKey=(kind)=>{let v=read(K,null);return (kind==='favorite'?'nawaderFavorites:':'nawaderLikes:')+(v?.id||'guest')};
+const reactionList=(kind)=>read(reactionKey(kind),[]);
+const reactionHas=(kind,id)=>reactionList(kind).some(x=>String(typeof x==='object'?x.id:x)===String(id));
+const reactionToggle=(kind,item)=>{let a=reactionList(kind),id=String(item.id),on=reactionHas(kind,id);a=on?a.filter(x=>String(typeof x==='object'?x.id:x)!==id):[{id,title:item.title||'',image:item.image||'',url:item.url||location.pathname+'#'+encodeURIComponent(id),kind:item.kind||''},...a];write(reactionKey(kind),a);window.dispatchEvent(new CustomEvent('nawader-reaction-change',{detail:{kind,id,on:!on}}));toast(kind==='favorite'?(!on?'أضيف للمفضلة':'أزيل من المفضلة'):(!on?'تم تسجيل الإعجاب':'أزيل الإعجاب'));return !on};
 const read=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch{return d}};
 const write=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 window.NawaderVisitor={
  get:()=>read(K,null), set:v=>{write(K,v);refresh()}, logout:()=>{localStorage.removeItem(K);refresh();toast('تم تسجيل الخروج')},
  cart:()=>read(C,[]), add:item=>{let a=read(C,[]),x=a.find(z=>z.id===item.id);if(x)x.quantity=Math.min(Number(item.max||99),Number(x.quantity||1)+Number(item.quantity||1));else a.push(item);write(C,a);refresh();toast('تمت الإضافة إلى السلة')},
  remove:id=>{write(C,read(C,[]).filter(x=>x.id!==id));refresh();window.dispatchEvent(new Event('nawader-cart-change'))},
- clear:()=>{write(C,[]);refresh();window.dispatchEvent(new Event('nawader-cart-change'))}
+ clear:()=>{write(C,[]);refresh();window.dispatchEvent(new Event('nawader-cart-change'))},
+ favorites:()=>reactionList('favorite'), likes:()=>reactionList('like'),
+ isFavorite:id=>reactionHas('favorite',id), isLiked:id=>reactionHas('like',id),
+ toggleFavorite:item=>reactionToggle('favorite',item), toggleLike:item=>reactionToggle('like',item)
 };
 function toast(s){let e=document.createElement('div');e.className='visitor-toast';e.textContent=s;document.body.appendChild(e);setTimeout(()=>e.remove(),1800)} window.nawaderToast=toast;
 function installVisitorNavigation(){
