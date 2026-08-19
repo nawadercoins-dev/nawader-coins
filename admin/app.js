@@ -363,8 +363,60 @@ function updateYearUI() {
   if ($("yearToWrap")) $("yearToWrap").hidden = !range;
   if (!range && $("yearTo")) $("yearTo").value = "";
 }
+function gradingCompanyKey(name) {
+  return String(name || "").trim().toLocaleLowerCase("ar");
+}
+function loadCustomGradingCompanies() {
+  try {
+    let arr = JSON.parse(localStorage.getItem("nawaderCustomGradingCompanies") || "[]");
+    return Array.isArray(arr) ? arr.filter(Boolean).map((x) => String(x).trim()).filter(Boolean) : [];
+  } catch (_) {
+    return [];
+  }
+}
+function saveCustomGradingCompanies(arr) {
+  try {
+    localStorage.setItem("nawaderCustomGradingCompanies", JSON.stringify(arr));
+  } catch (_) {}
+}
+function ensureGradingCompanyOption(name) {
+  let sel = $("gradingCompany"), clean = String(name || "").trim();
+  if (!sel || !clean) return;
+  let key = gradingCompanyKey(clean);
+  let found = Array.from(sel.options).find((o) => gradingCompanyKey(o.value) === key);
+  if (!found) sel.add(new Option(clean, clean));
+}
+function initGradingCompanies() {
+  loadCustomGradingCompanies().forEach(ensureGradingCompanyOption);
+}
+function openAddGradingCompany() {
+  let wrap = $("addGradingCompanyWrap");
+  if (!wrap) return;
+  wrap.hidden = false;
+  let input = $("newGradingCompany");
+  if (input) { input.value = ""; setTimeout(() => input.focus(), 0); }
+}
+function closeAddGradingCompany() {
+  let wrap = $("addGradingCompanyWrap");
+  if (wrap) wrap.hidden = true;
+  if ($("newGradingCompany")) $("newGradingCompany").value = "";
+}
+function addGradingCompany() {
+  let input = $("newGradingCompany"), sel = $("gradingCompany");
+  let name = String(input?.value || "").trim();
+  if (!name) { alert("اكتب اسم جهة التقييم أولاً."); return; }
+  ensureGradingCompanyOption(name);
+  let arr = loadCustomGradingCompanies();
+  if (!arr.some((x) => gradingCompanyKey(x) === gradingCompanyKey(name))) {
+    arr.push(name);
+    saveCustomGradingCompanies(arr);
+  }
+  if (sel) sel.value = name;
+  closeAddGradingCompany();
+}
 function updateGradingUI() {
   if ($("gradingFields")) $("gradingFields").hidden = !$("isGraded").checked;
+  if (!$("isGraded")?.checked) closeAddGradingCompany();
 }
 function composedYear() {
   let a = v("yearFrom"),
@@ -1352,6 +1404,8 @@ if (saveBtn) saveBtn.disabled = false;
   updateEditionUI();
   fillYearFields(i.year, i.yearFrom, i.yearTo);
   if ($("isGraded")) $("isGraded").checked = !!i.isGraded;
+  if (i.gradingCompany) ensureGradingCompanyOption(i.gradingCompany);
+  if ($("gradingCompany")) $("gradingCompany").value = i.gradingCompany || "";
   updateGradingUI();
   $("forAuction").checked = !!i.forAuction;
   $("auctionApproved").checked = !!i.auctionApproved;
@@ -1449,6 +1503,14 @@ updateCountryUI();
 if ($("issueEdition")) $("issueEdition").onchange = updateEditionUI;
 if ($("yearMode")) $("yearMode").onchange = updateYearUI;
 if ($("isGraded")) $("isGraded").onchange = updateGradingUI;
+if ($("addGradingCompanyBtn")) $("addGradingCompanyBtn").onclick = openAddGradingCompany;
+if ($("saveGradingCompanyBtn")) $("saveGradingCompanyBtn").onclick = addGradingCompany;
+if ($("cancelGradingCompanyBtn")) $("cancelGradingCompanyBtn").onclick = closeAddGradingCompany;
+if ($("newGradingCompany")) $("newGradingCompany").onkeydown = (e) => {
+  if (e.key === "Enter") { e.preventDefault(); addGradingCompany(); }
+  if (e.key === "Escape") closeAddGradingCompany();
+};
+initGradingCompanies();
 function wirePhotoInput(id, which) {
   let el = $(id);
   if (!el) return;

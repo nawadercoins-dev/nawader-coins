@@ -536,17 +536,29 @@
               جهة تقييم</label
             >
             <div id="gradingFields" class="grading-fields" hidden>
+              <div class="wide" style="display:grid;gap:8px">
+                <label>جهة التقييم
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <select id="gradingCompany" style="flex:1">
+                      <option value="">اختر الجهة</option>
+                      <option>PMG</option>
+                      <option>PCGS</option>
+                      <option>NGC</option>
+                      <option>ANACS</option>
+                      <option>ICG</option>
+                    </select>
+                    <button type="button" id="addGradingCompanyBtn" title="إضافة جهة تقييم جديدة" style="min-width:46px;font-size:24px">+</button>
+                  </div>
+                </label>
+                <div id="addGradingCompanyWrap" hidden style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+                  <label style="flex:1;min-width:220px">اسم جهة التقييم الجديدة
+                    <input id="newGradingCompany" placeholder="مثال: LCGS أو جهة محلية" />
+                  </label>
+                  <button type="button" id="saveGradingCompanyBtn">إضافة</button>
+                  <button type="button" id="cancelGradingCompanyBtn" class="secondary">إلغاء</button>
+                </div>
+              </div>
               <label
-                >جهة التقييم<select id="gradingCompany">
-                  <option value="">اختر الجهة</option>
-                  <option>PMG</option>
-                  <option>PCGS</option>
-                  <option>NGC</option>
-                  <option>ANACS</option>
-                  <option>ICG</option>
-                  <option value="أخرى">أخرى</option>
-                </select></label
-              ><label
                 >درجة / رقم التقييم<input
                   id="gradeValue"
                   placeholder="مثال: 67 أو MS 65" /></label
