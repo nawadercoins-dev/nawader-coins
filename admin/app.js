@@ -984,23 +984,110 @@ function normalizeWarehouseText(value) {
     .replace(/ؤ/g, "و")
     .replace(/ئ/g, "ي")
     .replace(/ة/g, "ه")
+    .replace(/[٠-٩]/g, (d) => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)])
+    .replace(/[۰-۹]/g, (d) => "0123456789"["۰۱۲۳۴۵۶۷۸۹".indexOf(d)])
+    .replace(/[،,:;؛|/\\()\[\]{}_-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
-function warehouseSearchText(x) {
+function warehouseFieldText(values) {
+  return normalizeWarehouseText((Array.isArray(values) ? values : [values]).filter((v) => v !== null && v !== undefined && v !== "").join(" "));
+}
+function warehouseSearchFields(x) {
   const original = x._source || {};
-  return normalizeWarehouseText([
-    x.country, x.denomination, x.year, x.itemId, warehouseLocationText(x.location || {}),
-    original.country, original.denomination, original.issueEdition, original.year, original.type,
-    original.condition, original.serial, ...(Array.isArray(original.serials) ? original.serials : []),
-    original.gradingCompany, original.gradeValue, original.gradePercent, original.gradingCertNumber,
-    original.gradingVerificationStatus, original.gradingNotes, original.notes,
-    original.warehouse, original.cabinet, original.shelf, original.box, original.album, original.pocket
-  ].filter(Boolean).join(" | "));
+  const sourceForClass = Object.keys(original).length ? original : x;
+  const classification = effectiveClassification(sourceForClass);
+  const grading = effectiveGradingStatus(sourceForClass);
+  const serials = Array.isArray(original.serials) ? original.serials : [];
+  const classAliases = classification === "set"
+    ? "طقم اطقم مجموعه مجموعة set sets"
+    : grading === "graded"
+      ? "مقيم مقيمه مقيمة تقييم معتمد graded"
+      : "غير مقيم غير مقيمه غير مقيمة بدون تقييم غير معتمد ungraded";
+  return {
+    country: warehouseFieldText([x.country, original.country]),
+    denomination: warehouseFieldText([x.denomination, original.denomination]),
+    year: warehouseFieldText([x.year, original.year]),
+    classification: warehouseFieldText(classAliases),
+    issue: warehouseFieldText([original.issueEdition, original.issue, original.type]),
+    condition: warehouseFieldText([original.condition]),
+    gradingCompany: warehouseFieldText([original.gradingCompany]),
+    grade: warehouseFieldText([original.gradeValue, original.gradePercent, original.gradingVerificationStatus]),
+    certificate: warehouseFieldText([original.gradingCertNumber]),
+    serial: warehouseFieldText([original.serial, ...serials]),
+    id: warehouseFieldText([x.itemId, original.id]),
+    location: warehouseFieldText([
+      warehouseLocationText(x.location || {}),
+      original.warehouse, original.cabinet, original.shelf, original.box, original.album, original.pocket
+    ]),
+    notes: warehouseFieldText([original.gradingNotes, original.notes])
+  };
+}
+function warehouseSearchText(x) {
+  return Object.values(warehouseSearchFields(x)).join(" ");
+}
+function warehouseQueryParts(query) {
+  const filters = {};
+  const fieldMap = {
+    "الدوله":"country", "بلد":"country",
+    "الفئه":"denomination", "العمله":"denomination",
+    "السنه":"year", "الاصدار":"issue",
+    "التقييم":"grade", "درجه":"grade",
+    "الشركه":"gradingCompany", "جهه":"gradingCompany",
+    "الشهاده":"certificate",
+    "الرقم":"serial", "التسلسلي":"serial",
+    "الموقع":"location", "التخزين":"location", "الحاله":"condition"
+  };
+  let freeRaw = String(query ?? "").replace(/([^\s:：]+)\s*[:：]\s*("[^"]+"|'[^']+'|[^\s]+)/g, (whole, key, value) => {
+    const mapped = fieldMap[normalizeWarehouseText(key)];
+    if (!mapped) return whole;
+    filters[mapped] = normalizeWarehouseText(String(value).replace(/^['"]|['"]$/g, ""));
+    return " ";
+  });
+  let q = normalizeWarehouseText(freeRaw);
+  const aliases = [
+    { re: /(^| )غير مقيم(?:ه)?(?= |$)/g, key: "classification", value: "ungraded" },
+    { re: /(^| )بدون تقييم(?= |$)/g, key: "classification", value: "ungraded" },
+    { re: /(^| )مقيم(?:ه)?(?= |$)/g, key: "classification", value: "graded" },
+    { re: /(^| )طقم(?= |$)/g, key: "classification", value: "set" },
+    { re: /(^| )اطقم(?= |$)/g, key: "classification", value: "set" }
+  ];
+  aliases.forEach(({re,key,value}) => {
+    if (re.test(q)) {
+      filters[key] = value;
+      q = q.replace(re, " ");
+    }
+    re.lastIndex = 0;
+  });
+  const terms = q.split(" ").map((v) => v.trim()).filter(Boolean);
+  return { terms, filters };
+}
+function warehouseSmartMatch(x, query) {
+  if (!String(query || "").trim()) return true;
+  const { terms, filters } = warehouseQueryParts(query);
+  const fields = warehouseSearchFields(x);
+  const original = x._source || {};
+  const sourceForClass = Object.keys(original).length ? original : x;
+  const classification = effectiveClassification(sourceForClass);
+  const grading = effectiveGradingStatus(sourceForClass);
+
+  if (filters.classification === "set" && classification !== "set") return false;
+  if (filters.classification === "graded" && (classification === "set" || grading !== "graded")) return false;
+  if (filters.classification === "ungraded" && (classification === "set" || grading !== "ungraded")) return false;
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (key === "classification" || !value) continue;
+    const field = fields[key] || "";
+    if (!field.includes(value)) return false;
+  }
+
+  const allText = Object.values(fields).join(" ");
+  // Every free word must match somewhere. This makes multi-word searches precise instead of broad OR matching.
+  return terms.every((term) => allText.includes(term));
 }
 function ensureWarehouseCountryUI() {
   const search = $("warehouseSearch");
-  if (search) search.placeholder = "بحث شامل: الدولة، العملة، الفئة، السنة، التقييم، جهة التقييم، الرقم التسلسلي أو موقع التخزين";
+  if (search) search.placeholder = "بحث ذكي: السعودية 50 ريال | PMG 66 | طقم | غير مقيم | الدولة:قطر | الرقم:1234";
   if ($("warehouseCountries")) return;
   const controls = document.querySelector("#warehouse .warehouse-controls");
   if (!controls) return;
@@ -1046,7 +1133,7 @@ function renderWarehouseRows() {
     rows = lastInventoryRows
       .filter((x) => inventoryFilter === "all" ? x.adminLocation === "warehouse" : Number(x[inventoryFilter] || 0) > 0)
       .filter((x) => !warehouseCountryFilter || String(x.country || "") === warehouseCountryFilter)
-      .filter((x) => !q || warehouseSearchText(x).includes(normalizeWarehouseText(q)));
+      .filter((x) => warehouseSmartMatch(x, q));
   $("warehouseItems").innerHTML = rows.map((x) => {
     let location = warehouseLocationText(x.location || {});
     const warehouseImages = [
@@ -2726,17 +2813,114 @@ function marketStatusClass(st) {
       ? "bad"
       : "wait";
 }
+
+function marketSearchFields(i) {
+  const classification = effectiveClassification(i);
+  const grading = effectiveGradingStatus(i);
+  const serials = Array.isArray(i.serials) ? i.serials : [];
+  const classAliases = classification === "set"
+    ? "طقم اطقم مجموعه مجموعة set sets"
+    : grading === "graded"
+      ? "مقيم مقيمه مقيمة تقييم معتمد graded"
+      : "غير مقيم غير مقيمه غير مقيمة بدون تقييم غير معتمد ungraded";
+  const statusAliases = i.marketApproved ? "نشط معتمد منشور active approved" : "غير نشط غير معتمد غير منشور inactive";
+  const offerAliases = i.marketOfferType === "set"
+    ? "طقم set"
+    : i.marketOfferType === "bundle"
+      ? "حزمه حزمة بندل bundle"
+      : "قطعه قطعة مفرد single piece";
+  return {
+    country: warehouseFieldText(i.country),
+    denomination: warehouseFieldText([i.denomination, i.currencyName, i.marketTitle]),
+    year: warehouseFieldText(i.year),
+    classification: warehouseFieldText(classAliases),
+    issue: warehouseFieldText([i.issueEdition, i.issue, i.type]),
+    condition: warehouseFieldText(i.condition),
+    gradingCompany: warehouseFieldText(i.gradingCompany),
+    grade: warehouseFieldText([i.gradeValue, i.gradePercent, i.gradingVerificationStatus]),
+    certificate: warehouseFieldText(i.gradingCertNumber),
+    serial: warehouseFieldText([i.serial, ...serials]),
+    id: warehouseFieldText(i.id),
+    location: warehouseFieldText([i.warehouse, i.cabinet, i.shelf, i.box, i.album, i.page, i.pocket]),
+    title: warehouseFieldText(i.marketTitle),
+    price: warehouseFieldText([i.marketSalePrice, i.marketUnitPrice]),
+    quantity: warehouseFieldText([i.marketQuantity, i.quantity, i.marketSetPieces]),
+    offerType: warehouseFieldText(offerAliases),
+    status: warehouseFieldText(statusAliases),
+    negotiation: warehouseFieldText([i.marketNegotiationEnabled ? "تفاوض قابل للتفاوض" : "سعر ثابت بدون تفاوض", i.marketNegotiationPercent]),
+    notes: warehouseFieldText([i.gradingNotes, i.notes])
+  };
+}
+function marketQueryParts(query) {
+  const filters = {};
+  const fieldMap = {
+    "الدوله":"country", "بلد":"country",
+    "الفئه":"denomination", "العمله":"denomination", "العنوان":"title",
+    "السنه":"year", "الاصدار":"issue",
+    "التقييم":"grade", "درجه":"grade",
+    "الشركه":"gradingCompany", "جهه":"gradingCompany",
+    "الشهاده":"certificate",
+    "الرقم":"serial", "التسلسلي":"serial",
+    "الموقع":"location", "التخزين":"location",
+    "السعر":"price", "الكميه":"quantity",
+    "العرض":"offerType", "النوع":"offerType",
+    "الحاله":"status", "التفاوض":"negotiation"
+  };
+  let freeRaw = String(query ?? "").replace(/([^\s:：]+)\s*[:：]\s*("[^"]+"|'[^']+'|[^\s]+)/g, (whole, key, value) => {
+    const mapped = fieldMap[normalizeWarehouseText(key)];
+    if (!mapped) return whole;
+    filters[mapped] = normalizeWarehouseText(String(value).replace(/^['"]|['"]$/g, ""));
+    return " ";
+  });
+  let q = normalizeWarehouseText(freeRaw);
+  const aliases = [
+    { re: /(^| )غير مقيم(?:ه)?(?= |$)/g, key: "classification", value: "ungraded" },
+    { re: /(^| )بدون تقييم(?= |$)/g, key: "classification", value: "ungraded" },
+    { re: /(^| )مقيم(?:ه)?(?= |$)/g, key: "classification", value: "graded" },
+    { re: /(^| )طقم(?= |$)/g, key: "classification", value: "set" },
+    { re: /(^| )اطقم(?= |$)/g, key: "classification", value: "set" },
+    { re: /(^| )غير نشط(?= |$)/g, key: "status", value: "غير نشط" },
+    { re: /(^| )نشط(?= |$)/g, key: "status", value: "نشط" }
+  ];
+  aliases.forEach(({re,key,value}) => {
+    if (re.test(q)) {
+      filters[key] = value;
+      q = q.replace(re, " ");
+    }
+    re.lastIndex = 0;
+  });
+  return { terms: q.split(" ").map(v => v.trim()).filter(Boolean), filters };
+}
+function marketSmartMatch(i, query) {
+  if (!String(query || "").trim()) return true;
+  const { terms, filters } = marketQueryParts(query);
+  const fields = marketSearchFields(i);
+  const classification = effectiveClassification(i);
+  const grading = effectiveGradingStatus(i);
+  if (filters.classification === "set" && classification !== "set") return false;
+  if (filters.classification === "graded" && (classification === "set" || grading !== "graded")) return false;
+  if (filters.classification === "ungraded" && (classification === "set" || grading !== "ungraded")) return false;
+  for (const [key, value] of Object.entries(filters)) {
+    if (key === "classification" || !value) continue;
+    if (!(fields[key] || "").includes(normalizeWarehouseText(value))) return false;
+  }
+  const allText = Object.values(fields).join(" ");
+  return terms.every(term => allText.includes(term));
+}
+
 async function renderMarketAdmin(items) {
   if (!$("marketAdminItems")) return;
   let a = Array.isArray(items) ? items : await all(),
     m = a.filter((i) => i.forMarket),
-    map = Object.fromEntries(a.map((i) => [String(i.id), i]));
+    map = Object.fromEntries(a.map((i) => [String(i.id), i])),
+    marketQuery = $("marketSearch")?.value || "";
   $("marketPublishedCount").textContent = m.filter(
     (i) => i.marketApproved,
   ).length;
   $("marketAdminItems").innerHTML =
     m
       .filter((i) => classMatch(i, marketFilter, marketSetFilter))
+      .filter((i) => marketSmartMatch(i, marketQuery))
       .map(marketAdminCard)
       .join("") || "<p>لا توجد مقتنيات في هذا التصنيف.</p>";
   try {
@@ -3736,6 +3920,10 @@ function setupClassificationFilters() {
         renderList(await all());
       }),
   );
+  if ($("marketSearch")) {
+    $("marketSearch").placeholder = "بحث ذكي: السعودية 50 ريال | PMG 66 | نشط | طقم | السعر:250 | الرقم:1234";
+    $("marketSearch").oninput = async () => await renderMarketAdmin();
+  }
   document.querySelectorAll(".market-filter").forEach(
     (b) =>
       (b.onclick = async () => {
