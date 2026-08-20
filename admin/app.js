@@ -970,7 +970,70 @@ function renderList(a) {
       .join("") || "<p>لا توجد نتيجة في هذا التصنيف.</p>";
 }
 let inventoryFilter = "warehouse",
-  lastInventoryRows = [];
+  lastInventoryRows = [],
+  warehouseCountryFilter = "";
+
+// Warehouse smart browse/search — generated only from actual warehouse stock.
+function normalizeWarehouseText(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u064b-\u065f\u0670]/g, "")
+    .replace(/[إأآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function warehouseSearchText(x) {
+  const original = x._source || {};
+  return normalizeWarehouseText([
+    x.country, x.denomination, x.year, x.itemId, warehouseLocationText(x.location || {}),
+    original.country, original.denomination, original.issueEdition, original.year, original.type,
+    original.condition, original.serial, ...(Array.isArray(original.serials) ? original.serials : []),
+    original.gradingCompany, original.gradeValue, original.gradePercent, original.gradingCertNumber,
+    original.gradingVerificationStatus, original.gradingNotes, original.notes,
+    original.warehouse, original.cabinet, original.shelf, original.box, original.album, original.pocket
+  ].filter(Boolean).join(" | "));
+}
+function ensureWarehouseCountryUI() {
+  const search = $("warehouseSearch");
+  if (search) search.placeholder = "بحث شامل: الدولة، العملة، الفئة، السنة، التقييم، جهة التقييم، الرقم التسلسلي أو موقع التخزين";
+  if ($("warehouseCountries")) return;
+  const controls = document.querySelector("#warehouse .warehouse-controls");
+  if (!controls) return;
+  const box = document.createElement("div");
+  box.id = "warehouseCountries";
+  box.setAttribute("aria-label", "الدول الموجودة فعليًا في المستودع");
+  box.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0 15px;padding:10px 12px;border:1px solid #e2d3aa;border-radius:14px;background:#fffaf0";
+  controls.insertAdjacentElement("afterend", box);
+}
+function renderWarehouseCountries() {
+  ensureWarehouseCountryUI();
+  const box = $("warehouseCountries");
+  if (!box) return;
+  const counts = new Map();
+  lastInventoryRows.forEach((x) => {
+    if (Number(x.warehouse || 0) <= 0) return;
+    const country = String(x.country || "غير محدد").trim() || "غير محدد";
+    counts.set(country, (counts.get(country) || 0) + Number(x.warehouse || 0));
+  });
+  const countries = [...counts.entries()].sort((a,b) => a[0].localeCompare(b[0], "ar"));
+  const activeStyle = "background:#102659;color:#fff;border-color:#c99848";
+  const normalStyle = "background:#fff;color:#102659;border-color:#d9dfeb";
+  box.innerHTML = `<b style="color:#102659;margin-inline-end:4px">الدول الموجودة في المستودع:</b>` +
+    `<button type="button" data-warehouse-country="" style="border:1px solid;border-radius:999px;padding:7px 12px;font-weight:800;cursor:pointer;${warehouseCountryFilter ? normalStyle : activeStyle}">الكل</button>` +
+    countries.map(([country,count]) => `<button type="button" data-warehouse-country="${esc(country)}" style="border:1px solid;border-radius:999px;padding:7px 12px;font-weight:800;cursor:pointer;${warehouseCountryFilter === country ? activeStyle : normalStyle}">${esc(country)} <span style="opacity:.8">(${Number(count).toLocaleString("ar-SA")})</span></button>`).join("");
+  box.querySelectorAll("[data-warehouse-country]").forEach((button) => button.addEventListener("click", () => {
+    warehouseCountryFilter = button.dataset.warehouseCountry || "";
+    inventoryFilter = "warehouse";
+    document.querySelectorAll(".warehouse-metric").forEach((x) => x.classList.toggle("active", x.dataset.inventoryFilter === "warehouse"));
+    renderWarehouseCountries();
+    renderWarehouseRows();
+  }));
+}
 function warehouseLocationText(location = {}) {
   return [
     ["مستودع", location.warehouse], ["خزانة", location.cabinet],
@@ -982,7 +1045,8 @@ function renderWarehouseRows() {
   let q = String($("warehouseSearch")?.value || "").trim().toLowerCase(),
     rows = lastInventoryRows
       .filter((x) => inventoryFilter === "all" ? x.adminLocation === "warehouse" : Number(x[inventoryFilter] || 0) > 0)
-      .filter((x) => !q || JSON.stringify(x).toLowerCase().includes(q));
+      .filter((x) => !warehouseCountryFilter || String(x.country || "") === warehouseCountryFilter)
+      .filter((x) => !q || warehouseSearchText(x).includes(normalizeWarehouseText(q)));
   $("warehouseItems").innerHTML = rows.map((x) => {
     let location = warehouseLocationText(x.location || {});
     const warehouseImages = [
@@ -1000,7 +1064,13 @@ function renderWarehouseRows() {
 async function renderWarehouse() {
   try {
     let data = await api("/api/inventory/summary"), totals = data.totals || {};
-    lastInventoryRows = data.items || [];
+    const sourceItems = await all();
+    const sourceById = new Map(sourceItems.map((item) => [String(item.id || ""), item]));
+    lastInventoryRows = (data.items || []).map((row) => {
+      const source = sourceById.get(String(row.itemId || "")) || {};
+      return { ...row, adminLocation: adminItemLocation(source), _source: source };
+    });
+    renderWarehouseCountries();
     let ids = { total: "invTotal", current: "invCurrent", warehouse: "invWarehouse", market: "invMarket", auction: "invAuction", special: "invSpecial", reserved: "invReserved", sold: "invSold", returned: "invReturned", damaged: "invDamaged" };
     Object.entries(ids).forEach(([key, id]) => { if ($(id)) $(id).textContent = Number(totals[key] || 0).toLocaleString("ar-SA"); });
     if ($("warehouseEquation")) $("warehouseEquation").textContent = `الرصيد الحالي ${Number(totals.current || 0).toLocaleString("ar-SA")} = المستودع ${Number(totals.warehouse || 0).toLocaleString("ar-SA")} + السوق ${Number(totals.market || 0).toLocaleString("ar-SA")} + المزاد ${Number(totals.auction || 0).toLocaleString("ar-SA")} + المحجوز ${Number(totals.reserved || 0).toLocaleString("ar-SA")} + المرتجع للفحص ${Number(totals.returned || 0).toLocaleString("ar-SA")}`;
@@ -1011,7 +1081,9 @@ async function renderWarehouse() {
 }
 document.querySelectorAll(".warehouse-metric").forEach((b) => b.addEventListener("click", () => {
   inventoryFilter = b.dataset.inventoryFilter || "all";
+  if (inventoryFilter !== "warehouse") warehouseCountryFilter = "";
   document.querySelectorAll(".warehouse-metric").forEach((x) => x.classList.toggle("active", x === b));
+  renderWarehouseCountries();
   renderWarehouseRows();
 }));
 if ($("warehouseSearch")) $("warehouseSearch").oninput = renderWarehouseRows;
