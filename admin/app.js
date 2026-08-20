@@ -989,7 +989,7 @@ window.removeItem = async (id) => {
   }
 };
 window.detail = async (id) => {
-  let i = (await all()).find((x) => x.id === id),
+  let i = (await all()).find((x) => String(x.id) === String(id)),
     rows = [
       ["الدولة", i.country],
       ["الفئة", i.denomination],
@@ -1382,7 +1382,7 @@ async function analyzeCurrentImage() {
 }
 $("analyzeImage").onclick = analyzeCurrentImage;
 window.editItem = async (id) => {
-  let i = (await all()).find((x) => x.id === id);
+  let i = (await all()).find((x) => String(x.id) === String(id));
   if (!i) {
     alert("تعذر العثور على المقتنى. حدّث صفحة المستودع ثم حاول مرة أخرى.");
     return;
@@ -1712,6 +1712,10 @@ let savedResult = await put(payload);
       String(savedResult?.saved?.id || "") !== String(id)
     )
       throw new Error("أعاد الخادم نتيجة غير مؤكدة للحفظ؛ بقي النموذج كما هو");
+    let verifiedItems = await all();
+    let sameIdRows = verifiedItems.filter((x) => String(x.id) === String(id));
+    if (sameIdRows.length !== 1)
+      throw new Error("فشل التحقق من سلامة التعديل: يجب أن يوجد السجل مرة واحدة فقط بعد الحفظ");
     if (payload.specialNumberEnabled) {
       let savedTypes = Array.isArray(savedResult?.saved?.specialNumberTypes)
         ? savedResult.saved.specialNumberTypes
@@ -2348,7 +2352,7 @@ function localDateTimeValue(d) {
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
 }
 window.openRelaunch = async (id) => {
-  let i = (await all()).find((x) => x.id === id);
+  let i = (await all()).find((x) => String(x.id) === String(id));
   if (!i) return;
   $("relaunchItemId").value = id;
   $("relaunchOpening").value = Number(
