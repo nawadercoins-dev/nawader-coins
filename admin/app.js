@@ -143,6 +143,7 @@ const toast = (...args) => window.toast(...args);
 function adminItemLocation(i) {
   if (i?.sold || Number(i?.soldQuantity || 0) >= Number(i?.quantity || 1)) return "sold";
   if (i?.archived) return "archived";
+  if (["warehouse","market","auction","special","outside"].includes(i?.adminLocation)) return i.adminLocation;
   if (i?.forAuction) return "auction";
   if (i?.forMarket) return "market";
   if (i?.specialNumberEnabled) return "special";
@@ -201,6 +202,8 @@ window.moveAdminItem = async (id, target) => {
     else if (target === "special") item.specialNumberEnabled = true;
     else if (target === "outside") item.outsideDisplay = true;
     item.adminLocation = target;
+    item.inWarehouse = (target === "warehouse");
+    item.warehouseAvailable = (target === "warehouse");
     item.locationUpdatedAt = new Date().toISOString();
     item.updated = Date.now();
     const saved = await put(item);
@@ -209,6 +212,10 @@ window.moveAdminItem = async (id, target) => {
     adminMoveNotice(target === "auction" ? "تم النقل إلى المزاد. أكمل إعداد وقت المزاد وحد البيع ثم اعتمده." : `تم نقل المقتنى إلى ${moveDestinationLabel(target)}.`);
   } catch(e) { alert("تعذر النقل: " + e.message); }
 };
+function isWarehouseItem(i) { return adminItemLocation(i) === "warehouse"; }
+function isMarketItem(i) { return adminItemLocation(i) === "market"; }
+function isAuctionItem(i) { return adminItemLocation(i) === "auction"; }
+function isSpecialItem(i) { return adminItemLocation(i) === "special"; }
 function adminMoveButtons(i, current) {
   const id = String(i.id || i.itemId || "").replace(/'/g,"\\'");
   const targets = ["warehouse","market","auction","special","outside"].filter(x => x !== current);
@@ -1063,7 +1070,7 @@ function specialAdminCard(i) {
 function renderSpecialAdminRows() {
   if (!$("specialAdminItems")) return;
   let q = String($("specialSearch")?.value || "").trim().toLowerCase(), tf = $("specialTypeFilter")?.value || "all";
-  let rows = specialAdminRows.filter(i => i.specialNumberEnabled).filter(i => {
+  let rows = specialAdminRows.filter(i => isSpecialItem(i)).filter(i => {
     if (specialAdminFilter === "sale" && !specialIsForSale(i)) return false;
     if (specialAdminFilter === "display" && specialIsForSale(i)) return false;
     if (specialAdminFilter === "errors" && !specialTypesOf(i).includes("errors")) return false;
@@ -1076,7 +1083,7 @@ function renderSpecialAdminRows() {
 async function renderSpecialAdmin(items = null) {
   try {
     specialAdminRows = Array.isArray(items) ? items : await all();
-    let rows = specialAdminRows.filter(i => i.specialNumberEnabled), errors = rows.filter(i => specialTypesOf(i).includes("errors"));
+    let rows = specialAdminRows.filter(i => isSpecialItem(i)), errors = rows.filter(i => specialTypesOf(i).includes("errors"));
     if ($("specialTotal")) $("specialTotal").textContent = rows.length.toLocaleString("ar-SA");
     if ($("specialForSale")) $("specialForSale").textContent = rows.filter(specialIsForSale).length.toLocaleString("ar-SA");
     if ($("specialDisplayOnly")) $("specialDisplayOnly").textContent = rows.filter(i => !specialIsForSale(i)).length.toLocaleString("ar-SA");
