@@ -969,7 +969,7 @@ function renderList(a) {
       .map(card)
       .join("") || "<p>لا توجد نتيجة في هذا التصنيف.</p>";
 }
-let inventoryFilter = "all",
+let inventoryFilter = "warehouse",
   lastInventoryRows = [];
 function warehouseLocationText(location = {}) {
   return [
@@ -980,7 +980,8 @@ function warehouseLocationText(location = {}) {
 }
 function renderWarehouseRows() {
   let q = String($("warehouseSearch")?.value || "").trim().toLowerCase(),
-    rows = lastInventoryRows.filter((x) => inventoryFilter === "all" || Number(x[inventoryFilter] || 0) > 0)
+    rows = lastInventoryRows
+      .filter((x) => inventoryFilter === "all" ? x.adminLocation === "warehouse" : Number(x[inventoryFilter] || 0) > 0)
       .filter((x) => !q || JSON.stringify(x).toLowerCase().includes(q));
   $("warehouseItems").innerHTML = rows.map((x) => {
     let location = warehouseLocationText(x.location || {});
