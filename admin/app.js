@@ -807,11 +807,16 @@ function setSizeClass(i) {
   let p = Number(i.marketSetPieces || i.setPieces || i.quantity || 0);
   return p <= 3 ? "mini" : p <= 5 ? "small" : p <= 10 ? "medium" : "large";
 }
+function effectiveClassification(i) {
+  // حالة التقييم هي المصدر الحقيقي للمفردات؛ التصنيف المخزن قد يكون قديمًا بعد تعديل سجل سابق.
+  if (isSet(i)) return "set";
+  return i.isGraded === true ? "graded" : "ungraded";
+}
 function classMatch(i, f, sf) {
-  let classification = i.inventoryClassification || (isSet(i) ? "set" : (i.isGraded ? "graded" : "ungraded"));
+  let classification = effectiveClassification(i);
   if (f === "graded" && classification !== "graded") return false;
   if (f === "ungraded" && classification !== "ungraded") return false;
-  if (f === "sets" && !isSet(i)) return false;
+  if (f === "sets" && classification !== "set") return false;
   if (f === "sets" && sf !== "all" && setSizeClass(i) !== sf) return false;
   return true;
 }
@@ -855,7 +860,7 @@ function renderWarehouseRows() {
       ? `<div class="warehouse-thumb-pair">${warehouseImages.map(([src, label]) => `<figure><img src="${esc(src)}" alt="${esc(label)}" loading="lazy"><figcaption>${label}</figcaption></figure>`).join("")}</div>`
       : '<div class="warehouse-no-photo">لا توجد صورة</div>';
     let returnActions = Number(x.returned || 0) > 0 ? `<button onclick="resolveInventoryReturn('${x.itemId}','warehouse')">↩ إعادة للمستودع</button><button class="danger" onclick="resolveInventoryReturn('${x.itemId}','damaged')">تسجيل تالف</button>` : "";
-    let classification = ({graded:"مُقيَّم",ungraded:"غير مُقيَّم",set:"طقم"})[x.inventoryClassification] || "غير مُقيَّم";
+    let classification = ({graded:"مُقيَّم",ungraded:"غير مُقيَّم",set:"طقم"})[effectiveClassification(x)] || "غير مُقيَّم";
     return `<article class="warehouse-item">${photo}<div class="warehouse-item-main"><div class="warehouse-item-title"><h3>${esc(x.country)} — ${esc(x.denomination)}</h3><span>${esc(x.year || "بدون سنة")}</span></div><div class="warehouse-item-quantities"><span>التصنيف <b>${classification}</b></span><span>الإجمالي <b>${x.total}</b></span><span>المتاح <b>${x.warehouse}</b></span><span>السوق <b>${x.market}</b></span><span>المزاد <b>${x.auction}</b></span><span>المحجوز <b>${x.reserved}</b></span><span>المرتجع <b>${x.returned}</b></span><span>المباع <b>${x.sold}</b></span></div><p class="storage-path">${esc(location)}</p><small>${x.unitCount} ${esc(inventoryUnitLabel(x.unitType))} × ${x.piecesPerUnit} ورقة/قطعة${x.sourceSubmissionId ? " — محوّل من طلب اعتماد" : ""}</small></div><div class="actions"><button onclick="detail('${x.itemId}')">عرض</button><button class="ghost" onclick="editItem('${x.itemId}')">تعديل / نقل</button>${returnActions}</div></article>`;
   }).join("") || '<p class="muted">لا توجد مقتنيات في هذا المؤشر.</p>';
 }
