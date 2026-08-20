@@ -116,6 +116,29 @@ async function del(id) {
   return api("/api/item/" + encodeURIComponent(id), { method: "DELETE" });
 }
 
+
+// Stage 4.2: unified administration notification.
+// Previous releases called toast() without defining it in every administration page.
+window.toast = window.toast || function(message, timeout=2600) {
+  try {
+    let box = document.getElementById("nawader-global-toast");
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "nawader-global-toast";
+      box.setAttribute("role","status");
+      box.style.cssText = "position:fixed;z-index:99999;left:50%;bottom:28px;transform:translateX(-50%);background:#0d1b3b;color:#fff;border:1px solid #c79245;border-radius:12px;padding:11px 18px;font-weight:700;box-shadow:0 8px 28px #0005;max-width:min(88vw,620px);text-align:center;display:none";
+      document.body.appendChild(box);
+    }
+    box.textContent = String(message ?? "");
+    box.style.display = "block";
+    clearTimeout(window.__nawaderToastTimer);
+    window.__nawaderToastTimer = setTimeout(()=>{ box.style.display="none"; }, Math.max(1200, Number(timeout)||2600));
+  } catch (_) {
+    try { alert(String(message ?? "")); } catch(__) {}
+  }
+};
+const toast = (...args) => window.toast(...args);
+
 // V4 Stage 4: one controlled movement path between administration sections.
 function adminItemLocation(i) {
   if (i?.sold || Number(i?.soldQuantity || 0) >= Number(i?.quantity || 1)) return "sold";
@@ -129,15 +152,44 @@ function adminItemLocation(i) {
 function moveDestinationLabel(v) {
   return ({warehouse:"المستودع",market:"السوق العام",auction:"المزاد",special:"المميزة والنادرة",outside:"خارج العرض"})[v] || v;
 }
+function adminMoveNotice(msg) {
+  try {
+    if (typeof window.toast === "function") return window.toast(msg);
+    if (typeof toast === "function") return toast(msg);
+  } catch(_) {}
+  alert(msg);
+}
+
+
+// V4 Stage 4.1: controlled stock restoration for cancelled/returned orders.
+window.restoreOrderItemToWarehouse = async (itemId, qty=1) => {
+  const rows = await all(), old = rows.find(x => String(x.id) === String(itemId));
+  if (!old) throw new Error("المقتنى غير موجود");
+  const item = {...old};
+  const q = Math.max(1, Number(qty || 1));
+  item.quantity = Math.max(Number(item.quantity || 0), Number(item.availableQuantity || 0)) + q;
+  item.availableQuantity = Number(item.availableQuantity || 0) + q;
+  item.reservedQuantity = Math.max(0, Number(item.reservedQuantity || 0) - q);
+  item.soldQuantity = Math.max(0, Number(item.soldQuantity || 0) - q);
+  item.forMarket = false; item.marketApproved = false;
+  item.forAuction = false; item.auctionApproved = false;
+  item.adminLocation = "warehouse";
+  item.locationUpdatedAt = new Date().toISOString();
+  item.updated = Date.now();
+  const saved = await put(item);
+  if (!saved?.saved || String(saved.saved.id) !== String(itemId)) throw new Error("لم يؤكد الخادم إعادة الرصيد");
+  return saved.saved;
+};
+
 window.moveAdminItem = async (id, target) => {
   try {
     const rows = await all(), old = rows.find(x => String(x.id) === String(id));
     if (!old) throw new Error("المقتنى غير موجود");
     const current = adminItemLocation(old);
     if (["sold","archived"].includes(current)) throw new Error("المقتنى المباع أو المؤرشف لا يدخل في النقل العادي");
-    if (current === "auction" && auctionText(old.auctionEnd) === "انتهى المزاد" && Number(old.auctionCurrentPrice || 0) >= Number(old.auctionTargetPrice || Number(old.auctionStartPrice || 0) + 1))
-      throw new Error("لا يمكن نقل مزاد منتهٍ ببيع المقتنى");
-    if (current === target) return toast("المقتنى موجود بالفعل في " + moveDestinationLabel(target));
+    if (current === "auction")
+      throw new Error("لا يتم نقل المقتنى من المزاد النشط. انتظر انتهاء المزاد وترحيله إلى قسم المزادات المنتهية، ثم نفّذ الإجراء من هناك.");
+    if (current === target) return adminMoveNotice("المقتنى موجود بالفعل في " + moveDestinationLabel(target));
     if (!confirm(`نقل المقتنى من ${moveDestinationLabel(current)} إلى ${moveDestinationLabel(target)}؟\nلن يتم إنشاء نسخة جديدة ولن تُحذف الصور أو بيانات التقييم.`)) return;
     const item = {...old};
     // A collectible has one administration display location at a time.
@@ -154,7 +206,7 @@ window.moveAdminItem = async (id, target) => {
     const saved = await put(item);
     if (!saved?.saved || String(saved.saved.id) !== String(id)) throw new Error("لم يؤكد الخادم حفظ نفس المقتنى");
     await refresh(true);
-    toast(target === "auction" ? "تم النقل إلى المزاد. أكمل إعداد وقت المزاد وحد البيع ثم اعتمده." : `تم نقل المقتنى إلى ${moveDestinationLabel(target)}.`);
+    adminMoveNotice(target === "auction" ? "تم النقل إلى المزاد. أكمل إعداد وقت المزاد وحد البيع ثم اعتمده." : `تم نقل المقتنى إلى ${moveDestinationLabel(target)}.`);
   } catch(e) { alert("تعذر النقل: " + e.message); }
 };
 function adminMoveButtons(i, current) {
@@ -162,6 +214,24 @@ function adminMoveButtons(i, current) {
   const targets = ["warehouse","market","auction","special","outside"].filter(x => x !== current);
   return `<details class="admin-move-menu"><summary>نقل إلى</summary><div class="admin-move-options">${targets.map(t=>`<button type="button" class="ghost" onclick="moveAdminItem('${id}','${t}')">${moveDestinationLabel(t)}</button>`).join("")}</div></details>`;
 }
+window.returnEndedAuctionToWarehouse = async (id) => {
+  try {
+    const rows = await all(), old = rows.find(x => String(x.id) === String(id));
+    if (!old) throw new Error("المقتنى غير موجود");
+    if (old.sold || Number(old.soldQuantity || 0) >= Number(old.quantity || 1))
+      throw new Error("المزاد منتهي ببيع المقتنى؛ لا يمكن إعادته للمستودع من هذا المسار");
+    const item = {...old};
+    item.forAuction = false;
+    item.auctionApproved = false;
+    item.adminLocation = "warehouse";
+    item.locationUpdatedAt = new Date().toISOString();
+    item.updated = Date.now();
+    const saved = await put(item);
+    if (!saved?.saved || String(saved.saved.id) !== String(id)) throw new Error("لم يؤكد الخادم حفظ نفس المقتنى");
+    await refresh(true);
+    adminMoveNotice("تمت إعادة المقتنى من المزادات المنتهية إلى المستودع.");
+  } catch(e) { alert("تعذر الإرجاع: " + e.message); }
+};
 async function clearDB() {
   return api("/api/clear", { method: "POST", body: "{}" });
 }
@@ -649,7 +719,7 @@ function auctionCard(i) {
     i.gradingCertImage,
     ...(i.additionalImages || []),
   ].filter(Boolean);
-  return `<article class="item auction-item">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="openAdminAuctionImages('${i.id}',0)" title="اضغط لفتح عارض الصور" style="cursor:zoom-in"><span class="auction-state ${ended ? "ended" : "live"}">${ended ? "منتهي" : "نشط"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)}</h3><span class="approval-chip ${i.auctionApproved ? "ok" : "pending"}">${i.auctionApproved ? "✓ معتمد" : "بانتظار الاعتماد"}</span></div><p class="auction-clock ${ended ? "ended" : ""}" data-end="${esc(i.auctionEnd || "")}">${esc(left || "بدون وقت انتهاء")}</p><div class="auction-admin-metrics"><div><span>السعر الحالي</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>قيمة الزيادة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع • إدارة فقط</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div><p class="round-chip">الجولة ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل</button>${!ended ? adminMoveButtons(i,"auction") : ""}${ended ? `<button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة المزاد</button>` : ""}<a class="public-link" href="/auction#${i.id}" target="_blank">مشاركة</a></div><div class="bid-list" id="bids-${i.id}" data-round="${Number(i.auctionRound || 1)}"></div></div></article>`;
+  return `<article class="item auction-item">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="openAdminAuctionImages('${i.id}',0)" title="اضغط لفتح عارض الصور" style="cursor:zoom-in"><span class="auction-state ${ended ? "ended" : "live"}">${ended ? "منتهي" : "نشط"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)}</h3><span class="approval-chip ${i.auctionApproved ? "ok" : "pending"}">${i.auctionApproved ? "✓ معتمد" : "بانتظار الاعتماد"}</span></div><p class="auction-clock ${ended ? "ended" : ""}" data-end="${esc(i.auctionEnd || "")}">${esc(left || "بدون وقت انتهاء")}</p><div class="auction-admin-metrics"><div><span>السعر الحالي</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>قيمة الزيادة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع • إدارة فقط</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div><p class="round-chip">الجولة ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل</button>${ended ? `<button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة المزاد</button>${!(i.sold || Number(i.soldQuantity||0) >= Number(i.quantity||1)) ? `<button class="ghost" onclick="returnEndedAuctionToWarehouse('${i.id}')">إعادة للمستودع</button>` : ""}` : ""}<a class="public-link" href="/auction#${i.id}" target="_blank">مشاركة</a></div><div class="bid-list" id="bids-${i.id}" data-round="${Number(i.auctionRound || 1)}"></div></div></article>`;
 }
 
 function endedReserveReached(i) {
