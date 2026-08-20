@@ -186,3 +186,7 @@ html body nav.visitor-floating-nav{
   left:var(--visitor-floating-center,50%)!important;
   transform:translate3d(-50%,0,0)!important;
 }
+
+
+/* V4.3.1 — شارة الإصدار الانتقالي في السوق والمزاد */
+.transitional-public-badge{display:inline-flex!important;align-items:center!important;background:#9b6a00!important;color:#fff7d6!important;border:1px solid #e0b84f!important;border-radius:999px!important;padding:4px 8px!important;font-size:.76rem!important;font-weight:900!important;line-height:1.2!important;white-space:nowrap!important;margin:2px 3px!important}

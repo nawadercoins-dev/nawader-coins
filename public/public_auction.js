@@ -14,6 +14,7 @@ function card(i){
   let reserveClass=i.reserveState==='met'?'reserve-met':i.reserveState==='below'?'reserve-below':'reserve-none';
   let slideLabel=bids>0?`اسحب للمزايدة بـ ${money(suggested)} (+${money(step)}) ←`:`اسحب لفتح المزايدة بـ ${money(suggested)} ←`;
   let statusChip=ended?(sold?`<span class="winner-chip">🏆 تم البيع / الفائز</span>`:`<span class="ended-chip">انتهى المزاد</span>`):`<span class="live-chip">● مزاد نشط</span>`;
+  let transitionChip=i.transitionalIssueEnabled?`<span class="transitional-public-badge">⇄ إصدار انتقالي</span>`:'';
   let meta={id:i.id,title:`${i.country} — ${i.denomination}`,image:i.frontImg||'',url:'/auction#'+encodeURIComponent(i.id),kind:'auction'},fav=NawaderVisitor.isFavorite(i.id),liked=NawaderVisitor.isLiked(i.id);
   let reactions=`<div class="auction-reactions"><button class="${liked?'on':''}" onclick='toggleAuctionReaction(${JSON.stringify(meta)},"like",this)'>👍 <span>${liked?'معجب':'إعجاب'}</span></button><button class="${fav?'on':''}" onclick='toggleAuctionReaction(${JSON.stringify(meta)},"favorite",this)'>❤️ <span>${fav?'في المفضلة':'مفضلة'}</span></button></div>`;
   let result=ended?(sold?`<div class="auction-result sold">🏆 تم البيع بنجاح — تم اعتماد الفائز بالمزاد</div>`:`<div class="auction-result unsold">لم يتم البيع / لم يتحقق شرط البيع</div>`):'';
@@ -27,7 +28,7 @@ function card(i){
   return `<article class="auction-public-card" id="${i.id}" data-current="${current}" data-opening="${opening}" data-step="${step}" data-bids="${bids}">
     <div class="photos">${photo(i.frontImg,i.id+'f',i.id,0)}${photo(i.backImg,i.id+'b',i.id,1)}</div>
     <div class="body">
-      <div class="item-head"><div class="item-title"><h2>${esc(i.country)} — ${esc(i.denomination)}</h2><p>${esc(i.year||'')} | ${esc(i.condition||'')}</p></div>${statusChip}</div>
+      <div class="item-head"><div class="item-title"><h2>${esc(i.country)} — ${esc(i.denomination)}</h2><p>${esc(i.year||'')} | ${esc(i.condition||'')}</p></div>${statusChip}${transitionChip}</div>
       ${reactions}<div class="auction-clock-box"><div class="clock-label">${ended?'حالة المزاد':'الوقت المتبقي لانتهاء المزاد'}</div><div class="big-clock auction-clock" data-end="${esc(i.auctionEnd||'')}">${ended?'انتهى المزاد':esc(clock(i.auctionEnd))}</div></div>
       <div class="stats">
         <div class="stat primary ${reserveClass}"><span class="label">السعر الحالي</span><strong class="price">${money(current)}</strong></div>
