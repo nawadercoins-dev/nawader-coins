@@ -115,6 +115,53 @@ async function put(x) {
 async function del(id) {
   return api("/api/item/" + encodeURIComponent(id), { method: "DELETE" });
 }
+
+// V4 Stage 4: one controlled movement path between administration sections.
+function adminItemLocation(i) {
+  if (i?.sold || Number(i?.soldQuantity || 0) >= Number(i?.quantity || 1)) return "sold";
+  if (i?.archived) return "archived";
+  if (i?.forAuction) return "auction";
+  if (i?.forMarket) return "market";
+  if (i?.specialNumberEnabled) return "special";
+  if (i?.outsideDisplay) return "outside";
+  return "warehouse";
+}
+function moveDestinationLabel(v) {
+  return ({warehouse:"المستودع",market:"السوق العام",auction:"المزاد",special:"المميزة والنادرة",outside:"خارج العرض"})[v] || v;
+}
+window.moveAdminItem = async (id, target) => {
+  try {
+    const rows = await all(), old = rows.find(x => String(x.id) === String(id));
+    if (!old) throw new Error("المقتنى غير موجود");
+    const current = adminItemLocation(old);
+    if (["sold","archived"].includes(current)) throw new Error("المقتنى المباع أو المؤرشف لا يدخل في النقل العادي");
+    if (current === "auction" && auctionText(old.auctionEnd) === "انتهى المزاد" && Number(old.auctionCurrentPrice || 0) >= Number(old.auctionTargetPrice || Number(old.auctionStartPrice || 0) + 1))
+      throw new Error("لا يمكن نقل مزاد منتهٍ ببيع المقتنى");
+    if (current === target) return toast("المقتنى موجود بالفعل في " + moveDestinationLabel(target));
+    if (!confirm(`نقل المقتنى من ${moveDestinationLabel(current)} إلى ${moveDestinationLabel(target)}؟\nلن يتم إنشاء نسخة جديدة ولن تُحذف الصور أو بيانات التقييم.`)) return;
+    const item = {...old};
+    // A collectible has one administration display location at a time.
+    item.forMarket = false; item.marketApproved = false;
+    item.forAuction = false; item.auctionApproved = false;
+    item.specialNumberEnabled = false; item.outsideDisplay = false;
+    if (target === "market") { item.forMarket = true; item.marketApproved = true; }
+    else if (target === "auction") { item.forAuction = true; item.auctionApproved = false; }
+    else if (target === "special") item.specialNumberEnabled = true;
+    else if (target === "outside") item.outsideDisplay = true;
+    item.adminLocation = target;
+    item.locationUpdatedAt = new Date().toISOString();
+    item.updated = Date.now();
+    const saved = await put(item);
+    if (!saved?.saved || String(saved.saved.id) !== String(id)) throw new Error("لم يؤكد الخادم حفظ نفس المقتنى");
+    await refresh(true);
+    toast(target === "auction" ? "تم النقل إلى المزاد. أكمل إعداد وقت المزاد وحد البيع ثم اعتمده." : `تم نقل المقتنى إلى ${moveDestinationLabel(target)}.`);
+  } catch(e) { alert("تعذر النقل: " + e.message); }
+};
+function adminMoveButtons(i, current) {
+  const id = String(i.id || i.itemId || "").replace(/'/g,"\\'");
+  const targets = ["warehouse","market","auction","special","outside"].filter(x => x !== current);
+  return `<details class="admin-move-menu"><summary>نقل إلى</summary><div class="admin-move-options">${targets.map(t=>`<button type="button" class="ghost" onclick="moveAdminItem('${id}','${t}')">${moveDestinationLabel(t)}</button>`).join("")}</div></details>`;
+}
 async function clearDB() {
   return api("/api/clear", { method: "POST", body: "{}" });
 }
@@ -602,7 +649,7 @@ function auctionCard(i) {
     i.gradingCertImage,
     ...(i.additionalImages || []),
   ].filter(Boolean);
-  return `<article class="item auction-item">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="openAdminAuctionImages('${i.id}',0)" title="اضغط لفتح عارض الصور" style="cursor:zoom-in"><span class="auction-state ${ended ? "ended" : "live"}">${ended ? "منتهي" : "نشط"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)}</h3><span class="approval-chip ${i.auctionApproved ? "ok" : "pending"}">${i.auctionApproved ? "✓ معتمد" : "بانتظار الاعتماد"}</span></div><p class="auction-clock ${ended ? "ended" : ""}" data-end="${esc(i.auctionEnd || "")}">${esc(left || "بدون وقت انتهاء")}</p><div class="auction-admin-metrics"><div><span>السعر الحالي</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>قيمة الزيادة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع • إدارة فقط</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div><p class="round-chip">الجولة ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل</button>${ended ? `<button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة المزاد</button>` : ""}<a class="public-link" href="/auction#${i.id}" target="_blank">مشاركة</a></div><div class="bid-list" id="bids-${i.id}" data-round="${Number(i.auctionRound || 1)}"></div></div></article>`;
+  return `<article class="item auction-item">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="openAdminAuctionImages('${i.id}',0)" title="اضغط لفتح عارض الصور" style="cursor:zoom-in"><span class="auction-state ${ended ? "ended" : "live"}">${ended ? "منتهي" : "نشط"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)}</h3><span class="approval-chip ${i.auctionApproved ? "ok" : "pending"}">${i.auctionApproved ? "✓ معتمد" : "بانتظار الاعتماد"}</span></div><p class="auction-clock ${ended ? "ended" : ""}" data-end="${esc(i.auctionEnd || "")}">${esc(left || "بدون وقت انتهاء")}</p><div class="auction-admin-metrics"><div><span>السعر الحالي</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>قيمة الزيادة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع • إدارة فقط</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div><p class="round-chip">الجولة ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل</button>${!ended ? adminMoveButtons(i,"auction") : ""}${ended ? `<button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة المزاد</button>` : ""}<a class="public-link" href="/auction#${i.id}" target="_blank">مشاركة</a></div><div class="bid-list" id="bids-${i.id}" data-round="${Number(i.auctionRound || 1)}"></div></div></article>`;
 }
 
 function endedReserveReached(i) {
@@ -869,7 +916,7 @@ function renderWarehouseRows() {
       : '<div class="warehouse-no-photo">لا توجد صورة</div>';
     let returnActions = Number(x.returned || 0) > 0 ? `<button onclick="resolveInventoryReturn('${x.itemId}','warehouse')">↩ إعادة للمستودع</button><button class="danger" onclick="resolveInventoryReturn('${x.itemId}','damaged')">تسجيل تالف</button>` : "";
     let classification = ({graded:"مُقيَّم",ungraded:"غير مُقيَّم",set:"طقم"})[effectiveClassification(x)] || "غير مُقيَّم";
-    return `<article class="warehouse-item">${photo}<div class="warehouse-item-main"><div class="warehouse-item-title"><h3>${esc(x.country)} — ${esc(x.denomination)}</h3><span>${esc(x.year || "بدون سنة")}</span></div><div class="warehouse-item-quantities"><span>التصنيف <b>${classification}</b></span><span>الإجمالي <b>${x.total}</b></span><span>المتاح <b>${x.warehouse}</b></span><span>السوق <b>${x.market}</b></span><span>المزاد <b>${x.auction}</b></span><span>المحجوز <b>${x.reserved}</b></span><span>المرتجع <b>${x.returned}</b></span><span>المباع <b>${x.sold}</b></span></div><p class="storage-path">${esc(location)}</p><small>${x.unitCount} ${esc(inventoryUnitLabel(x.unitType))} × ${x.piecesPerUnit} ورقة/قطعة${x.sourceSubmissionId ? " — محوّل من طلب اعتماد" : ""}</small></div><div class="actions"><button onclick="detail('${x.itemId}')">عرض</button><button class="ghost" onclick="editItem('${x.itemId}')">تعديل / نقل</button>${returnActions}</div></article>`;
+    return `<article class="warehouse-item">${photo}<div class="warehouse-item-main"><div class="warehouse-item-title"><h3>${esc(x.country)} — ${esc(x.denomination)}</h3><span>${esc(x.year || "بدون سنة")}</span></div><div class="warehouse-item-quantities"><span>التصنيف <b>${classification}</b></span><span>الإجمالي <b>${x.total}</b></span><span>المتاح <b>${x.warehouse}</b></span><span>السوق <b>${x.market}</b></span><span>المزاد <b>${x.auction}</b></span><span>المحجوز <b>${x.reserved}</b></span><span>المرتجع <b>${x.returned}</b></span><span>المباع <b>${x.sold}</b></span></div><p class="storage-path">${esc(location)}</p><small>${x.unitCount} ${esc(inventoryUnitLabel(x.unitType))} × ${x.piecesPerUnit} ورقة/قطعة${x.sourceSubmissionId ? " — محوّل من طلب اعتماد" : ""}</small></div><div class="actions"><button onclick="detail('${x.itemId}')">عرض</button><button class="ghost" onclick="editItem('${x.itemId}')">تعديل</button>${adminMoveButtons({id:x.itemId},"warehouse")}${returnActions}</div></article>`;
   }).join("") || '<p class="muted">لا توجد مقتنيات في هذا المؤشر.</p>';
 }
 async function renderWarehouse() {
@@ -940,7 +987,7 @@ function specialAdminCard(i) {
       <div class="special-admin-data"><span>السعر <b>${price > 0 ? money(price) : "غير محدد"}</b></span><span>الكمية <b>${Number(i.marketQuantity || i.quantity || 0)}</b></span><span>الأرقام <b>${serials.length}</b></span><span>الموقع <b>${esc(loc(i))}</b></span></div>
       ${serials.length ? `<details class="special-serials"><summary>عرض الأرقام التسلسلية (${serials.length})</summary><div>${serials.slice(0,200).map(x=>`<span dir="ltr">${esc(x)}</span>`).join("")}${serials.length>200?`<em>+ ${serials.length-200} رقم إضافي</em>`:""}</div></details>` : ""}
     </div>
-    <div class="actions special-admin-actions"><button onclick="detail('${esc(i.id)}')">عرض</button><button class="ghost" onclick="editItem('${esc(i.id)}')">✎ تعديل التصنيف والسعر</button><a class="public-link" href="/special-numbers#item-${encodeURIComponent(i.id)}" target="_blank">معاينة للعميل</a><button class="danger" onclick="disableSpecialItem('${esc(i.id)}')">إيقاف من الصفحة</button></div>
+    <div class="actions special-admin-actions"><button onclick="detail('${esc(i.id)}')">عرض</button><button class="ghost" onclick="editItem('${esc(i.id)}')">✎ تعديل التصنيف والسعر</button>${adminMoveButtons(i,"special")}<a class="public-link" href="/special-numbers#item-${encodeURIComponent(i.id)}" target="_blank">معاينة للعميل</a><button class="danger" onclick="disableSpecialItem('${esc(i.id)}')">إيقاف من الصفحة</button></div>
   </article>`;
 }
 function renderSpecialAdminRows() {
@@ -2509,7 +2556,7 @@ function marketAdminCard(i) {
       ...(i.additionalImages || []),
     ].filter(Boolean),
     title = i.marketTitle || `${i.country} — ${i.denomination}`;
-  return `<article class="item market-admin-card">${i.frontImg ? `<button type="button" class="market-image-button" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})' title="فتح عارض الصور"><img src="${i.frontImg}" alt="${esc(title)}"><span class="market-image-hint">⛶ تكبير الصور</span></button>` : '<div class="market-image-button market-no-photo">لا توجد صورة</div>'}<div class="market-admin-body"><h3>${esc(title)}</h3><p class="market-status-row"><span class="badge market-badge">${marketTypeLabel(i.marketOfferType)}</span> <span class="approval-chip ${i.marketApproved ? "ok" : "bad"}">${i.marketApproved ? "نشط" : "غير نشط"}</span></p><div class="market-admin-metrics"><b>سعر ${ul}: ${money(price)}</b><span>المتاح ${left} من ${qty} ${i.marketOfferType === "set" ? "طقم" : i.marketOfferType === "bundle" ? "حزمة" : "وحدة"}</span>${i.marketSetPieces ? `<span>داخل الوحدة ${Number(i.marketSetPieces)} قطعة/ورقة</span>` : ""}</div><p class="market-negotiation">${i.marketNegotiationEnabled ? `التفاوض حتى ${Number(i.marketNegotiationPercent || 0)}%` : "سعر ثابت"}</p><div class="actions market-admin-actions">${imgs.length ? `<button class="ghost" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})'>⛶ الصور</button>` : ""}<button onclick="editItem('${i.id}')">تعديل</button><a class="public-link" href="/market#${i.id}" target="_blank">عرض في السوق</a></div></div></article>`;
+  return `<article class="item market-admin-card">${i.frontImg ? `<button type="button" class="market-image-button" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})' title="فتح عارض الصور"><img src="${i.frontImg}" alt="${esc(title)}"><span class="market-image-hint">⛶ تكبير الصور</span></button>` : '<div class="market-image-button market-no-photo">لا توجد صورة</div>'}<div class="market-admin-body"><h3>${esc(title)}</h3><p class="market-status-row"><span class="badge market-badge">${marketTypeLabel(i.marketOfferType)}</span> <span class="approval-chip ${i.marketApproved ? "ok" : "bad"}">${i.marketApproved ? "نشط" : "غير نشط"}</span></p><div class="market-admin-metrics"><b>سعر ${ul}: ${money(price)}</b><span>المتاح ${left} من ${qty} ${i.marketOfferType === "set" ? "طقم" : i.marketOfferType === "bundle" ? "حزمة" : "وحدة"}</span>${i.marketSetPieces ? `<span>داخل الوحدة ${Number(i.marketSetPieces)} قطعة/ورقة</span>` : ""}</div><p class="market-negotiation">${i.marketNegotiationEnabled ? `التفاوض حتى ${Number(i.marketNegotiationPercent || 0)}%` : "سعر ثابت"}</p><div class="actions market-admin-actions">${imgs.length ? `<button class="ghost" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})'>⛶ الصور</button>` : ""}<button onclick="editItem('${i.id}')">تعديل</button>${adminMoveButtons(i,"market")}<a class="public-link" href="/market#${i.id}" target="_blank">عرض في السوق</a></div></div></article>`;
 }
 function marketStatusLabel(st) {
   return st === "accepted"
