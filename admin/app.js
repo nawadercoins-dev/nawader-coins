@@ -667,6 +667,7 @@ document.querySelectorAll("nav button").forEach(
           "home",
           "warehouse",
           "special",
+          "transitional",
           "list",
           "auction",
           "ended-auctions",
@@ -679,6 +680,7 @@ document.querySelectorAll("nav button").forEach(
       if (b.dataset.v === "participants") await renderParticipants();
       if (b.dataset.v === "warehouse") await renderWarehouse();
       if (b.dataset.v === "special") await renderSpecialAdmin();
+      if (b.dataset.v === "transitional") await renderTransitionalAdmin();
       if (b.dataset.v === "ended-auctions") await renderEndedAuctions();
       if (b.dataset.v === "market") await renderMarketAdmin();
       if (b.dataset.v === "finance") await renderFinance();
@@ -694,6 +696,7 @@ document.querySelectorAll(".dashboard-go").forEach((b) =>
         "home",
         "warehouse",
         "special",
+        "transitional",
         "list",
         "auction",
         "ended-auctions",
@@ -706,6 +709,7 @@ document.querySelectorAll(".dashboard-go").forEach((b) =>
     if (vw === "participants") await renderParticipants();
     if (vw === "warehouse") await renderWarehouse();
     if (vw === "special") await renderSpecialAdmin();
+    if (vw === "transitional") await renderTransitionalAdmin();
     if (vw === "ended-auctions") await renderEndedAuctions();
     if (vw === "market") await renderMarketAdmin();
     if (vw === "finance") await renderFinance();
@@ -726,7 +730,7 @@ function auctionCard(i) {
     i.gradingCertImage,
     ...(i.additionalImages || []),
   ].filter(Boolean);
-  return `<article class="item auction-item">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="openAdminAuctionImages('${i.id}',0)" title="اضغط لفتح عارض الصور" style="cursor:zoom-in"><span class="auction-state ${ended ? "ended" : "live"}">${ended ? "منتهي" : "نشط"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)}</h3><span class="approval-chip ${i.auctionApproved ? "ok" : "pending"}">${i.auctionApproved ? "✓ معتمد" : "بانتظار الاعتماد"}</span></div><p class="auction-clock ${ended ? "ended" : ""}" data-end="${esc(i.auctionEnd || "")}">${esc(left || "بدون وقت انتهاء")}</p><div class="auction-admin-metrics"><div><span>السعر الحالي</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>قيمة الزيادة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع • إدارة فقط</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div><p class="round-chip">الجولة ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل</button>${ended ? `<button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة المزاد</button>${!(i.sold || Number(i.soldQuantity||0) >= Number(i.quantity||1)) ? `<button class="ghost" onclick="returnEndedAuctionToWarehouse('${i.id}')">إعادة للمستودع</button>` : ""}` : ""}<a class="public-link" href="/auction#${i.id}" target="_blank">مشاركة</a></div><div class="bid-list" id="bids-${i.id}" data-round="${Number(i.auctionRound || 1)}"></div></div></article>`;
+  return `<article class="item auction-item">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="openAdminAuctionImages('${i.id}',0)" title="اضغط لفتح عارض الصور" style="cursor:zoom-in"><span class="auction-state ${ended ? "ended" : "live"}">${ended ? "منتهي" : "نشط"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${i.auctionApproved ? "ok" : "pending"}">${i.auctionApproved ? "✓ معتمد" : "بانتظار الاعتماد"}</span></div><p class="auction-clock ${ended ? "ended" : ""}" data-end="${esc(i.auctionEnd || "")}">${esc(left || "بدون وقت انتهاء")}</p><div class="auction-admin-metrics"><div><span>السعر الحالي</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>قيمة الزيادة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع • إدارة فقط</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div><p class="round-chip">الجولة ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل</button>${ended ? `<button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة المزاد</button>${!(i.sold || Number(i.soldQuantity||0) >= Number(i.quantity||1)) ? `<button class="ghost" onclick="returnEndedAuctionToWarehouse('${i.id}')">إعادة للمستودع</button>` : ""}` : ""}<a class="public-link" href="/auction#${i.id}" target="_blank">مشاركة</a></div><div class="bid-list" id="bids-${i.id}" data-round="${Number(i.auctionRound || 1)}"></div></div></article>`;
 }
 
 function endedReserveReached(i) {
@@ -738,7 +742,7 @@ function endedReserveReached(i) {
 function endedAuctionCard(i) {
   let reached = endedReserveReached(i),
     sold = reached && Number(i.auctionCurrentPrice || 0) > 0;
-  return `<article class="item auction-item ended-admin-card ${sold ? "sold-ended" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="detail('${i.id}')"><span class="auction-state ${sold ? "sold" : "ended"}">${sold ? "✓ تم البيع / فائز" : "انتهى دون بيع"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)}</h3><span class="approval-chip ${sold ? "ok" : "pending"}">${sold ? "🏆 مزاد ناجح" : "دون حد البيع"}</span></div><p class="ended-date">انتهى: ${esc(i.auctionEnd || "—")}</p><div class="auction-admin-metrics"><div><span>آخر سعر</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح السابق</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>الزيادة السابقة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع السابق</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${sold ? '<p class="sold-order-note">✓ مزاد ناجح — ينشأ طلب الفائز تلقائيًا في الطلبات والشحن.</p>' : ""}<p class="round-chip">الجولة المنتهية ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض السجل</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button><button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة إدراج</button></div></div></article>`;
+  return `<article class="item auction-item ended-admin-card ${sold ? "sold-ended" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="detail('${i.id}')"><span class="auction-state ${sold ? "sold" : "ended"}">${sold ? "✓ تم البيع / فائز" : "انتهى دون بيع"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${sold ? "ok" : "pending"}">${sold ? "🏆 مزاد ناجح" : "دون حد البيع"}</span></div><p class="ended-date">انتهى: ${esc(i.auctionEnd || "—")}</p><div class="auction-admin-metrics"><div><span>آخر سعر</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح السابق</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>الزيادة السابقة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع السابق</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${sold ? '<p class="sold-order-note">✓ مزاد ناجح — ينشأ طلب الفائز تلقائيًا في الطلبات والشحن.</p>' : ""}<p class="round-chip">الجولة المنتهية ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض السجل</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button><button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة إدراج</button></div></div></article>`;
 }
 async function renderEndedAuctions(a) {
   a = a || (await all());
@@ -813,7 +817,7 @@ function card(i) {
   const photo = recordImages.length
     ? `<div class="record-card-images">${recordImages.map(([src, label]) => `<figure><img src="${esc(src)}" alt="${esc(label)}" loading="lazy"><figcaption>${label}</figcaption></figure>`).join("")}</div>`
     : '<div class="record-no-photo" aria-label="لا توجد صورة"><span>🖼️</span><b>لا توجد صورة</b></div>';
-  return `<article class="item record-card">${photo}<div class="record-card-body"><h3>${esc(i.country)} — ${esc(i.denomination)}</h3><div class="record-strips record-strips-v403"><div><span>الفئة</span><b>${esc(i.denomination || "—")}</b></div><div><span>حالة الحفظ</span><b>${esc(i.condition || "—")}</b></div><div class="quantity-stack"><span>الكميات</span><b><em>الكمية الأصلية</em><strong>${Number(i.quantity || 0)}</strong></b><b><em>المباعة</em><strong>${Number(i.soldQuantity || 0)}</strong></b><b><em>المتبقية</em><strong>${remain}</strong></b></div><div class="display-status"><span>حالة العرض</span><b><em>السوق العام</em><strong class="state ${marketState === "نشط" ? "on" : marketState === "غير نشط" ? "off" : "neutral"}">${marketState}</strong></b><b><em>المزاد</em><strong class="state ${auctionState === "نشط" || auctionState.includes("فائز") ? "on" : auctionState === "غير نشط" || auctionState.includes("دون بيع") ? "off" : "neutral"}">${auctionState}</strong></b></div><div><span>موقع التخزين</span><b>${esc(loc(i))}</b></div></div><div class="actions record-actions"><button onclick="detail('${i.id}')">عرض</button><button class="ghost" onclick="editItem('${i.id}')">تعديل</button><button class="danger" onclick="removeItem('${i.id}')">حذف</button></div></div></article>`;
+  return `<article class="item record-card">${photo}<div class="record-card-body"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><div class="record-strips record-strips-v403"><div><span>الفئة</span><b>${esc(i.denomination || "—")}</b></div><div><span>حالة الحفظ</span><b>${esc(i.condition || "—")}</b></div><div class="quantity-stack"><span>الكميات</span><b><em>الكمية الأصلية</em><strong>${Number(i.quantity || 0)}</strong></b><b><em>المباعة</em><strong>${Number(i.soldQuantity || 0)}</strong></b><b><em>المتبقية</em><strong>${remain}</strong></b></div><div class="display-status"><span>حالة العرض</span><b><em>السوق العام</em><strong class="state ${marketState === "نشط" ? "on" : marketState === "غير نشط" ? "off" : "neutral"}">${marketState}</strong></b><b><em>المزاد</em><strong class="state ${auctionState === "نشط" || auctionState.includes("فائز") ? "on" : auctionState === "غير نشط" || auctionState.includes("دون بيع") ? "off" : "neutral"}">${auctionState}</strong></b></div><div><span>موقع التخزين</span><b>${esc(loc(i))}</b></div></div><div class="actions record-actions"><button onclick="detail('${i.id}')">عرض</button><button class="ghost" onclick="editItem('${i.id}')">تعديل</button><button class="danger" onclick="removeItem('${i.id}')">حذف</button></div></div></article>`;
 }
 let refreshBusy = false,
   lastDataToken = "";
@@ -1145,7 +1149,7 @@ function renderWarehouseRows() {
       : '<div class="warehouse-no-photo">لا توجد صورة</div>';
     let returnActions = Number(x.returned || 0) > 0 ? `<button onclick="resolveInventoryReturn('${x.itemId}','warehouse')">↩ إعادة للمستودع</button><button class="danger" onclick="resolveInventoryReturn('${x.itemId}','damaged')">تسجيل تالف</button>` : "";
     let classification = ({graded:"مُقيَّم",ungraded:"غير مُقيَّم",set:"طقم"})[effectiveClassification(x)] || "غير مُقيَّم";
-    return `<article class="warehouse-item">${photo}<div class="warehouse-item-main"><div class="warehouse-item-title"><h3>${esc(x.country)} — ${esc(x.denomination)}</h3><span>${esc(x.year || "بدون سنة")}</span></div><div class="warehouse-item-quantities"><span>التصنيف <b>${classification}</b></span><span>الإجمالي <b>${x.total}</b></span><span>المتاح <b>${x.warehouse}</b></span><span>السوق <b>${x.market}</b></span><span>المزاد <b>${x.auction}</b></span><span>المحجوز <b>${x.reserved}</b></span><span>المرتجع <b>${x.returned}</b></span><span>المباع <b>${x.sold}</b></span></div><p class="storage-path">${esc(location)}</p><small>${x.unitCount} ${esc(inventoryUnitLabel(x.unitType))} × ${x.piecesPerUnit} ورقة/قطعة${x.sourceSubmissionId ? " — محوّل من طلب اعتماد" : ""}</small></div><div class="actions"><button onclick="detail('${x.itemId}')">عرض</button><button class="ghost" onclick="editItem('${x.itemId}')">تعديل</button>${adminMoveButtons({id:x.itemId},"warehouse")}${returnActions}</div></article>`;
+    return `<article class="warehouse-item">${photo}<div class="warehouse-item-main"><div class="warehouse-item-title"><h3>${esc(x.country)} — ${esc(x.denomination)} ${transitionalBadge(x._source||x)}</h3><span>${esc(x.year || "بدون سنة")}</span></div><div class="warehouse-item-quantities"><span>التصنيف <b>${classification}</b></span><span>الإجمالي <b>${x.total}</b></span><span>المتاح <b>${x.warehouse}</b></span><span>السوق <b>${x.market}</b></span><span>المزاد <b>${x.auction}</b></span><span>المحجوز <b>${x.reserved}</b></span><span>المرتجع <b>${x.returned}</b></span><span>المباع <b>${x.sold}</b></span></div><p class="storage-path">${esc(location)}</p><small>${x.unitCount} ${esc(inventoryUnitLabel(x.unitType))} × ${x.piecesPerUnit} ورقة/قطعة${x.sourceSubmissionId ? " — محوّل من طلب اعتماد" : ""}</small></div><div class="actions"><button onclick="detail('${x.itemId}')">عرض</button><button class="ghost" onclick="editItem('${x.itemId}')">تعديل</button>${adminMoveButtons({id:x.itemId},"warehouse")}${returnActions}</div></article>`;
   }).join("") || '<p class="muted">لا توجد مقتنيات في هذا المؤشر.</p>';
 }
 async function renderWarehouse() {
@@ -1192,6 +1196,46 @@ window.resolveInventoryReturn = async (itemId, action) => {
   } catch (e) { alert("تعذر معالجة المرتجع: " + e.message); }
 };
 
+const TRANSITIONAL_TYPE_LABELS = {
+  "signature-change": "انتقال توقيع",
+  "last-before-change": "آخر إصدار قبل تغيير",
+  "first-after-change": "أول إصدار بعد تغيير",
+  "design-change": "انتقال تصميم / مواصفات",
+  "authority-change": "انتقال جهة / سلطة إصدار",
+  other: "حالة انتقالية أخرى",
+};
+const TRANSITIONAL_RARITY_LABELS = {
+  documented: "موثق / معروف",
+  scarce: "قليل الظهور",
+  rare: "نادر",
+  "very-rare": "نادر جدًا",
+};
+function transitionalBadge(i) {
+  return i?.transitionalIssueEnabled ? '<span class="transitional-badge">⇄ إصدار انتقالي</span>' : '';
+}
+function renderTransitionalAdminCard(i) {
+  const imgs=[i.frontImg,i.backImg].filter(Boolean);
+  const type=TRANSITIONAL_TYPE_LABELS[i.transitionalIssueType] || "إصدار انتقالي";
+  const rarity=TRANSITIONAL_RARITY_LABELS[i.transitionalRarity] || "—";
+  const title=`${i.country || "—"} — ${i.denomination || "—"}`;
+  return `<article class="transitional-admin-card">
+    <div class="transitional-admin-images">${imgs.length?imgs.map((src,idx)=>`<img src="${esc(src)}" alt="${idx?'الخلف':'الوجه'}" loading="lazy" onclick='openCoinLightbox(${JSON.stringify(imgs)},${idx},${JSON.stringify(title)})'>`).join(''):'<div class="special-no-photo">لا توجد صورة</div>'}</div>
+    <div class="transitional-admin-body"><div class="transitional-title-row"><h3>${esc(title)}</h3>${transitionalBadge(i)}</div>
+      <div class="transitional-type-chip">${esc(type)}</div>
+      <div class="transitional-data"><span>السنة<b>${esc(i.year||"—")}</b></span><span>الندرة<b>${esc(rarity)}</b></span><span>الإصدار السابق<b>${esc(i.transitionalPreviousIssue||"—")}</b></span><span>الإصدار اللاحق<b>${esc(i.transitionalNextIssue||"—")}</b></span><span>التوفر التقديري<b>${esc(i.transitionalEstimatedPopulation||"—")}</b></span><span>القيمة المرجعية<b>${Number(i.transitionalReferenceValue||0)>0?money(i.transitionalReferenceValue):"—"}</b></span></div>
+      <p class="special-reason"><b>سبب التصنيف:</b> ${esc(i.transitionalReason||"—")}</p>${i.transitionalNotes?`<p class="special-reason"><b>ملاحظات:</b> ${esc(i.transitionalNotes)}</p>`:""}
+    </div>
+    <div class="actions special-admin-actions"><button onclick="detail('${esc(i.id)}')">عرض</button><button class="ghost" onclick="editItem('${esc(i.id)}')">✎ تعديل</button>${adminMoveButtons(i,adminItemLocation(i))}</div>
+  </article>`;
+}
+async function renderTransitionalAdmin(){
+  const rows=(await all()).filter(i=>i.transitionalIssueEnabled);
+  const q=String($("transitionalSearch")?.value||"").trim().toLowerCase();
+  const t=$("transitionalTypeFilter")?.value||"all";
+  const filtered=rows.filter(i=>(t==="all"||i.transitionalIssueType===t)&&(!q||JSON.stringify([i.country,i.denomination,i.year,i.transitionalIssueType,TRANSITIONAL_TYPE_LABELS[i.transitionalIssueType],i.transitionalReason,i.transitionalPreviousIssue,i.transitionalNextIssue,i.transitionalNotes]).toLowerCase().includes(q)));
+  if ($("transitionalAdminItems")) $("transitionalAdminItems").innerHTML=filtered.map(renderTransitionalAdminCard).join("")||'<div class="special-empty">لا توجد إصدارات انتقالية مطابقة حاليًا.</div>';
+}
+window.renderTransitionalAdmin=renderTransitionalAdmin;
 const SPECIAL_TYPE_LABELS = {
   repeated: "أرقام متكررة",
   sequential: "أرقام متسلسلة",
@@ -1726,6 +1770,9 @@ if (saveBtn) saveBtn.disabled = false;
     $("specialNumberReason").value = i.specialNumberReason || "";
   if ($("specialNumberFields"))
     $("specialNumberFields").hidden = !i.specialNumberEnabled;
+  if ($("transitionalIssueEnabled")) $("transitionalIssueEnabled").checked = !!i.transitionalIssueEnabled;
+  ["transitionalIssueType","transitionalPreviousIssue","transitionalNextIssue","transitionalRarity","transitionalEstimatedPopulation","transitionalReferenceValue","transitionalReason","transitionalNotes"].forEach(k=>{ if ($(k)) $(k).value = i[k] ?? ""; });
+  if ($("transitionalIssueFields")) $("transitionalIssueFields").hidden = !i.transitionalIssueEnabled;
   if ($("advancedSerialSection")) $("advancedSerialSection").open = !!((i.serialNumbers || []).length || i.autoSerialEnabled);
   if ($("storageDetails")) $("storageDetails").open = !!([i.warehouse,i.cabinet,i.shelf,i.box,i.album,i.pocket].some(x=>String(x||"").trim()));
   if ($("financialDetails")) $("financialDetails").open = !!(Number(i.purchase||0) || Number(i.shipping||0) || Number(i.other||0) || Number(i.expectedPrice||0) || String(i.notes||"").trim());
@@ -1945,6 +1992,15 @@ $("form").onsubmit = async (e) => {
       specialNumberReason: $("specialNumberEnabled")?.checked
         ? v("specialNumberReason")
         : "",
+      transitionalIssueEnabled: !!$("transitionalIssueEnabled")?.checked,
+      transitionalIssueType: $("transitionalIssueEnabled")?.checked ? v("transitionalIssueType") : "",
+      transitionalPreviousIssue: $("transitionalIssueEnabled")?.checked ? v("transitionalPreviousIssue") : "",
+      transitionalNextIssue: $("transitionalIssueEnabled")?.checked ? v("transitionalNextIssue") : "",
+      transitionalRarity: $("transitionalIssueEnabled")?.checked ? v("transitionalRarity") : "",
+      transitionalEstimatedPopulation: $("transitionalIssueEnabled")?.checked ? v("transitionalEstimatedPopulation") : "",
+      transitionalReferenceValue: $("transitionalIssueEnabled")?.checked ? n("transitionalReferenceValue") : 0,
+      transitionalReason: $("transitionalIssueEnabled")?.checked ? v("transitionalReason") : "",
+      transitionalNotes: $("transitionalIssueEnabled")?.checked ? v("transitionalNotes") : "",
       forAuction: wantsAuction,
       auctionEnd: wantsAuction ? v("auctionEnd") : "",
       auctionStartPrice: n("auctionStartPrice"),
@@ -1989,6 +2045,10 @@ $("form").onsubmit = async (e) => {
       notes: v("notes"),
       updated: Date.now(),
     };
+    if (payload.transitionalIssueEnabled && !payload.transitionalIssueType)
+      throw new Error("اختر نوع الإصدار الانتقالي");
+    if (payload.transitionalIssueEnabled && !String(payload.transitionalReason || "").trim())
+      throw new Error("اكتب سبب تصنيف المقتنى كإصدار انتقالي");
     if (
       payload.specialNumberEnabled &&
       (!Array.isArray(payload.specialNumberTypes) ||
@@ -2102,6 +2162,11 @@ editingItemId = "";
   if ($("yearTo")) $("yearTo").value = "";
   if ($("isGraded")) $("isGraded").checked = false;
   if ($("specialNumberEnabled")) $("specialNumberEnabled").checked = false;
+  if ($("transitionalIssueEnabled")) $("transitionalIssueEnabled").checked = false;
+  if ($("transitionalIssueFields")) $("transitionalIssueFields").hidden = true;
+  ["transitionalPreviousIssue","transitionalNextIssue","transitionalEstimatedPopulation","transitionalReferenceValue","transitionalReason","transitionalNotes"].forEach(k=>{if($(k))$(k).value="";});
+  if ($("transitionalIssueType")) $("transitionalIssueType").value="signature-change";
+  if ($("transitionalRarity")) $("transitionalRarity").value="documented";
   document
     .querySelectorAll(".special-number-type")
     .forEach((x) => (x.checked = false));
@@ -2793,7 +2858,7 @@ function marketAdminCard(i) {
       ...(i.additionalImages || []),
     ].filter(Boolean),
     title = i.marketTitle || `${i.country} — ${i.denomination}`;
-  return `<article class="item market-admin-card">${i.frontImg ? `<button type="button" class="market-image-button" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})' title="فتح عارض الصور"><img src="${i.frontImg}" alt="${esc(title)}"><span class="market-image-hint">⛶ تكبير الصور</span></button>` : '<div class="market-image-button market-no-photo">لا توجد صورة</div>'}<div class="market-admin-body"><h3>${esc(title)}</h3><p class="market-status-row"><span class="badge market-badge">${marketTypeLabel(i.marketOfferType)}</span> <span class="approval-chip ${i.marketApproved ? "ok" : "bad"}">${i.marketApproved ? "نشط" : "غير نشط"}</span></p><div class="market-admin-metrics"><b>سعر ${ul}: ${money(price)}</b><span>المتاح ${left} من ${qty} ${i.marketOfferType === "set" ? "طقم" : i.marketOfferType === "bundle" ? "حزمة" : "وحدة"}</span>${i.marketSetPieces ? `<span>داخل الوحدة ${Number(i.marketSetPieces)} قطعة/ورقة</span>` : ""}</div><p class="market-negotiation">${i.marketNegotiationEnabled ? `التفاوض حتى ${Number(i.marketNegotiationPercent || 0)}%` : "سعر ثابت"}</p><div class="actions market-admin-actions">${imgs.length ? `<button class="ghost" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})'>⛶ الصور</button>` : ""}<button onclick="editItem('${i.id}')">تعديل</button>${adminMoveButtons(i,"market")}<a class="public-link" href="/market#${i.id}" target="_blank">عرض في السوق</a></div></div></article>`;
+  return `<article class="item market-admin-card">${i.frontImg ? `<button type="button" class="market-image-button" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})' title="فتح عارض الصور"><img src="${i.frontImg}" alt="${esc(title)}"><span class="market-image-hint">⛶ تكبير الصور</span></button>` : '<div class="market-image-button market-no-photo">لا توجد صورة</div>'}<div class="market-admin-body"><h3>${esc(title)} ${transitionalBadge(i)}</h3><p class="market-status-row"><span class="badge market-badge">${marketTypeLabel(i.marketOfferType)}</span> <span class="approval-chip ${i.marketApproved ? "ok" : "bad"}">${i.marketApproved ? "نشط" : "غير نشط"}</span></p><div class="market-admin-metrics"><b>سعر ${ul}: ${money(price)}</b><span>المتاح ${left} من ${qty} ${i.marketOfferType === "set" ? "طقم" : i.marketOfferType === "bundle" ? "حزمة" : "وحدة"}</span>${i.marketSetPieces ? `<span>داخل الوحدة ${Number(i.marketSetPieces)} قطعة/ورقة</span>` : ""}</div><p class="market-negotiation">${i.marketNegotiationEnabled ? `التفاوض حتى ${Number(i.marketNegotiationPercent || 0)}%` : "سعر ثابت"}</p><div class="actions market-admin-actions">${imgs.length ? `<button class="ghost" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})'>⛶ الصور</button>` : ""}<button onclick="editItem('${i.id}')">تعديل</button>${adminMoveButtons(i,"market")}<a class="public-link" href="/market#${i.id}" target="_blank">عرض في السوق</a></div></div></article>`;
 }
 function marketStatusLabel(st) {
   return st === "accepted"
@@ -4025,3 +4090,12 @@ document.addEventListener("click", (e) => {
   e.stopPropagation();
   alert(btn.dataset.help || "تفاصيل إضافية عند الحاجة.");
 });
+
+// V4.3.1 — الإصدارات الانتقالية: صفة للمقتنى نفسه دون إنشاء مخزون جديد.
+if ($("transitionalIssueEnabled")) $("transitionalIssueEnabled").addEventListener("change",()=>{
+  if ($("transitionalIssueFields")) $("transitionalIssueFields").hidden=!$("transitionalIssueEnabled").checked;
+});
+if ($("transitionalSearch")) $("transitionalSearch").addEventListener("input",renderTransitionalAdmin);
+if ($("transitionalTypeFilter")) $("transitionalTypeFilter").addEventListener("change",renderTransitionalAdmin);
+if ($("refreshTransitional")) $("refreshTransitional").onclick=async()=>{await refresh(true);await renderTransitionalAdmin();};
+if ($("transitionalAddNew")) $("transitionalAddNew").onclick=()=>{show("add");setTimeout(()=>$("transitionalIssueEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}),80);};

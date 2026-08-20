@@ -22,7 +22,7 @@
     <nav>
       <a class="site-home-link" href="/home" target="_blank">⌂ واجهة الموقع</a
       ><button data-v="home" class="active">لوحة التحكم</button
-      ><button data-v="add">إضافة</button><button data-v="warehouse">المستودع</button><button data-v="special">المميزة والنادرة</button><button data-v="list">السجل</button
+      ><button data-v="add">إضافة</button><button data-v="warehouse">المستودع</button><button data-v="special">المميزة والنادرة</button><button data-v="transitional">الإصدارات الانتقالية</button><button data-v="list">السجل</button
       ><button data-v="auction">المزاد</button
       ><button data-v="ended-auctions">
         المزادات المنتهية
@@ -148,6 +148,10 @@
             <button type="button" class="module-card dashboard-go" data-go="warehouse">
               <span class="module-icon">⌂</span><b>المستودع</b
               ><small>الكميات والمواقع والحجز والسوق والمزاد</small>
+            </button>
+            <button type="button" class="module-card dashboard-go" data-go="transitional">
+              <span class="module-icon">⇄</span><b>الإصدارات الانتقالية</b
+              ><small>انتقال توقيع وآخر إصدار قبل التغيير وأول إصدار بعده</small>
             </button>
           </div>
         </div>
@@ -676,6 +680,35 @@
                 id="specialNumberReason"
                 placeholder="مثال: رقم منخفض جدًا أو نمط متكرر لافت"
             /></label>
+          </div>
+          <div class="wide form-section-title transitional-section-title">
+            <h3>⇄ الإصدارات الانتقالية <button type="button" class="mini-help" data-help="تصنيف بحثي اختياري للمقتنيات التي تمثل مرحلة انتقال بين إصدارين أو توقيعين. لا ينشئ مخزونًا جديدًا ولا يغيّر الكميات.">؟</button></h3>
+            <p class="muted">فعّل التصنيف فقط عندما يكون للمقتنى سبب انتقالي واضح وموثق.</p>
+          </div>
+          <label class="wide transitional-toggle"><input id="transitionalIssueEnabled" type="checkbox" /> تصنيف هذا المقتنى كـ «إصدار انتقالي»</label>
+          <div id="transitionalIssueFields" class="wide transitional-fields" hidden>
+            <div class="transitional-grid">
+              <label>نوع الانتقال<select id="transitionalIssueType">
+                <option value="signature-change">انتقال توقيع</option>
+                <option value="last-before-change">آخر إصدار قبل تغيير</option>
+                <option value="first-after-change">أول إصدار بعد تغيير</option>
+                <option value="design-change">انتقال تصميم / مواصفات</option>
+                <option value="authority-change">انتقال جهة / سلطة إصدار</option>
+                <option value="other">حالة انتقالية أخرى</option>
+              </select></label>
+              <label>الإصدار السابق<input id="transitionalPreviousIssue" placeholder="مثال: توقيع المسؤول السابق أو الإصدار السابق" /></label>
+              <label>الإصدار اللاحق<input id="transitionalNextIssue" placeholder="مثال: توقيع المسؤول الجديد أو الإصدار اللاحق" /></label>
+              <label>درجة الندرة الانتقالية<select id="transitionalRarity">
+                <option value="documented">موثق / معروف</option>
+                <option value="scarce">قليل الظهور</option>
+                <option value="rare">نادر</option>
+                <option value="very-rare">نادر جدًا</option>
+              </select></label>
+              <label>الكمية التقديرية / مدى التوفر<input id="transitionalEstimatedPopulation" placeholder="اختياري — مثال: محدود أو غير معروف" /></label>
+              <label>قيمة مرجعية بحثية<input id="transitionalReferenceValue" type="number" min="0" step="0.01" placeholder="اختياري" /></label>
+              <label class="wide">سبب التصنيف / التوثيق<input id="transitionalReason" placeholder="اشرح لماذا يعد هذا المقتنى إصدارًا انتقاليًا" /></label>
+              <label class="wide">ملاحظات التقييم الانتقالي<input id="transitionalNotes" placeholder="مصدر المعلومة، مقارنة التوقيع، ملاحظات الباحث أو الخبير" /></label>
+            </div>
           </div>
           <div class="wide mobile-photo-section">
             <h3>صور المقتنى</h3>
@@ -1346,6 +1379,33 @@
             <b>مسار الربط:</b> المستودع ← تصنيف مميز/نادر/خطأ ← هذه الصفحة ← صفحة العملاء ← السلة والطلب ← الطلبات والشحن ← المالية.
           </div>
           <div id="specialAdminItems" class="special-admin-list"></div>
+        </div>
+      </section>
+      <section id="transitional" class="view transitional-admin-view">
+        <div class="panel transitional-admin-panel">
+          <div class="special-admin-head">
+            <div>
+              <span class="dashboard-kicker">تصنيف بحثي مرتبط بالمقتنى الأصلي</span>
+              <h2>⇄ الإصدارات الانتقالية</h2>
+              <p class="muted">هذه الصفحة لا تنشئ مخزونًا مستقلًا. تعرض فقط المقتنيات التي تحمل صفة «إصدار انتقالي» مع حقولها البحثية والتقييمية.</p>
+            </div>
+            <div class="actions"><button type="button" class="gold-action" id="transitionalAddNew">＋ إضافة / تصنيف مقتنى</button></div>
+          </div>
+          <div class="transitional-admin-tools">
+            <input id="transitionalSearch" placeholder="بحث بالدولة أو الفئة أو السنة أو نوع الانتقال أو سبب التصنيف" />
+            <select id="transitionalTypeFilter">
+              <option value="all">كل أنواع الانتقال</option>
+              <option value="signature-change">انتقال توقيع</option>
+              <option value="last-before-change">آخر إصدار قبل تغيير</option>
+              <option value="first-after-change">أول إصدار بعد تغيير</option>
+              <option value="design-change">انتقال تصميم / مواصفات</option>
+              <option value="authority-change">انتقال جهة / سلطة إصدار</option>
+              <option value="other">حالة انتقالية أخرى</option>
+            </select>
+            <button type="button" class="ghost" id="refreshTransitional">↻ تحديث</button>
+          </div>
+          <div class="special-admin-note"><b>المعيار:</b> انتقال موثق بين مرحلتين — مثل تغير التوقيع أو آخر إصدار قبل تغيير أو أول إصدار بعده. الشارة تتبع نفس المقتنى في المستودع والسوق والمزاد.</div>
+          <div id="transitionalAdminItems" class="transitional-admin-list"></div>
         </div>
       </section>
       <section id="list" class="view">
