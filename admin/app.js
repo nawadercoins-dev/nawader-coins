@@ -798,19 +798,27 @@ let recordFilter = "all",
   marketFilter = "all",
   marketSetFilter = "all";
 function isSet(i) {
+  // هوية المقتنى مستقلة عن مكان/طريقة عرضه.
+  // لا يجوز أن يتحول المقتنى إلى "طقم" لمجرد اختيار عرض السوق كطقم.
   return (
-    i.inventoryClassification === "set" || i.collectionClass === "set" ||
-    i.marketOfferType === "set" || i.offerType === "set" || i.isSet === true
+    i.inventoryClassification === "set" ||
+    i.collectionClass === "set" ||
+    i.isSet === true
   );
+}
+function effectiveGradingStatus(i) {
+  if (String(i.gradingStatus || "").toLowerCase() === "graded") return "graded";
+  if (String(i.gradingStatus || "").toLowerCase() === "ungraded") return "ungraded";
+  return i.isGraded === true ? "graded" : "ungraded";
 }
 function setSizeClass(i) {
   let p = Number(i.marketSetPieces || i.setPieces || i.quantity || 0);
   return p <= 3 ? "mini" : p <= 5 ? "small" : p <= 10 ? "medium" : "large";
 }
 function effectiveClassification(i) {
-  // حالة التقييم هي المصدر الحقيقي للمفردات؛ التصنيف المخزن قد يكون قديمًا بعد تعديل سجل سابق.
+  // التصنيف البنيوي (طقم/مفرد) منفصل عن حالة التقييم ومكان العرض.
   if (isSet(i)) return "set";
-  return i.isGraded === true ? "graded" : "ungraded";
+  return effectiveGradingStatus(i);
 }
 function classMatch(i, f, sf) {
   let classification = effectiveClassification(i);
@@ -1613,6 +1621,7 @@ $("form").onsubmit = async (e) => {
       yearTo: $("yearMode").value === "range" ? v("yearTo") : "",
       yearMode: v("yearMode"),
       isGraded: $("isGraded").checked,
+      gradingStatus: $("isGraded").checked ? "graded" : "ungraded",
       gradingCompany: $("isGraded").checked ? v("gradingCompany") : "",
       gradeValue: $("isGraded").checked ? v("gradeValue") : "",
       gradePercent: $("isGraded").checked ? n("gradePercent") : 0,
