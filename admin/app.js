@@ -3249,6 +3249,11 @@ async function loadAdminSettingsPanel() {
     $("settingsCharity").value = Number(st.charityProfitPercent || 0);
     $("settingsEntryFee").value = Number(st.auctionEntryFee || 0);
     $("settingsEntryEnabled").checked = !!st.entryFeeEnabled;
+    let vs = st.visitorSections || {};
+    if ($("visitorSectionMarket")) $("visitorSectionMarket").checked = vs.market !== false;
+    if ($("visitorSectionAuction")) $("visitorSectionAuction").checked = vs.auction !== false;
+    if ($("visitorSectionSpecialNumbers")) $("visitorSectionSpecialNumbers").checked = vs.specialNumbers !== false;
+    if ($("visitorSectionTransitional")) $("visitorSectionTransitional").checked = vs.transitionalIssues !== false;
     $("platformName").value = st.platformName || "نوادر العملات";
     $("adminEmail").value = st.adminEmail || "";
     if ($("ocrTesseractPath"))
@@ -3269,6 +3274,12 @@ if ($("saveSettings"))
           charityProfitPercent: Number($("settingsCharity").value || 0),
           auctionEntryFee: Number($("settingsEntryFee").value || 0),
           entryFeeEnabled: !!$("settingsEntryEnabled").checked,
+          visitorSections: {
+            market: $("visitorSectionMarket") ? !!$("visitorSectionMarket").checked : true,
+            auction: $("visitorSectionAuction") ? !!$("visitorSectionAuction").checked : true,
+            specialNumbers: $("visitorSectionSpecialNumbers") ? !!$("visitorSectionSpecialNumbers").checked : true,
+            transitionalIssues: $("visitorSectionTransitional") ? !!$("visitorSectionTransitional").checked : true,
+          },
           platformName: $("platformName").value.trim() || "نوادر العملات",
           adminEmail: $("adminEmail").value.trim(),
           ocrTesseractPath: $("ocrTesseractPath")
