@@ -381,9 +381,17 @@ def overdue_due_for(pid):
     return None
 
 def load_settings():
-    defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':False,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','duesTrackingStartedAt':''}
+    defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':False,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','duesTrackingStartedAt':'','visitorSections':{'market':True,'auction':True,'specialNumbers':True,'transitionalIssues':True}}
     x=load_json(SETTINGS,defaults.copy())
     defaults.update(x if isinstance(x,dict) else {})
+    vis=defaults.get('visitorSections')
+    if not isinstance(vis,dict): vis={}
+    defaults['visitorSections']={
+        'market': bool(vis.get('market',True)),
+        'auction': bool(vis.get('auction',True)),
+        'specialNumbers': bool(vis.get('specialNumbers',True)),
+        'transitionalIssues': bool(vis.get('transitionalIssues',True)),
+    }
     return defaults
 
 BACKUP_FILES=[
@@ -987,9 +995,9 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
         if p=='/api/version':
-            self.sendj({'version':'4.2.3.8','name':'Nawader Coins GitHub Base + Warehouse Edit Save','port':getattr(self.server,'server_port',None)}); return
+            self.sendj({'version':'4.3.4','name':'Nawader Coins Visitor Sections Final Fix','port':getattr(self.server,'server_port',None)}); return
         if p=='/api/settings/public':
-            st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours']}); return
+            st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'visitorSections':st['visitorSections']}); return
         if p=='/api/settings/admin':
             if not self.require_admin(api=True): return
             self.sendj({'settings':load_settings()}); return
@@ -1116,6 +1124,21 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/public/special-numbers':
             rows=[public_special_item(i) for i in load() if i.get('specialNumberEnabled')]
             self.sendj({'items':rows}); return
+        if p=='/api/public/transitional-issues':
+            rows=[]
+            for i in load():
+                if not i.get('transitionalIssueEnabled'): continue
+                market_public=bool(i.get('forMarket') and i.get('marketApproved'))
+                auction_public=bool(i.get('forAuction') and i.get('auctionApproved'))
+                special_public=bool(i.get('specialNumberEnabled'))
+                if not (market_public or auction_public or special_public): continue
+                row=public_market_item(i) if market_public else public_item(i)
+                for k in ('transitionalIssueType','transitionalPreviousIssue','transitionalNextIssue','transitionalRarity','transitionalEstimatedPopulation','transitionalReason','transitionalNotes'):
+                    row[k]=i.get(k)
+                row['marketPublic']=market_public; row['auctionPublic']=auction_public; row['specialPublic']=special_public
+                rows.append(row)
+            rows.sort(key=lambda x:str(x.get('updated') or ''), reverse=True)
+            self.sendj({'items':rows}); return
         if p=='/api/public/auctions':
             with LOCK:
                 ensure_auction_outcomes()
@@ -1192,10 +1215,20 @@ class H(SimpleHTTPRequestHandler):
         if p in ('/seller','/seller/','/seller_portal.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'seller_portal.html'),'text/html; charset=utf-8'); return
         if p in ('/special-numbers','/special-numbers/','/special_numbers.html'):
+            if not load_settings()['visitorSections']['specialNumbers']:
+                self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'special_numbers.html'),'text/html; charset=utf-8'); return
+        if p in ('/transitional-issues','/transitional-issues/','/transitional_issues.html'):
+            if not load_settings()['visitorSections']['transitionalIssues']:
+                self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
+            self.send_file(os.path.join(PUBLIC_DIR,'transitional_issues.html'),'text/html; charset=utf-8'); return
         if p in ('/auction','/auction/','/public_auction.html','/public-auction'):
+            if not load_settings()['visitorSections']['auction']:
+                self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'public_auction.html'),'text/html; charset=utf-8'); return
         if p in ('/market','/market/','/public_market.html','/public-market'):
+            if not load_settings()['visitorSections']['market']:
+                self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'public_market.html'),'text/html; charset=utf-8'); return
         # لا نسمح بعرض مجلد المشروع أو الملفات الإدارية مباشرة.
         if p=='/app.js':
@@ -1554,7 +1587,15 @@ class H(SimpleHTTPRequestHandler):
                 st=load_settings()
                 for k in ('buyerFeePercent','charityProfitPercent','auctionEntryFee','entryFeeEnabled','negotiationPercents','negotiationHours','adminEmail','platformName','ocrTesseractPath'):
                     if k in d: st[k]=d[k]
-                save_json(SETTINGS,st); self.sendj({'ok':True,'settings':st}); return
+                incoming=d.get('visitorSections')
+                if isinstance(incoming,dict):
+                    current=dict(st.get('visitorSections') or {})
+                    for key in ('market','auction','specialNumbers','transitionalIssues'):
+                        if key in incoming: current[key]=bool(incoming[key])
+                    st['visitorSections']=current
+                save_json(SETTINGS,st)
+                saved=load_settings()
+                self.sendj({'ok':True,'settings':saved}); return
             if p=='/api/negotiate':
                 item_id=str(d.get('itemId','')); pid=str(d.get('participantId','')); amount=float(d.get('amount') or 0)
                 person=next((x for x in load_people() if x.get('id')==pid),None)
@@ -1838,7 +1879,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.3.3-INVENTORY-COMPAT-409-FIX'
+VERSION='4.3.4-VISITOR-SECTIONS-FINAL-FIX'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
