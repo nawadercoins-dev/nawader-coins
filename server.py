@@ -914,7 +914,7 @@ ADMIN_GET_API={
     '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary'
 }
 PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload'}
-PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html'}
+PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/invoice.html'}
 
 class H(SimpleHTTPRequestHandler):
     def cookie_value(self,name):
@@ -1163,6 +1163,38 @@ class H(SimpleHTTPRequestHandler):
                 first=(o.get('items') or [{}])[0]
                 rows.append({'id':o.get('id'),'orderNumber':o.get('orderNumber'),'source':o.get('source'),'itemTitle':first.get('title','مقتنى'),'quantity':sum(int(x.get('quantity') or 1) for x in o.get('items') or []),'buyerTotal':o.get('total',0),'status':o.get('status'),'statusLabel':labels.get(o.get('status'),o.get('status')),'created':o.get('created'),'shippingCompany':o.get('shippingCompany'),'trackingNumber':o.get('trackingNumber'),'archived':o.get('archived',False)})
             rows.sort(key=lambda x:x.get('created') or '',reverse=True); self.sendj({'requests':rows}); return
+        if p=='/api/visitor/invoice':
+            qs=parse_qs(urlparse(self.path).query)
+            pid=str((qs.get('participantId') or [''])[0])
+            oid=str((qs.get('orderId') or [''])[0])
+            person=next((x for x in load_people() if x.get('id')==pid),None)
+            if not participant_can_access(person):
+                self.sendj({'error':'الحساب غير متاح'},403); return
+            phone=str(person.get('phone') or '').replace(' ','')
+            order=next((o for o in load_orders() if str(o.get('id') or '')==oid and (str(o.get('participantId') or '')==pid or str(o.get('customerPhone') or '').replace(' ','')==phone)),None)
+            if not order:
+                self.sendj({'error':'الفاتورة غير موجودة'},404); return
+            labels={'new':'طلب جديد','awaiting_payment':'بانتظار السداد','paid':'تم السداد','preparing':'قيد التجهيز','ready_to_ship':'جاهز للشحن','shipped':'تم الشحن','received':'تم الاستلام','completed':'مكتمل','stalled':'متعثر','cancelled':'ملغي','returned':'مرتجع'}
+            items=[]
+            for x in order.get('items') or []:
+                items.append({'itemId':x.get('itemId'),'title':x.get('title','مقتنى'),'quantity':int(x.get('quantity') or 1),'unitPrice':float(x.get('unitPrice') or 0),'total':float(x.get('total') or 0),'image':((x.get('images') or [''])[0] or '')})
+            verify=hashlib.sha256((str(order.get('id'))+'|'+str(order.get('orderNumber'))+'|NAWADER').encode('utf-8')).hexdigest()[:12].upper()
+            subtotal=float(order.get('subtotal') or sum(x['total'] for x in items))
+            buyer_fee=float(order.get('buyerFee') or 0)
+            shipping=float(order.get('shippingFee') or order.get('deliveryFee') or 0)
+            total=float(order.get('total') or subtotal+buyer_fee+shipping)
+            paid=total if str(order.get('paymentStatus') or order.get('status')) in ('paid','completed','received','shipped','preparing','ready_to_ship') else float(order.get('paidAmount') or 0)
+            self.sendj({'invoice':{
+                'invoiceNumber':'INV-'+str(order.get('orderNumber') or order.get('id') or '').replace('NW-',''),
+                'orderNumber':order.get('orderNumber'),'orderId':order.get('id'),'source':order.get('source'),
+                'created':order.get('created'),'paidAt':order.get('paidAt'),'customerName':order.get('customerName') or person.get('name') or '',
+                'customerPhone':order.get('customerPhone') or person.get('phone') or '',
+                'sellerName':'نوادر العملات','platformName':'نوادر العملات','items':items,
+                'subtotal':subtotal,'buyerFee':buyer_fee,'shippingFee':shipping,'total':total,'paid':paid,
+                'balance':max(0,total-paid),'status':order.get('status'),'statusLabel':labels.get(order.get('status'),order.get('status')),
+                'shippingCompany':order.get('shippingCompany') or '','trackingNumber':order.get('trackingNumber') or '',
+                'verificationCode':verify
+            }}); return
         if p=='/api/public/market':
             with LOCK:
                 items=[public_market_item(i) for i in load() if i.get('forMarket') and i.get('marketApproved')]
@@ -1210,6 +1242,8 @@ class H(SimpleHTTPRequestHandler):
             self.send_file(os.path.join(PUBLIC_DIR,'announcements.html'),'text/html; charset=utf-8'); return
         if p in ('/account','/account/','/account.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'account.html'),'text/html; charset=utf-8'); return
+        if p in ('/invoice','/invoice/','/invoice.html'):
+            self.send_file(os.path.join(PUBLIC_DIR,'invoice.html'),'text/html; charset=utf-8'); return
         if p in ('/notifications','/notifications/','/notifications.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'notifications.html'),'text/html; charset=utf-8'); return
         if p in ('/seller','/seller/','/seller_portal.html'):
