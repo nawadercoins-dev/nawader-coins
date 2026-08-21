@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>فاتورة | نوادر العملات</title><link rel="stylesheet" href="/visitor.css">
+<style>
+:root{--navy:#071b35;--gold:#c89b3c;--paper:#fff;--muted:#667085}
+*{box-sizing:border-box}body{margin:0;background:#eef2f6;font-family:Tahoma,"Segoe UI",Arial,sans-serif;color:#172033}
+.toolbar{max-width:900px;margin:22px auto 10px;padding:0 16px;display:flex;gap:10px;justify-content:flex-start;flex-wrap:wrap}
+.toolbar button,.toolbar a{border:0;border-radius:10px;padding:11px 18px;font-weight:800;cursor:pointer;text-decoration:none}
+.print{background:var(--navy);color:#fff}.back{background:#fff;color:var(--navy);border:1px solid #ccd4df!important}
+.invoice{max-width:900px;margin:0 auto 30px;background:var(--paper);padding:38px;border-radius:16px;box-shadow:0 10px 35px #0002;border-top:7px solid var(--gold)}
+.head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:2px solid #e7c878;padding-bottom:22px}
+.brand{display:flex;gap:14px;align-items:center}.brand img{width:82px;height:82px;border-radius:50%;object-fit:cover;border:2px solid var(--gold)}
+.brand h1{margin:0;color:var(--navy);font-size:30px}.brand small{color:var(--muted)}
+.inv-title{text-align:left}.inv-title h2{margin:0;color:var(--gold);font-size:32px}.inv-title div{margin-top:7px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:24px 0}.box{border:1px solid #e1e6ec;border-radius:12px;padding:16px}.box h3{margin:0 0 10px;color:var(--navy)}
+table{width:100%;border-collapse:collapse;margin:22px 0}th,td{padding:12px;border-bottom:1px solid #e3e7eb;text-align:right}th{background:#f6f2e8;color:var(--navy)}
+.item{display:flex;align-items:center;gap:10px}.item img{width:60px;height:48px;object-fit:cover;border-radius:7px;border:1px solid #ddd}
+.totals{margin-right:auto;width:min(390px,100%)}.totals div{display:flex;justify-content:space-between;padding:8px 4px}.totals .grand{border-top:2px solid var(--gold);font-size:21px;font-weight:900;color:var(--navy)}
+.paid{margin-top:22px;padding:15px;border-radius:10px;background:#edf8f0;font-weight:800}.verify{text-align:center;margin-top:30px;border-top:1px dashed #bbb;padding-top:18px;color:#667085}.verify b{color:var(--navy);letter-spacing:2px}
+.loading{text-align:center;padding:60px}
+@media(max-width:650px){.invoice{margin:0 8px 20px;padding:20px}.head,.grid{display:block}.inv-title{text-align:right;margin-top:20px}.box{margin-bottom:12px}th:nth-child(2),td:nth-child(2){display:none}}
+@media print{body{background:#fff}.toolbar{display:none}.invoice{box-shadow:none;border-radius:0;margin:0;max-width:none;padding:18mm 14mm}.invoice{border-top:5px solid #c89b3c}@page{size:A4;margin:8mm}}
+</style></head><body>
+<div class="toolbar"><button class="print" onclick="window.print()">🖨 طباعة / حفظ PDF</button><a class="back" href="/account">← العودة إلى حسابي</a></div>
+<main class="invoice" id="invoice"><div class="loading">جارٍ تحميل الفاتورة…</div></main>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const money=n=>Number(n||0).toLocaleString('ar-SA',{minimumFractionDigits:2,maximumFractionDigits:2})+' ر.س';
+const date=s=>{if(!s)return '—';try{return new Date(s).toLocaleString('ar-SA')}catch(e){return s}};
+async function load(){
+ const q=new URLSearchParams(location.search),orderId=q.get('orderId'),participantId=q.get('participantId');
+ if(!orderId||!participantId){document.getElementById('invoice').innerHTML='<div class="loading">بيانات الفاتورة غير مكتملة.</div>';return}
+ try{
+  let r=await fetch('/api/visitor/invoice?orderId='+encodeURIComponent(orderId)+'&participantId='+encodeURIComponent(participantId),{cache:'no-store'}),d=await r.json();
+  if(!r.ok)throw Error(d.error||'تعذر تحميل الفاتورة');let x=d.invoice;
+  document.title='فاتورة '+x.invoiceNumber+' | نوادر العملات';
+  document.getElementById('invoice').innerHTML=`<div class="head"><div class="brand"><img src="/assets/nawader-logo.jpg" alt="نوادر العملات"><div><h1>نوادر العملات</h1><small>NAWADER COINS</small></div></div><div class="inv-title"><h2>فاتورة شراء</h2><div><b>${esc(x.invoiceNumber)}</b></div><div>التاريخ: ${date(x.created)}</div></div></div>
+  <div class="grid"><div class="box"><h3>بيانات العميل</h3><div><b>${esc(x.customerName||'—')}</b></div><div>الجوال: ${esc(x.customerPhone||'—')}</div></div><div class="box"><h3>بيانات الطلب</h3><div>رقم الطلب: <b>${esc(x.orderNumber||'—')}</b></div><div>المصدر: ${x.source==='auction'?'مزاد':'السوق العام'}</div><div>الحالة: ${esc(x.statusLabel||'—')}</div></div></div>
+  <table><thead><tr><th>المقتنى</th><th>سعر الوحدة</th><th>الكمية</th><th>الإجمالي</th></tr></thead><tbody>${(x.items||[]).map(i=>`<tr><td><div class="item">${i.image?`<img src="${esc(i.image)}" alt="">`:''}<b>${esc(i.title)}</b></div></td><td>${money(i.unitPrice)}</td><td>${Number(i.quantity||1)}</td><td>${money(i.total)}</td></tr>`).join('')}</tbody></table>
+  <div class="totals"><div><span>المجموع الفرعي</span><b>${money(x.subtotal)}</b></div>${Number(x.buyerFee)>0?`<div><span>الرسوم</span><b>${money(x.buyerFee)}</b></div>`:''}${Number(x.shippingFee)>0?`<div><span>الشحن</span><b>${money(x.shippingFee)}</b></div>`:''}<div class="grand"><span>الإجمالي</span><span>${money(x.total)}</span></div><div><span>المدفوع</span><b>${money(x.paid)}</b></div><div><span>المتبقي</span><b>${money(x.balance)}</b></div></div>
+  <div class="paid">${Number(x.balance)<=0?'✓ الفاتورة مسددة':'⏳ يوجد مبلغ متبقٍ على الفاتورة'}</div>
+  <div class="verify">فاتورة إلكترونية صادرة من <b>نوادر العملات</b><br>رمز التحقق: <b>${esc(x.verificationCode)}</b><br><small>يمكن طباعة هذه الصفحة على ورق A4 أو اختيار «حفظ كملف PDF» من نافذة الطباعة.</small></div>`;
+ }catch(e){document.getElementById('invoice').innerHTML='<div class="loading">'+esc(e.message)+'</div>'}
+}
+load();
+</script></body></html>
