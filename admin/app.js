@@ -3267,7 +3267,7 @@ if ($("saveSettings"))
   $("saveSettings").onclick = async () => {
     let st = $("settingsStatus");
     try {
-      await api("/api/settings", {
+      let saveResult = await api("/api/settings", {
         method: "POST",
         body: JSON.stringify({
           buyerFeePercent: Number($("settingsBuyerFee").value || 0),
@@ -3287,7 +3287,12 @@ if ($("saveSettings"))
             : "",
         }),
       });
-      st.textContent = "✅ تم حفظ الإعدادات.";
+      let savedVs = (saveResult && saveResult.settings && saveResult.settings.visitorSections) || {};
+      if ($("visitorSectionMarket")) $("visitorSectionMarket").checked = savedVs.market !== false;
+      if ($("visitorSectionAuction")) $("visitorSectionAuction").checked = savedVs.auction !== false;
+      if ($("visitorSectionSpecialNumbers")) $("visitorSectionSpecialNumbers").checked = savedVs.specialNumbers !== false;
+      if ($("visitorSectionTransitional")) $("visitorSectionTransitional").checked = savedVs.transitionalIssues !== false;
+      st.textContent = "✅ تم حفظ الإعدادات وتأكيدها من الخادم.";
     } catch (e) {
       st.textContent = "⚠️ " + e.message;
     }
