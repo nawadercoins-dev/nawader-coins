@@ -1588,6 +1588,43 @@ class H(SimpleHTTPRequestHandler):
                             if sn not in done: done.append(sn)
                         item['marketSoldSerials']=done; item['updated']=int(datetime.datetime.now().timestamp()*1000); save(items)
                 save_json(MARKET_REQUESTS,{'requests':a}); self.sendj({'ok':True,'request':row}); return
+            if p=='/api/auction/exception':
+                iid=str(d.get('id','')).strip(); reason=str(d.get('reason','')).strip(); note=str(d.get('note','')).strip()
+                allowed={'non_payment','bidder_withdrawal','winner_ineligible','admin_exception','other'}
+                if not iid: self.sendj({'error':'رقم المقتنى مطلوب'},400); return
+                if reason not in allowed: self.sendj({'error':'سبب الاستثناء غير صالح'},400); return
+                if reason=='other' and not note: self.sendj({'error':'اكتب سبب الاستثناء'},400); return
+                items=load(); item=next((x for x in items if str(x.get('id'))==iid),None)
+                if not item: self.sendj({'error':'المقتنى غير موجود'},404); return
+                if str(item.get('auctionOutcome') or '')!='sold': self.sendj({'error':'زر الاستثناء مخصص للمزاد الناجح فقط'},409); return
+                rnd=int(item.get('auctionRound') or 1)
+                dues=load_auction_dues(); due=next((x for x in dues if str(x.get('itemId'))==iid and int(x.get('auctionRound') or 1)==rnd),None)
+                orders=load_orders(); order=None
+                if due and due.get('orderId'): order=next((x for x in orders if str(x.get('id'))==str(due.get('orderId'))),None)
+                if not order and item.get('auctionOrderId'): order=next((x for x in orders if str(x.get('id'))==str(item.get('auctionOrderId'))),None)
+                # A paid or fulfilled sale is no longer a simple auction exception; it must use the return/refund flow.
+                if due and str(due.get('status') or '')=='paid': self.sendj({'error':'تم سداد المزاد؛ لا يمكن فتحه كاستثناء. استخدم مسار المرتجع/الإلغاء المالي.'},409); return
+                if order:
+                    status=str(order.get('status') or '')
+                    if order.get('paymentStatus')=='paid' or status in ('paid','preparing','ready_to_ship','shipped','received','completed','returned'):
+                        self.sendj({'error':'بدأ تنفيذ البيع أو تم السداد؛ لا يمكن إعادة فتح المزاد من الاستثناء.'},409); return
+                now=datetime.datetime.now().isoformat()
+                if due:
+                    due['status']='cancelled'; due['cancelledAt']=now; due['cancelReason']=reason; due['cancelNote']=note; due['updated']=now
+                    save_json(AUCTION_DUES,{'dues':dues})
+                if order:
+                    order['status']='cancelled'; order['archived']=True; order['archivedAt']=now; order['updated']=now
+                    order.setdefault('history',[]).append({'status':'cancelled','at':now,'note':'استثناء مزاد ناجح: '+reason+((' — '+note) if note else '')})
+                    save_json(ORDERS,{'orders':orders})
+                history=list(item.get('auctionHistory') or [])
+                history.append({'round':rnd,'event':'exception','reason':reason,'note':note,'winnerParticipantId':item.get('auctionWinnerParticipantId'),'winningAmount':item.get('auctionWinningAmount',item.get('auctionCurrentPrice',0)),'at':now})
+                item['auctionHistory']=history
+                item['auctionOutcome']='exception'; item['auctionExceptionReason']=reason; item['auctionExceptionNote']=note; item['auctionExceptionAt']=now
+                item['auctionApproved']=False; item['updated']=int(datetime.datetime.now().timestamp()*1000)
+                save(items)
+                append_operation('استثناء مزاد ناجح',{'itemId':iid,'auctionRound':rnd,'reason':reason,'note':note})
+                add_notification('admin','','auction','تم اعتماد استثناء مزاد ناجح',f"{item_title(item)} — {reason}"+(f" — {note}" if note else ''),iid,'/admin')
+                self.sendj({'ok':True,'item':item,'orderId':order.get('id') if order else '','dueId':due.get('id') if due else ''}); return
             if p=='/api/auction/relaunch':
                 iid=str(d.get('id','')); end=str(d.get('auctionEnd','')).strip()
                 if not iid or not end: self.sendj({'error':'رقم المقتنى وموعد انتهاء المزاد مطلوبان'},400); return
@@ -1597,6 +1634,7 @@ class H(SimpleHTTPRequestHandler):
                 except Exception: self.sendj({'error':'تاريخ انتهاء المزاد غير صالح'},400); return
                 items=load(); item=next((x for x in items if str(x.get('id'))==iid),None)
                 if not item: self.sendj({'error':'المقتنى غير موجود'},404); return
+                if str(item.get('auctionOutcome') or '')=='sold': self.sendj({'error':'المزاد الناجح مغلق نهائيًا. اعتمد استثناء موثق أولًا إذا لم يكتمل البيع.'},409); return
                 # V3.8: preserve a permanent snapshot of the completed round before relaunching.
                 old_round=int(item.get('auctionRound') or 1)
                 round_bids=[b for b in load_bids() if str(b.get('itemId'))==iid and int(b.get('auctionRound') or 1)==old_round]
@@ -1604,7 +1642,11 @@ class H(SimpleHTTPRequestHandler):
                 history.append({'round':old_round,'auctionEnd':item.get('auctionEnd'),'openingPrice':item.get('auctionOpeningPrice',item.get('auctionStartPrice',0)),'bidStep':item.get('auctionBidStep',1),'targetPrice':item.get('auctionTargetPrice',auction_target(item)),'finalPrice':item.get('auctionCurrentPrice',0),'bidCount':len(round_bids),'targetReached':float(item.get('auctionCurrentPrice') or 0)>=auction_target(item),'closedAt':datetime.datetime.now().isoformat()})
                 item['auctionHistory']=history
                 item['auctionRound']=old_round+1
+                # A physical collectible cannot be actively allocated to market and auction at the same time.
+                # Preserve its auction history, but stop the market listing before publishing the new round.
+                item['forMarket']=False; item['marketApproved']=False
                 item['auctionEnd']=end; item['forAuction']=True; item['auctionApproved']=bool(d.get('auctionApproved',True)); item['auctionCurrentPrice']=0
+                item['adminLocation']='auction'; item['inWarehouse']=False; item['warehouseAvailable']=False
                 item['reauctionedAt']=datetime.datetime.now().isoformat(); item['updated']=int(datetime.datetime.now().timestamp()*1000)
                 for key in ('auctionOpeningPrice','auctionBidStep','auctionTargetPrice','negotiationEnabled','negotiationPercent'):
                     if key in d: item[key]=d[key]
