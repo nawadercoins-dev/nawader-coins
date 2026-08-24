@@ -26,7 +26,7 @@ function card(i){
       <div class="swipe-bid" id="swipe-${i.id}"><span class="swipe-text">${slideLabel}</span><span class="swipe-handle">◀</span></div><p class="muted" id="msg-${i.id}"></p>`;
   auctionImageGroups[i.id]=[i.frontImg,i.backImg,i.gradingCertImage,...(i.additionalImages||[])].filter(Boolean);
   return `<article class="auction-public-card" id="${i.id}" data-current="${current}" data-opening="${opening}" data-step="${step}" data-bids="${bids}">
-    <div class="photos single-photo">${photo(i.frontImg||i.backImg,i.id+'f',i.id,i.frontImg?0:1)}${(i.frontImg||i.backImg)?`<span class="photo-view-hint">اضغط لعرض الوجه والخلف</span>`:''}</div>
+    <div class="photos single-photo">${(i.frontImg||i.backImg)?`<div class="auction-cover" data-cover-id="${esc(i.id)}"><button class="cover-arrow cover-prev" type="button" onclick="event.stopPropagation();shiftAuctionCover('${i.id}',-1)" aria-label="الصورة السابقة">‹</button><img id="cover-${i.id}" src="${esc(i.frontImg||i.backImg)}" data-cover-index="0" onclick="openAuctionLightbox('${i.id}',Number(this.dataset.coverIndex||0))" alt="${esc(i.country)} — ${esc(i.denomination)}"><button class="cover-arrow cover-next" type="button" onclick="event.stopPropagation();shiftAuctionCover('${i.id}',1)" aria-label="الصورة التالية">›</button><span class="cover-count" id="cover-count-${i.id}">1/${auctionImageGroups[i.id].length}</span><span class="photo-view-hint">اضغط للتكبير</span></div>`:''}</div>
     <div class="body">
       <div class="item-head"><div class="item-title"><h2>${esc(i.country)} — ${esc(i.denomination)}</h2><p>${esc(i.year||'')} | ${esc(i.condition||'')}</p></div>${statusChip}${transitionChip}</div>
       ${reactions}<div class="auction-clock-box"><div class="clock-label">${ended?'حالة المزاد':'الوقت المتبقي لانتهاء المزاد'}</div><div class="big-clock auction-clock" data-end="${esc(i.auctionEnd||'')}">${ended?'انتهى المزاد':esc(clock(i.auctionEnd))}</div></div>
@@ -37,10 +37,17 @@ function card(i){
         <div class="stat"><span class="label">عدد المزايدات</span><strong>${bids}</strong><small>مزايدة</small></div>
       </div>
       ${result}
+      ${i.auctionAdditionalTerms?`<div class="auction-extra-terms"><b>الشروط الإضافية</b><p>${esc(i.auctionAdditionalTerms)}</p></div>`:''}
       ${i.notes?`<p>${esc(i.notes)}</p>`:''}
       ${bidControls}
     </div></article>`
 }
+window.shiftAuctionCover=(id,dir)=>{
+  const g=auctionImageGroups[id]||[], img=document.getElementById('cover-'+id), count=document.getElementById('cover-count-'+id);
+  if(!img||!g.length)return;
+  let n=(Number(img.dataset.coverIndex||0)+dir+g.length)%g.length;
+  img.dataset.coverIndex=String(n); img.src=g[n]; if(count)count.textContent=`${n+1}/${g.length}`;
+};
 window.updateSwipeAmount=id=>{let input=$('amt-'+id),el=$('swipe-'+id),next=$('next-'+id);if(!input||!el)return;let amount=Number(input.value||0),card=document.getElementById(id),bids=Number(card?.dataset.bids||0);if(next)next.textContent=money(amount);let t=el.querySelector('.swipe-text');if(t)t.textContent=(bids?`اسحب للمزايدة بـ ${money(amount)} ←`:`اسحب لفتح المزايدة بـ ${money(amount)} ←`);resetSwipe(id)};
 function initPublicViewers(){document.querySelectorAll('.public-photo').forEach(box=>{if(box.dataset.ready)return;box.dataset.ready='1';let img=box.querySelector('img'),st={scale:1,rot:0,x:0,y:0,drag:false,sx:0,sy:0};let draw=()=>img.style.transform=`translate(${st.x}px,${st.y}px) scale(${st.scale}) rotate(${st.rot}deg)`;let openLarge=()=>window.openAuctionLightbox?.(img.dataset.auctionGroup,Number(img.dataset.auctionIndex||0));let tools=document.querySelector(`.public-photo-tools[data-target="${box.id}"]`);tools?.querySelectorAll('button').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();let a=b.dataset.act;if(a==='open'){openLarge();return}if(a==='zin'){openLarge();return}if(a==='zout')st.scale=Math.max(.25,st.scale-.25);if(a==='rl')st.rot-=90;if(a==='rr')st.rot+=90;if(a==='reset')Object.assign(st,{scale:1,rot:0,x:0,y:0});draw()});box.ondblclick=e=>{e.preventDefault();openLarge()};box.onpointerdown=e=>{st.drag=true;st.sx=e.clientX-st.x;st.sy=e.clientY-st.y;box.setPointerCapture(e.pointerId)};box.onpointermove=e=>{if(!st.drag)return;st.x=e.clientX-st.sx;st.y=e.clientY-st.sy;draw()};box.onpointerup=box.onpointercancel=()=>{st.drag=false}})}
 let auctionRenderToken='',initialAuctionLoad=true,hashHandled=false,auctionAllItems=[],auctionEndingOnly=false;
