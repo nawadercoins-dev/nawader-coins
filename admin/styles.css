@@ -6100,11 +6100,29 @@ main {
 @media(max-width:900px){.transitional-grid{grid-template-columns:1fr 1fr}.transitional-admin-tools{grid-template-columns:1fr}.transitional-admin-card{grid-template-columns:110px minmax(0,1fr)}.transitional-data{grid-template-columns:1fr 1fr}.transitional-admin-card>.actions{grid-column:1/-1;grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:560px){.transitional-grid{grid-template-columns:1fr}.transitional-admin-card{grid-template-columns:88px minmax(0,1fr);padding:9px}.transitional-admin-images img{height:64px}.transitional-data{grid-template-columns:1fr}.transitional-admin-card>.actions{grid-template-columns:1fr 1fr!important}}
 
-/* V4.2.6 — حماية المزادات الناجحة والاستثناءات */
-.successful-locked{border-color:#b58a2b;box-shadow:0 0 0 1px rgba(181,138,43,.18)}
-.successful-locked .sold-order-note{font-weight:700}
-.auction-state.exception{background:#8a5a13;color:#fff}
-.approval-chip.warning{background:#fff3cd;color:#6b4b00;border-color:#e3c86c}
-.auction-exception-note{background:#fff8e7;border:1px solid #ead39a;border-radius:12px;padding:10px 12px;line-height:1.7}
-.danger-outline{background:transparent!important;color:#9a241f!important;border:1px solid #b94a43!important}
-.danger-outline:hover{background:#fff0ef!important}
+
+/* V4.3.1 — Compact admin auction cards */
+#auctionItems.grid,#endedAuctionItems.grid{grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:11px}
+.auction-item{border-radius:14px}
+.auction-card-image{min-height:125px}
+.auction-card-image img{height:145px}
+.auction-state{top:7px;right:7px;padding:4px 7px;font-size:.7rem}
+.auction-card-body{padding:10px !important}
+.auction-card-title{gap:6px}.auction-card-title h3{font-size:1.05rem}
+.approval-chip{font-size:.68rem;padding:4px 7px}
+.auction-clock{font-size:.92rem;padding:6px;margin:7px 0}
+.auction-admin-metrics{gap:5px;margin:7px 0}
+.auction-admin-metrics>div{padding:6px !important;border-radius:9px}
+.auction-admin-metrics span{font-size:.68rem}.auction-admin-metrics b{font-size:.95rem}
+.round-chip{padding:3px 7px;font-size:.7rem;margin:3px 0}
+.auction-actions{gap:5px}.auction-actions>*{min-width:78px;padding:7px 8px;font-size:.76rem;min-height:0}
+.bid-list{font-size:.76rem;padding:5px;margin-top:5px}
+@media(max-width:700px){
+ #auctionItems.grid,#endedAuctionItems.grid{grid-template-columns:1fr 1fr;gap:7px}
+ .auction-card-image{min-height:95px}.auction-card-image img{height:110px}
+ .auction-card-body{padding:7px !important}.auction-card-title{display:block}.auction-card-title h3{font-size:.88rem;margin-bottom:4px}
+ .auction-clock{font-size:.75rem;padding:4px}.auction-admin-metrics{grid-template-columns:1fr 1fr;gap:3px}
+ .auction-admin-metrics>div{padding:4px !important}.auction-admin-metrics span{font-size:.58rem}.auction-admin-metrics b{font-size:.78rem}
+ .auction-actions>*{min-width:0!important;min-height:0!important;padding:6px 4px;font-size:.66rem}
+}
+@media(max-width:420px){#auctionItems.grid,#endedAuctionItems.grid{grid-template-columns:1fr}}

@@ -733,7 +733,7 @@ function auctionCard(i) {
   let endedActions = successfulClosed
     ? `<button class="danger-outline" onclick="openAuctionException('${i.id}')">استثناء</button>`
     : `<button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة المزاد</button><button class="ghost" onclick="returnEndedAuctionToWarehouse('${i.id}')">إعادة للمستودع</button>`;
-  return `<article class="item auction-item ${successfulClosed ? "successful-locked" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="openAdminAuctionImages('${i.id}',0)" title="اضغط لفتح عارض الصور" style="cursor:zoom-in"><span class="auction-state ${successfulClosed ? "sold" : exception ? "exception" : ended ? "ended" : "live"}">${successfulClosed ? "ناجح — مغلق" : exception ? "استثناء" : ended ? "منتهي" : "نشط"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${successfulClosed ? "ok" : i.auctionApproved ? "ok" : "pending"}">${successfulClosed ? "🏆 مزاد ناجح" : i.auctionApproved ? "✓ معتمد" : "بانتظار الاعتماد"}</span></div><p class="auction-clock ${ended ? "ended" : ""}" data-end="${esc(i.auctionEnd || "")}">${esc(left || "بدون وقت انتهاء")}</p><div class="auction-admin-metrics"><div><span>السعر الحالي</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>قيمة الزيادة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع • إدارة فقط</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${successfulClosed ? '<p class="sold-order-note">🔒 أُغلق المزاد بنجاح؛ لا عودة ولا إعادة مزايدة إلا باستثناء موثق.</p>' : ""}<p class="round-chip">الجولة ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض</button>${!successfulClosed ? `<button class="ghost" onclick="editItem('${i.id}')">✎ تعديل</button>` : ""}${ended ? endedActions : ""}<a class="public-link" href="/auction#${i.id}" target="_blank">مشاركة</a></div><div class="bid-list" id="bids-${i.id}" data-round="${Number(i.auctionRound || 1)}"></div></div></article>`;
+  return `<article class="item auction-item ${successfulClosed ? "successful-locked" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="openAdminAuctionImages('${i.id}',0)" title="اضغط لفتح عارض الصور" style="cursor:zoom-in"><span class="auction-state ${successfulClosed ? "sold" : exception ? "exception" : ended ? "ended" : "live"}">${successfulClosed ? "ناجح — مغلق" : exception ? "استثناء" : ended ? "منتهي" : "نشط"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${successfulClosed ? "ok" : i.auctionApproved ? "ok" : "pending"}">${successfulClosed ? "🏆 مزاد ناجح" : i.auctionApproved ? "✓ معتمد" : "بانتظار الاعتماد"}</span></div><p class="auction-clock ${ended ? "ended" : ""}" data-end="${esc(i.auctionEnd || "")}">${esc(left || "بدون وقت انتهاء")}</p><div class="auction-admin-metrics"><div><span>السعر الحالي</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>قيمة الزيادة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع • إدارة فقط</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${successfulClosed ? '<p class="sold-order-note">🔒 أُغلق المزاد بنجاح؛ لا عودة ولا إعادة مزايدة إلا باستثناء موثق.</p>' : ""}<p class="round-chip">الجولة ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض</button>${!successfulClosed ? `<button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button>${!ended ? `<button class="ghost auction-quick-edit-btn" onclick="openAuctionQuickEdit('${i.id}')">⚙️ تعديل المزاد</button><button class="danger" onclick="cancelActiveAuction('${i.id}')">⛔ إلغاء المزاد</button>` : ""}` : ""}${ended ? endedActions : ""}<a class="public-link" href="/auction#${i.id}" target="_blank">مشاركة</a></div><div class="bid-list" id="bids-${i.id}" data-round="${Number(i.auctionRound || 1)}"></div></div></article>`;
 }
 
 function endedReserveReached(i) {
@@ -749,6 +749,9 @@ function endedAuctionSuccessful(i) {
 function endedAuctionException(i) {
   return String(i.auctionOutcome || "") === "exception" || !!i.auctionExceptionAt;
 }
+function endedAuctionCancelled(i) {
+  return String(i.auctionOutcome || "") === "cancelled" || !!i.auctionCancelledAt;
+}
 function auctionExceptionLabel(reason) {
   return ({
     non_payment: "عدم الدفع",
@@ -761,15 +764,18 @@ function auctionExceptionLabel(reason) {
 function endedAuctionCard(i) {
   let sold = endedAuctionSuccessful(i),
     exception = endedAuctionException(i),
+    cancelled = endedAuctionCancelled(i),
     reached = endedReserveReached(i);
-  let stateText = sold ? "✓ مزاد ناجح" : exception ? "⚠ استثناء مسجل" : "انتهى دون بيع";
-  let stateClass = sold ? "sold" : exception ? "exception" : "ended";
-  let chipText = sold ? "🏆 ناجح — مغلق" : exception ? "⚠ قابل لإعادة الإدراج" : reached ? "بلغ حد البيع دون إرساء" : "دون حد البيع";
+  let stateText = sold ? "✓ مزاد ناجح" : exception ? "⚠ استثناء مسجل" : cancelled ? "⛔ ملغي من الإدارة" : "انتهى دون بيع";
+  let stateClass = sold ? "sold" : exception ? "exception" : cancelled ? "cancelled" : "ended";
+  let chipText = sold ? "🏆 ناجح — مغلق" : exception ? "⚠ قابل لإعادة الإدراج" : cancelled ? "⛔ ملغي من الإدارة" : reached ? "بلغ حد البيع دون إرساء" : "دون حد البيع";
   let exceptionNote = exception ? `<p class="auction-exception-note"><b>الاستثناء:</b> ${esc(auctionExceptionLabel(i.auctionExceptionReason))}${i.auctionExceptionNote ? ` — ${esc(i.auctionExceptionNote)}` : ""}${i.auctionExceptionAt ? `<br><small>${new Date(i.auctionExceptionAt).toLocaleString("ar-SA")}</small>` : ""}</p>` : "";
+  let cancelNote = cancelled ? `<p class="auction-exception-note"><b>سبب الإلغاء:</b> ${esc(i.auctionCancelReason || "إلغاء إداري")}${i.auctionCancelledAt ? `<br><small>${new Date(i.auctionCancelledAt).toLocaleString("ar-SA")}</small>` : ""}</p>` : "";
   let actions = sold
     ? `<button onclick="detail('${i.id}')">عرض السجل</button><button class="danger-outline" onclick="openAuctionException('${i.id}')">استثناء</button>`
+    : cancelled ? `<button onclick="detail('${i.id}')">عرض السجل</button>`
     : `<button onclick="detail('${i.id}')">عرض السجل</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button><button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة إدراج</button>`;
-  return `<article class="item auction-item ended-admin-card ${sold ? "sold-ended successful-locked" : exception ? "exception-ended" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="detail('${i.id}')"><span class="auction-state ${stateClass}">${stateText}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${sold ? "ok" : exception ? "warning" : "pending"}">${chipText}</span></div><p class="ended-date">انتهى: ${esc(i.auctionEnd || "—")}</p><div class="auction-admin-metrics"><div><span>آخر سعر</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح السابق</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>الزيادة السابقة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع السابق</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${sold ? '<p class="sold-order-note">🔒 مزاد ناجح نهائي — لا عودة للمستودع ولا إعادة مزايدة. الاستثناء فقط للحالات الموثقة قبل اكتمال البيع.</p>' : ""}${exceptionNote}<p class="round-chip">الجولة المنتهية ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions">${actions}</div></div></article>`;
+  return `<article class="item auction-item ended-admin-card ${sold ? "sold-ended successful-locked" : exception ? "exception-ended" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="detail('${i.id}')"><span class="auction-state ${stateClass}">${stateText}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${sold ? "ok" : exception ? "warning" : "pending"}">${chipText}</span></div><p class="ended-date">انتهى: ${esc(i.auctionEnd || "—")}</p><div class="auction-admin-metrics"><div><span>آخر سعر</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح السابق</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>الزيادة السابقة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع السابق</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${sold ? '<p class="sold-order-note">🔒 مزاد ناجح نهائي — لا عودة للمستودع ولا إعادة مزايدة. الاستثناء فقط للحالات الموثقة قبل اكتمال البيع.</p>' : ""}${exceptionNote}${cancelNote}<p class="round-chip">الجولة المنتهية ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions">${actions}</div></div></article>`;
 }
 async function renderEndedAuctions(a) {
   a = a || (await all());
@@ -778,7 +784,7 @@ async function renderEndedAuctions(a) {
     ).toLowerCase(),
     f = document.getElementById("endedAuctionFilter")?.value || "all";
   let ended = a.filter(
-    (i) => i.forAuction && auctionText(i.auctionEnd) === "انتهى المزاد",
+    (i) => (i.forAuction && auctionText(i.auctionEnd) === "انتهى المزاد") || endedAuctionCancelled(i),
   );
   let successful = ended.filter(endedAuctionSuccessful),
     exceptions = ended.filter(endedAuctionException),
@@ -2783,6 +2789,77 @@ if ($("auctionExceptionForm"))
       if (btn) btn.disabled = false;
     }
   };
+
+// تعديل شامل وسريع للجولة النشطة: الوقت، حد البيع، الزيادة، وسعر الافتتاح قبل أول مزايدة.
+window.cancelActiveAuction = async (id) => {
+  try {
+    const rows = await all(), item = rows.find(x => String(x.id) === String(id));
+    if (!item) throw new Error("المزاد غير موجود");
+    if (auctionText(item.auctionEnd) === "انتهى المزاد") throw new Error("المزاد منتهٍ بالفعل");
+    const bids = await api(`/api/bids?itemId=${encodeURIComponent(id)}`);
+    const round = Number(item.auctionRound || 1);
+    const roundBids = (Array.isArray(bids) ? bids : (bids?.bids || [])).filter(b => String(b.itemId) === String(id) && Number(b.auctionRound || 1) === round);
+    let reason = "إلغاء إداري قبل وجود مزايدات";
+    if (roundBids.length) {
+      reason = prompt(`يوجد ${roundBids.length} مزايدة في هذه الجولة. اكتب سبب إلغاء المزاد ليُحفظ ويُبلّغ به المزايدون:`) || "";
+      if (!reason.trim()) return;
+      if (!confirm("سيتم إلغاء المزاد وإشعار المزايدين وإعادة المقتنى للمستودع. هل تعتمد الإلغاء؟")) return;
+    } else if (!confirm("إلغاء هذا المزاد وإعادة المقتنى إلى المستودع؟")) return;
+    const r = await api("/api/auction/cancel", {method:"POST", body:JSON.stringify({id, reason:reason.trim()})});
+    if (!r?.ok) throw new Error(r?.error || "تعذر إلغاء المزاد");
+    await refresh(true);
+    alert("تم إلغاء المزاد وإعادة المقتنى إلى المستودع مع حفظ سجل الإلغاء.");
+  } catch(e) { alert("تعذر إلغاء المزاد: " + e.message); }
+};
+
+window.openAuctionQuickEdit = async (id) => {
+  try {
+    let i = (await all()).find((x) => String(x.id) === String(id));
+    if (!i) return;
+    let br = await api("/api/bids"),
+      round = Number(i.auctionRound || 1),
+      bids = (br.bids || []).filter((b) => String(b.itemId) === String(id) && Number(b.auctionRound || 1) === round),
+      hasBids = bids.length > 0,
+      current = Math.max(...bids.map((b) => Number(b.amount || 0)), Number(i.auctionCurrentPrice || 0), 0);
+    $("auctionQuickEditItemId").value = id;
+    $("auctionQuickEditEnd").value = i.auctionEnd ? localDateTimeValue(new Date(i.auctionEnd)) : localDateTimeValue(new Date(Date.now() + 24*60*60*1000));
+    $("auctionQuickEditOpening").value = Number(i.auctionOpeningPrice || i.auctionStartPrice || 0);
+    $("auctionQuickEditStep").value = Number(i.auctionBidStep || 1);
+    $("auctionQuickEditTarget").value = Number(i.auctionTargetPrice || (Number(i.auctionStartPrice || 0) + 1));
+    $("auctionQuickEditCurrent").value = money(current);
+    $("auctionQuickEditOpening").disabled = hasBids;
+    $("auctionQuickEditOpening").title = hasBids ? "لا يمكن تغيير سعر الافتتاح بعد تسجيل أول مزايدة" : "";
+    $("auctionQuickEditHint").textContent = hasBids
+      ? `يوجد ${bids.length} مزايدة في الجولة الحالية. تم قفل سعر الافتتاح، ويمكن تصحيح الوقت وحد البيع وقيمة الزيادة. سيُسجل التعديل ويُنبه المزايدون.`
+      : "لا توجد مزايدات حتى الآن؛ يمكن تعديل جميع إعدادات المزاد.";
+    $("auctionQuickEditStatus").textContent = "";
+    $("auctionQuickEditDlg").showModal();
+  } catch (e) { alert("تعذر فتح تعديل المزاد: " + e.message); }
+};
+if ($("closeAuctionQuickEdit")) $("closeAuctionQuickEdit").onclick = () => $("auctionQuickEditDlg").close();
+if ($("auctionQuickEditToday")) $("auctionQuickEditToday").onclick = () => {
+  let d = new Date(); d.setHours(23,59,0,0);
+  if (d <= new Date()) d = new Date(Date.now()+60*60*1000);
+  $("auctionQuickEditEnd").value = localDateTimeValue(d);
+};
+if ($("confirmAuctionQuickEdit")) $("confirmAuctionQuickEdit").onclick = async () => {
+  let btn=$("confirmAuctionQuickEdit"), st=$("auctionQuickEditStatus");
+  try {
+    btn.disabled=true; st.textContent="جارٍ حفظ تعديل المزاد...";
+    let payload={
+      id: $("auctionQuickEditItemId").value,
+      auctionEnd: $("auctionQuickEditEnd").value,
+      auctionBidStep: Number($("auctionQuickEditStep").value || 0),
+      auctionTargetPrice: Number($("auctionQuickEditTarget").value || 0)
+    };
+    if (!$("auctionQuickEditOpening").disabled) payload.auctionOpeningPrice=Number($("auctionQuickEditOpening").value || 0);
+    let r=await api("/api/auction/quick-edit",{method:"POST",body:JSON.stringify(payload)});
+    st.textContent = `✅ تم حفظ التعديل${r.bidCount ? ` وإشعار ${r.notifiedCount || 0} من المزايدين` : ""}.`;
+    await refresh(true);
+    setTimeout(()=>$("auctionQuickEditDlg").close(),650);
+  } catch(e) { st.textContent="⚠️ "+e.message; }
+  finally { btn.disabled=false; }
+};
 
 // V2.1 إعادة المزاد: جولة مستقلة تحفظ سجل الجولة السابقة ولا تخلط مزايداتها بالجولة الجديدة.
 function localDateTimeValue(d) {

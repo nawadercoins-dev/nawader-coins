@@ -1641,6 +1641,25 @@
         <p id="auctionExceptionStatus" class="muted"></p>
       </form>
     </dialog>
+    <dialog id="auctionQuickEditDlg">
+      <button type="button" id="closeAuctionQuickEdit">×</button>
+      <h2>⚙️ تعديل المزاد النشط</h2>
+      <p class="muted">تصحيح سريع لإعدادات الجولة الحالية دون حذف المزاد أو إنشاء جولة جديدة. تحفظ التعديلات في سجل العمليات.</p>
+      <input id="auctionQuickEditItemId" type="hidden" />
+      <label>موعد انتهاء المزاد<input id="auctionQuickEditEnd" type="datetime-local" /></label>
+      <div class="grid2">
+        <label>سعر فتح المزايدة<input id="auctionQuickEditOpening" type="number" step="0.01" min="0" /></label>
+        <label>قيمة الزيادة<input id="auctionQuickEditStep" type="number" step="0.01" min="0.01" /></label>
+        <label>حد البيع المستهدف • إدارة فقط<input id="auctionQuickEditTarget" type="number" step="0.01" min="0" /></label>
+        <label>السعر الحالي<input id="auctionQuickEditCurrent" type="text" readonly /></label>
+      </div>
+      <p id="auctionQuickEditHint" class="muted"></p>
+      <div class="actions">
+        <button type="button" id="auctionQuickEditToday" class="ghost">نهاية اليوم</button>
+        <button type="button" id="confirmAuctionQuickEdit">✅ حفظ تعديل المزاد</button>
+      </div>
+      <p id="auctionQuickEditStatus" class="muted"></p>
+    </dialog>
     <dialog id="relaunchDlg">
       <button type="button" id="closeRelaunch">×</button>
       <h2>♻️ إعادة طرح المقتنى في المزاد</h2>
