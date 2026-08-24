@@ -352,7 +352,34 @@ def ensure_auction_outcomes():
         except Exception: continue
         if enddt>now: continue
         rnd=int(item.get('auctionRound') or 1); key=(str(item.get('id')),rnd)
-        if key in due_keys: continue
+        # قد يكون المستحق قد أُنشئ في طلب سابق بينما لم تُثبت نتيجة الجولة على
+        # المقتنى (مثلاً بعد تحديث/إعادة تشغيل بين عمليتي الحفظ). وجود مستحق
+        # غير ملغى لهذه الجولة دليل نهائي على أن المزاد أُرسي بالفعل؛ لذلك
+        # نعيد مزامنة نتيجة المقتنى والطلب بدل ترك البطاقة تظهر "بلغ حد البيع
+        # دون إرساء". هذه العملية idempotent ولا تنشئ بيعًا أو إشعارًا مكررًا.
+        existing_due=next((x for x in dues if str(x.get('itemId'))==str(item.get('id')) and int(x.get('auctionRound') or 1)==rnd),None)
+        if existing_due:
+            if str(existing_due.get('status') or '')=='cancelled' or str(item.get('auctionOutcome') or '')=='exception':
+                continue
+            old_due_order_id=str(existing_due.get('orderId') or '')
+            order=create_order_for_due(existing_due)
+            due_changed=old_due_order_id!=str(existing_due.get('orderId') or order.get('id') or '')
+            expected_amount=float(existing_due.get('amount') or 0)
+            expected_pid=str(existing_due.get('participantId') or '')
+            if (str(item.get('auctionOutcome') or '')!='sold' or
+                str(item.get('auctionWinnerParticipantId') or '')!=expected_pid or
+                abs(float(item.get('auctionWinningAmount') or 0)-expected_amount)>1e-9 or
+                str(item.get('auctionOrderId') or '')!=str(order.get('id') or '')):
+                item['auctionOutcome']='sold'
+                item['auctionWinnerParticipantId']=expected_pid
+                item['auctionWinningAmount']=expected_amount
+                item['auctionOrderId']=order.get('id')
+                item['auctionOutcomeAt']=item.get('auctionOutcomeAt') or now.isoformat()
+                item['updated']=int(now.timestamp()*1000)
+                changed=True
+            if due_changed:
+                save_json(AUCTION_DUES,{'dues':dues})
+            continue
         rb=[b for b in bids if str(b.get('itemId'))==str(item.get('id')) and int(b.get('auctionRound') or 1)==rnd]
         if not rb: continue
         top=max(rb,key=lambda b: float(b.get('amount') or 0)); amount=float(top.get('amount') or 0); target=auction_target(item)
@@ -1588,6 +1615,87 @@ class H(SimpleHTTPRequestHandler):
                             if sn not in done: done.append(sn)
                         item['marketSoldSerials']=done; item['updated']=int(datetime.datetime.now().timestamp()*1000); save(items)
                 save_json(MARKET_REQUESTS,{'requests':a}); self.sendj({'ok':True,'request':row}); return
+            if p=='/api/auction/cancel':
+                iid=str(d.get('id') or '').strip(); reason=str(d.get('reason') or '').strip()
+                items=load(); item=next((x for x in items if str(x.get('id'))==iid),None)
+                if not item: self.sendj({'ok':False,'error':'المزاد غير موجود'},404); return
+                if not (item.get('forAuction') and item.get('auctionApproved')): self.sendj({'ok':False,'error':'المزاد غير نشط أو غير معتمد'},409); return
+                if str(item.get('auctionOutcome') or '')=='sold': self.sendj({'ok':False,'error':'المزاد الناجح لا يُلغى؛ استخدم الاستثناء الموثق'},409); return
+                try:
+                    enddt=datetime.datetime.fromisoformat(str(item.get('auctionEnd') or ''))
+                    if enddt<=datetime.datetime.now(): self.sendj({'ok':False,'error':'المزاد منتهٍ بالفعل'},409); return
+                except Exception: pass
+                rnd=int(item.get('auctionRound') or 1); round_bids=[b for b in load_bids() if str(b.get('itemId'))==iid and int(b.get('auctionRound') or 1)==rnd]
+                if round_bids and not reason: self.sendj({'ok':False,'error':'سبب الإلغاء مطلوب عند وجود مزايدات'},400); return
+                if not reason: reason='إلغاء إداري قبل وجود مزايدات'
+                now=datetime.datetime.now(); nowiso=now.isoformat(); notified=set()
+                for b in round_bids:
+                    pid=str(b.get('participantId') or '')
+                    if pid and pid not in notified:
+                        add_notification('participant',pid,'auction','⛔ تم إلغاء المزاد',f"تم إلغاء مزاد {item_title(item)} من الإدارة. السبب: {reason}. جميع المزايدات في الجولة أُغلقت دون بيع.",iid,'/auction'); notified.add(pid)
+                history=list(item.get('auctionHistory') or [])
+                history.append({'round':rnd,'event':'cancelled_by_admin','reason':reason,'bidCount':len(round_bids),'finalPrice':item.get('auctionCurrentPrice',0),'at':nowiso})
+                item['auctionHistory']=history; item['auctionOutcome']='cancelled'; item['auctionCancelReason']=reason; item['auctionCancelledAt']=nowiso
+                item['auctionApproved']=False; item['forAuction']=False; item['forMarket']=False; item['marketApproved']=False
+                item['adminLocation']='warehouse'; item['inWarehouse']=True; item['warehouseAvailable']=True; item['locationUpdatedAt']=nowiso; item['updated']=int(now.timestamp()*1000)
+                save(items); append_operation('إلغاء مزاد نشط',{'itemId':iid,'auctionRound':rnd,'reason':reason,'bidCount':len(round_bids),'notifiedCount':len(notified)})
+                add_notification('admin','','auction','⛔ تم إلغاء المزاد',f"{item_title(item)} — {reason}",iid,'/admin')
+                self.sendj({'ok':True,'item':item,'bidCount':len(round_bids),'notifiedCount':len(notified)}); return
+            if p=='/api/auction/quick-edit':
+                iid=str(d.get('id') or '').strip(); items=load(); item=next((x for x in items if str(x.get('id'))==iid),None)
+                if not item: self.sendj({'ok':False,'error':'المزاد غير موجود'},404); return
+                if not (item.get('forAuction') and item.get('auctionApproved')): self.sendj({'ok':False,'error':'المقتنى ليس في مزاد نشط معتمد'},409); return
+                if str(item.get('auctionOutcome') or '')=='sold': self.sendj({'ok':False,'error':'المزاد الناجح مغلق ولا يمكن تعديل جولته'},409); return
+                old_end=str(item.get('auctionEnd') or '').strip()
+                try: old_end_dt=datetime.datetime.fromisoformat(old_end) if old_end else None
+                except Exception: old_end_dt=None
+                now=datetime.datetime.now()
+                if old_end_dt and old_end_dt<=now: self.sendj({'ok':False,'error':'انتهت الجولة بالفعل؛ استخدم إجراءات المزادات المنتهية'},409); return
+                new_end=str(d.get('auctionEnd') or '').strip()
+                if not new_end: self.sendj({'ok':False,'error':'موعد انتهاء المزاد مطلوب'},400); return
+                try: new_end_dt=datetime.datetime.fromisoformat(new_end)
+                except Exception: self.sendj({'ok':False,'error':'صيغة موعد انتهاء المزاد غير صحيحة'},400); return
+                if new_end_dt<=now: self.sendj({'ok':False,'error':'موعد انتهاء المزاد الجديد يجب أن يكون في المستقبل'},409); return
+                try: step=float(d.get('auctionBidStep'))
+                except Exception: step=0
+                if step<=0: self.sendj({'ok':False,'error':'قيمة الزيادة يجب أن تكون أكبر من صفر'},400); return
+                try: target=float(d.get('auctionTargetPrice'))
+                except Exception: target=-1
+                if target<0: self.sendj({'ok':False,'error':'حد البيع لا يمكن أن يكون سالبًا'},400); return
+                rnd=int(item.get('auctionRound') or 1); bids=load_bids(); round_bids=[b for b in bids if str(b.get('itemId'))==iid and int(b.get('auctionRound') or 1)==rnd]
+                opening=float(item.get('auctionOpeningPrice') or item.get('auctionStartPrice') or 0)
+                if 'auctionOpeningPrice' in d:
+                    try: requested_opening=float(d.get('auctionOpeningPrice') or 0)
+                    except Exception: requested_opening=-1
+                    if requested_opening<0: self.sendj({'ok':False,'error':'سعر الافتتاح لا يمكن أن يكون سالبًا'},400); return
+                    if round_bids and abs(requested_opening-opening)>1e-9: self.sendj({'ok':False,'error':'لا يمكن تغيير سعر الافتتاح بعد تسجيل أول مزايدة'},409); return
+                    opening=requested_opening
+                before={'auctionEnd':old_end,'auctionOpeningPrice':float(item.get('auctionOpeningPrice') or item.get('auctionStartPrice') or 0),'auctionBidStep':float(item.get('auctionBidStep') or 1),'auctionTargetPrice':float(item.get('auctionTargetPrice') if item.get('auctionTargetPrice') not in (None,'') else auction_target(item))}
+                item['auctionEnd']=new_end; item['auctionOpeningPrice']=opening; item['auctionBidStep']=step; item['auctionTargetPrice']=target; item['updated']=int(now.timestamp()*1000)
+                changes=[]
+                labels={'auctionEnd':'موعد الانتهاء','auctionOpeningPrice':'سعر الافتتاح','auctionBidStep':'قيمة الزيادة','auctionTargetPrice':'حد البيع'}
+                after={'auctionEnd':new_end,'auctionOpeningPrice':opening,'auctionBidStep':step,'auctionTargetPrice':target}
+                for k in after:
+                    if str(before.get(k))!=str(after.get(k)): changes.append(k)
+                history=item.get('auctionEditHistory') or []
+                if not isinstance(history,list): history=[]
+                history.append({'at':now.isoformat(),'round':rnd,'before':before,'after':after,'changed':changes,'bidCount':len(round_bids),'actor':'admin'})
+                item['auctionEditHistory']=history[-50:]
+                save(items)
+                notified=set()
+                if round_bids and changes:
+                    title=item_title(item)
+                    public_changes=[]
+                    if 'auctionEnd' in changes: public_changes.append('موعد انتهاء المزاد')
+                    if 'auctionBidStep' in changes: public_changes.append('قيمة الزيادة للمزايدات القادمة')
+                    if 'auctionTargetPrice' in changes: public_changes.append('إعدادات البيع الإدارية')
+                    msg='تم تحديث '+(' و'.join(public_changes) if public_changes else 'إعدادات المزاد')+f' في {title}. مزايداتك المسجلة محفوظة كما هي.'
+                    for b in round_bids:
+                        pid=str(b.get('participantId') or '')
+                        if pid and pid not in notified:
+                            add_notification('participant',pid,'auction','⚙️ تم تحديث إعدادات المزاد',msg,iid,'/auction#'+iid); notified.add(pid)
+                append_operation('تعديل مزاد نشط',{'itemId':iid,'round':rnd,'changed':changes,'before':before,'after':after,'bidCount':len(round_bids)})
+                self.sendj({'ok':True,'item':item,'changed':changes,'bidCount':len(round_bids),'notifiedCount':len(notified)}); return
             if p=='/api/auction/exception':
                 iid=str(d.get('id','')).strip(); reason=str(d.get('reason','')).strip(); note=str(d.get('note','')).strip()
                 allowed={'non_payment','bidder_withdrawal','winner_ineligible','admin_exception','other'}
