@@ -162,24 +162,17 @@ function adminMoveNotice(msg) {
 }
 
 
-// V4 Stage 4.1: controlled stock restoration for cancelled/returned orders.
+// V4 Stage 4.1 SAFETY: never increase the collectible's original quantity when an order is returned.
+// Returned stock is resolved by the server inventory ledger, which preserves the invariant:
+// current = warehouse + market + auction + reserved + returned.
 window.restoreOrderItemToWarehouse = async (itemId, qty=1) => {
-  const rows = await all(), old = rows.find(x => String(x.id) === String(itemId));
-  if (!old) throw new Error("المقتنى غير موجود");
-  const item = {...old};
   const q = Math.max(1, Number(qty || 1));
-  item.quantity = Math.max(Number(item.quantity || 0), Number(item.availableQuantity || 0)) + q;
-  item.availableQuantity = Number(item.availableQuantity || 0) + q;
-  item.reservedQuantity = Math.max(0, Number(item.reservedQuantity || 0) - q);
-  item.soldQuantity = Math.max(0, Number(item.soldQuantity || 0) - q);
-  item.forMarket = false; item.marketApproved = false;
-  item.forAuction = false; item.auctionApproved = false;
-  item.adminLocation = "warehouse";
-  item.locationUpdatedAt = new Date().toISOString();
-  item.updated = Date.now();
-  const saved = await put(item);
-  if (!saved?.saved || String(saved.saved.id) !== String(itemId)) throw new Error("لم يؤكد الخادم إعادة الرصيد");
-  return saved.saved;
+  const result = await api("/api/inventory/return-resolution", {
+    method: "POST",
+    body: JSON.stringify({ itemId, action: "warehouse", quantity: q })
+  });
+  await refresh(true);
+  return result;
 };
 
 window.moveAdminItem = async (id, target) => {
@@ -225,12 +218,18 @@ window.returnEndedAuctionToWarehouse = async (id) => {
   try {
     const rows = await all(), old = rows.find(x => String(x.id) === String(id));
     if (!old) throw new Error("المقتنى غير موجود");
-    if (old.sold || Number(old.soldQuantity || 0) >= Number(old.quantity || 1))
-      throw new Error("المزاد منتهي ببيع المقتنى؛ لا يمكن إعادته للمستودع من هذا المسار");
+    if (String(old.auctionOutcome || "") === "sold" || old.sold || Number(old.soldQuantity || 0) >= Number(old.quantity || 1))
+      throw new Error("المزاد ناجح ومغلق؛ لا يمكن إعادته للمستودع إلا بعد استثناء موثق قبل اكتمال البيع");
     const item = {...old};
+    // Returning an ended auction to the warehouse must also stop any stale market listing.
+    // This prevents the same physical collectible from remaining visible in two stock locations.
     item.forAuction = false;
     item.auctionApproved = false;
+    item.forMarket = false;
+    item.marketApproved = false;
     item.adminLocation = "warehouse";
+    item.inWarehouse = true;
+    item.warehouseAvailable = true;
     item.locationUpdatedAt = new Date().toISOString();
     item.updated = Date.now();
     const saved = await put(item);
@@ -730,7 +729,11 @@ function auctionCard(i) {
     i.gradingCertImage,
     ...(i.additionalImages || []),
   ].filter(Boolean);
-  return `<article class="item auction-item">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="openAdminAuctionImages('${i.id}',0)" title="اضغط لفتح عارض الصور" style="cursor:zoom-in"><span class="auction-state ${ended ? "ended" : "live"}">${ended ? "منتهي" : "نشط"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${i.auctionApproved ? "ok" : "pending"}">${i.auctionApproved ? "✓ معتمد" : "بانتظار الاعتماد"}</span></div><p class="auction-clock ${ended ? "ended" : ""}" data-end="${esc(i.auctionEnd || "")}">${esc(left || "بدون وقت انتهاء")}</p><div class="auction-admin-metrics"><div><span>السعر الحالي</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>قيمة الزيادة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع • إدارة فقط</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div><p class="round-chip">الجولة ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل</button>${ended ? `<button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة المزاد</button>${!(i.sold || Number(i.soldQuantity||0) >= Number(i.quantity||1)) ? `<button class="ghost" onclick="returnEndedAuctionToWarehouse('${i.id}')">إعادة للمستودع</button>` : ""}` : ""}<a class="public-link" href="/auction#${i.id}" target="_blank">مشاركة</a></div><div class="bid-list" id="bids-${i.id}" data-round="${Number(i.auctionRound || 1)}"></div></div></article>`;
+  let successfulClosed = ended && endedAuctionSuccessful(i), exception = ended && endedAuctionException(i);
+  let endedActions = successfulClosed
+    ? `<button class="danger-outline" onclick="openAuctionException('${i.id}')">استثناء</button>`
+    : `<button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة المزاد</button><button class="ghost" onclick="returnEndedAuctionToWarehouse('${i.id}')">إعادة للمستودع</button>`;
+  return `<article class="item auction-item ${successfulClosed ? "successful-locked" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="openAdminAuctionImages('${i.id}',0)" title="اضغط لفتح عارض الصور" style="cursor:zoom-in"><span class="auction-state ${successfulClosed ? "sold" : exception ? "exception" : ended ? "ended" : "live"}">${successfulClosed ? "ناجح — مغلق" : exception ? "استثناء" : ended ? "منتهي" : "نشط"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${successfulClosed ? "ok" : i.auctionApproved ? "ok" : "pending"}">${successfulClosed ? "🏆 مزاد ناجح" : i.auctionApproved ? "✓ معتمد" : "بانتظار الاعتماد"}</span></div><p class="auction-clock ${ended ? "ended" : ""}" data-end="${esc(i.auctionEnd || "")}">${esc(left || "بدون وقت انتهاء")}</p><div class="auction-admin-metrics"><div><span>السعر الحالي</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>قيمة الزيادة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع • إدارة فقط</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${successfulClosed ? '<p class="sold-order-note">🔒 أُغلق المزاد بنجاح؛ لا عودة ولا إعادة مزايدة إلا باستثناء موثق.</p>' : ""}<p class="round-chip">الجولة ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض</button>${!successfulClosed ? `<button class="ghost" onclick="editItem('${i.id}')">✎ تعديل</button>` : ""}${ended ? endedActions : ""}<a class="public-link" href="/auction#${i.id}" target="_blank">مشاركة</a></div><div class="bid-list" id="bids-${i.id}" data-round="${Number(i.auctionRound || 1)}"></div></div></article>`;
 }
 
 function endedReserveReached(i) {
@@ -739,10 +742,34 @@ function endedReserveReached(i) {
     Number(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)
   );
 }
+function endedAuctionSuccessful(i) {
+  // The server outcome is the authoritative result because the reserve price may be edited later.
+  return String(i.auctionOutcome || "") === "sold";
+}
+function endedAuctionException(i) {
+  return String(i.auctionOutcome || "") === "exception" || !!i.auctionExceptionAt;
+}
+function auctionExceptionLabel(reason) {
+  return ({
+    non_payment: "عدم الدفع",
+    bidder_withdrawal: "انسحاب المزايد",
+    winner_ineligible: "عدم أهلية الفائز",
+    admin_exception: "استثناء إداري",
+    other: "سبب آخر",
+  })[String(reason || "")] || "استثناء مسجل";
+}
 function endedAuctionCard(i) {
-  let reached = endedReserveReached(i),
-    sold = reached && Number(i.auctionCurrentPrice || 0) > 0;
-  return `<article class="item auction-item ended-admin-card ${sold ? "sold-ended" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="detail('${i.id}')"><span class="auction-state ${sold ? "sold" : "ended"}">${sold ? "✓ تم البيع / فائز" : "انتهى دون بيع"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${sold ? "ok" : "pending"}">${sold ? "🏆 مزاد ناجح" : "دون حد البيع"}</span></div><p class="ended-date">انتهى: ${esc(i.auctionEnd || "—")}</p><div class="auction-admin-metrics"><div><span>آخر سعر</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح السابق</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>الزيادة السابقة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع السابق</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${sold ? '<p class="sold-order-note">✓ مزاد ناجح — ينشأ طلب الفائز تلقائيًا في الطلبات والشحن.</p>' : ""}<p class="round-chip">الجولة المنتهية ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض السجل</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button><button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة إدراج</button></div></div></article>`;
+  let sold = endedAuctionSuccessful(i),
+    exception = endedAuctionException(i),
+    reached = endedReserveReached(i);
+  let stateText = sold ? "✓ مزاد ناجح" : exception ? "⚠ استثناء مسجل" : "انتهى دون بيع";
+  let stateClass = sold ? "sold" : exception ? "exception" : "ended";
+  let chipText = sold ? "🏆 ناجح — مغلق" : exception ? "⚠ قابل لإعادة الإدراج" : reached ? "بلغ حد البيع دون إرساء" : "دون حد البيع";
+  let exceptionNote = exception ? `<p class="auction-exception-note"><b>الاستثناء:</b> ${esc(auctionExceptionLabel(i.auctionExceptionReason))}${i.auctionExceptionNote ? ` — ${esc(i.auctionExceptionNote)}` : ""}${i.auctionExceptionAt ? `<br><small>${new Date(i.auctionExceptionAt).toLocaleString("ar-SA")}</small>` : ""}</p>` : "";
+  let actions = sold
+    ? `<button onclick="detail('${i.id}')">عرض السجل</button><button class="danger-outline" onclick="openAuctionException('${i.id}')">استثناء</button>`
+    : `<button onclick="detail('${i.id}')">عرض السجل</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button><button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة إدراج</button>`;
+  return `<article class="item auction-item ended-admin-card ${sold ? "sold-ended successful-locked" : exception ? "exception-ended" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="detail('${i.id}')"><span class="auction-state ${stateClass}">${stateText}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${sold ? "ok" : exception ? "warning" : "pending"}">${chipText}</span></div><p class="ended-date">انتهى: ${esc(i.auctionEnd || "—")}</p><div class="auction-admin-metrics"><div><span>آخر سعر</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح السابق</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>الزيادة السابقة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع السابق</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${sold ? '<p class="sold-order-note">🔒 مزاد ناجح نهائي — لا عودة للمستودع ولا إعادة مزايدة. الاستثناء فقط للحالات الموثقة قبل اكتمال البيع.</p>' : ""}${exceptionNote}<p class="round-chip">الجولة المنتهية ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions">${actions}</div></div></article>`;
 }
 async function renderEndedAuctions(a) {
   a = a || (await all());
@@ -753,12 +780,13 @@ async function renderEndedAuctions(a) {
   let ended = a.filter(
     (i) => i.forAuction && auctionText(i.auctionEnd) === "انتهى المزاد",
   );
-  let reached = ended.filter(endedReserveReached),
-    below = ended.filter((i) => !endedReserveReached(i));
+  let successful = ended.filter(endedAuctionSuccessful),
+    exceptions = ended.filter(endedAuctionException),
+    unsuccessful = ended.filter((i) => !endedAuctionSuccessful(i) && !endedAuctionException(i));
   if ($("endedPageCount")) $("endedPageCount").textContent = ended.length;
-  if ($("endedReachedTarget"))
-    $("endedReachedTarget").textContent = reached.length;
-  if ($("endedBelowTarget")) $("endedBelowTarget").textContent = below.length;
+  if ($("endedReachedTarget")) $("endedReachedTarget").textContent = successful.length;
+  if ($("endedBelowTarget")) $("endedBelowTarget").textContent = unsuccessful.length;
+  if ($("endedExceptionCount")) $("endedExceptionCount").textContent = exceptions.length;
   if ($("endedAuctionsBadge")) {
     $("endedAuctionsBadge").textContent = ended.length;
     $("endedAuctionsBadge").hidden = !ended.length;
@@ -766,8 +794,9 @@ async function renderEndedAuctions(a) {
   let rows = ended.filter(
     (i) =>
       (f === "all" ||
-        (f === "reached" && endedReserveReached(i)) ||
-        (f === "below" && !endedReserveReached(i))) &&
+        (f === "successful" && endedAuctionSuccessful(i)) ||
+        (f === "unsuccessful" && !endedAuctionSuccessful(i) && !endedAuctionException(i)) ||
+        (f === "exceptions" && endedAuctionException(i))) &&
       (!q || JSON.stringify(i).toLowerCase().includes(q)),
   );
   rows.sort((a, b) =>
@@ -2708,6 +2737,52 @@ if ($("printMarketVisitorQr"))
 if ($("printAuctionVisitorQr"))
   $("printAuctionVisitorQr").onclick = () => printVisitorQr("auction");
 refreshVisitorQrLinks();
+
+window.openAuctionException = async (id) => {
+  let i = (await all()).find((x) => String(x.id) === String(id));
+  if (!i) return;
+  $("auctionExceptionItemId").value = id;
+  $("auctionExceptionReason").value = "non_payment";
+  $("auctionExceptionNote").value = "";
+  $("auctionExceptionStatus").textContent =
+    "سيبقى سجل الجولة والفائز محفوظين، ويُفتح المقتنى لإعادة الإدراج فقط بعد اعتماد الاستثناء.";
+  $("auctionExceptionDlg").showModal();
+};
+if ($("closeAuctionException"))
+  $("closeAuctionException").onclick = () => $("auctionExceptionDlg").close();
+if ($("auctionExceptionForm"))
+  $("auctionExceptionForm").onsubmit = async (ev) => {
+    ev.preventDefault();
+    let reason = $("auctionExceptionReason").value,
+      note = $("auctionExceptionNote").value.trim(),
+      st = $("auctionExceptionStatus"),
+      btn = ev.submitter;
+    if (reason === "other" && !note) {
+      st.textContent = "اكتب سبب الاستثناء عند اختيار «سبب آخر».";
+      return;
+    }
+    try {
+      if (btn) btn.disabled = true;
+      st.textContent = "جارٍ اعتماد الاستثناء وتوثيق العملية...";
+      await api("/api/auction/exception", {
+        method: "POST",
+        body: JSON.stringify({
+          id: $("auctionExceptionItemId").value,
+          reason,
+          note,
+        }),
+      });
+      st.textContent = "✓ تم اعتماد الاستثناء وحفظه في سجل المزاد.";
+      lastDataToken = "";
+      await refresh(true);
+      await renderEndedAuctions();
+      setTimeout(() => $("auctionExceptionDlg").close(), 650);
+    } catch (e) {
+      st.textContent = e.message || "تعذر اعتماد الاستثناء.";
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
 
 // V2.1 إعادة المزاد: جولة مستقلة تحفظ سجل الجولة السابقة ولا تخلط مزايداتها بالجولة الجديدة.
 function localDateTimeValue(d) {

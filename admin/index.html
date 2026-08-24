@@ -988,9 +988,9 @@
             <div>
               <h2>♻️ المزادات المنتهية</h2>
               <p class="muted">
-                تجتمع هنا جميع المزادات التي انتهى وقتها. يمكنك تعديل أسعار
-                الجولة الجديدة ثم إعادة إدراجها مع بقاء سجل الجولة السابقة
-                محفوظًا.
+                المزاد الناجح يُغلق نهائيًا ولا يعود للمستودع أو المزايدة.
+                لا يُفتح إلا باستثناء موثق قبل اكتمال البيع، مثل عدم الدفع أو انسحاب الفائز.
+                أما المزاد الذي انتهى دون بيع فيمكن إعادة إدراجه مع بقاء سجل الجولة السابقة محفوظًا.
               </p>
             </div>
             <button type="button" id="refreshEndedAuctions" class="ghost">
@@ -1002,10 +1002,13 @@
               <span>إجمالي المنتهية</span><b id="endedPageCount">0</b>
             </article>
             <article>
-              <span>بلغت حد البيع</span><b id="endedReachedTarget">0</b>
+              <span>مزادات ناجحة مغلقة</span><b id="endedReachedTarget">0</b>
             </article>
             <article>
-              <span>دون حد البيع</span><b id="endedBelowTarget">0</b>
+              <span>انتهت دون بيع</span><b id="endedBelowTarget">0</b>
+            </article>
+            <article>
+              <span>استثناءات</span><b id="endedExceptionCount">0</b>
             </article>
           </div>
           <div class="ended-toolbar">
@@ -1014,8 +1017,9 @@
               placeholder="بحث بالدولة أو الفئة أو الرقم..."
             /><select id="endedAuctionFilter">
               <option value="all">جميع المزادات</option>
-              <option value="reached">بلغت حد البيع</option>
-              <option value="below">دون حد البيع</option>
+              <option value="successful">المزادات الناجحة المغلقة</option>
+              <option value="unsuccessful">انتهت دون بيع</option>
+              <option value="exceptions">الاستثناءات</option>
             </select>
           </div>
           <div id="endedAuctionItems" class="grid ended-auction-grid"></div>
@@ -1614,6 +1618,28 @@
     <dialog id="dlg">
       <button id="close">×</button>
       <div id="details"></div>
+    </dialog>
+    <dialog id="auctionExceptionDlg">
+      <form method="dialog" class="dialog-card" id="auctionExceptionForm">
+        <h3>⚠ استثناء مزاد ناجح</h3>
+        <p class="muted">يستخدم فقط قبل اكتمال البيع. سيُلغى حجز الفائز والطلب غير المسدد مع حفظ السبب في سجل المزاد.</p>
+        <input id="auctionExceptionItemId" type="hidden" />
+        <label>سبب الاستثناء
+          <select id="auctionExceptionReason" required>
+            <option value="non_payment">عدم الدفع</option>
+            <option value="bidder_withdrawal">انسحاب المزايد</option>
+            <option value="winner_ineligible">عدم أهلية الفائز</option>
+            <option value="admin_exception">استثناء إداري</option>
+            <option value="other">سبب آخر</option>
+          </select>
+        </label>
+        <label>ملاحظة / توضيح<textarea id="auctionExceptionNote" rows="3" placeholder="اختياري، ويصبح مطلوبًا عند اختيار سبب آخر"></textarea></label>
+        <div class="actions">
+          <button type="submit" class="danger-outline">اعتماد الاستثناء</button>
+          <button type="button" id="closeAuctionException" class="ghost">إلغاء</button>
+        </div>
+        <p id="auctionExceptionStatus" class="muted"></p>
+      </form>
     </dialog>
     <dialog id="relaunchDlg">
       <button type="button" id="closeRelaunch">×</button>
