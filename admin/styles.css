@@ -6139,3 +6139,118 @@ main {
 .auction-quick-edit-btn{background:#b8892f!important;color:#fff!important;border-color:#9a711f!important}
 @media(max-width:650px){#auctionItems.grid,#endedAuctionItems.grid{grid-template-columns:1fr 1fr!important}}
 @media(max-width:420px){#auctionItems.grid,#endedAuctionItems.grid{grid-template-columns:1fr!important}}
+
+
+/* V4.4.8 — Admin navigation: deliberate two-level hierarchy.
+   This block is the final authority for the top navigation and prevents
+   legacy nav rules from compressing all admin destinations into one row. */
+nav.admin-nav{
+  position:sticky!important;
+  top:0!important;
+  z-index:40!important;
+  display:block!important;
+  width:100%!important;
+  padding:0!important;
+  overflow:visible!important;
+  background:#f8fafc!important;
+  border-bottom:1px solid #d6deea!important;
+  box-shadow:0 4px 14px #071b3512!important;
+}
+nav.admin-nav .admin-nav-row{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:7px!important;
+  width:100%!important;
+  margin:0!important;
+}
+nav.admin-nav .admin-nav-primary{
+  padding:8px clamp(10px,2vw,26px)!important;
+  background:#ffffff!important;
+  border-bottom:1px solid #e4e9f0!important;
+}
+nav.admin-nav .admin-nav-secondary{
+  padding:6px clamp(10px,2vw,26px)!important;
+  background:#f4f6f9!important;
+}
+nav.admin-nav button,
+nav.admin-nav a{
+  flex:0 0 auto!important;
+  width:auto!important;
+  min-width:0!important;
+  min-height:34px!important;
+  margin:0!important;
+  padding:7px 11px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:5px!important;
+  border-radius:8px!important;
+  font-size:12.5px!important;
+  line-height:1.15!important;
+  font-weight:800!important;
+  white-space:nowrap!important;
+  text-align:center!important;
+  text-decoration:none!important;
+}
+nav.admin-nav .admin-nav-primary button{
+  color:#17334f!important;
+  background:#fff!important;
+  border:1px solid #dce3ec!important;
+}
+nav.admin-nav .admin-nav-secondary button,
+nav.admin-nav .admin-nav-secondary a{
+  color:#40546a!important;
+  background:transparent!important;
+  border:1px solid transparent!important;
+}
+nav.admin-nav button.active{
+  color:#fff!important;
+  background:#071b35!important;
+  border-color:#c9972f!important;
+  box-shadow:inset 0 -2px 0 #c9972f!important;
+}
+nav.admin-nav .nav-badge{
+  position:static!important;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:19px!important;
+  height:19px!important;
+  padding:0 5px!important;
+  margin:0!important;
+  border-radius:999px!important;
+  background:#a72d35!important;
+  color:#fff!important;
+  font-size:10px!important;
+  line-height:19px!important;
+  font-weight:900!important;
+}
+nav.admin-nav .nav-badge[hidden]{display:none!important}
+nav.admin-nav .site-home-link{
+  color:#17334f!important;
+  border-color:#c9972f!important;
+  background:#fffaf0!important;
+}
+nav.admin-nav .admin-logout-link{
+  color:#7d1f2b!important;
+  border-color:#e7c8cd!important;
+  background:#fff!important;
+}
+@media(max-width:900px){
+  nav.admin-nav{position:relative!important}
+  nav.admin-nav .admin-nav-row{
+    justify-content:flex-start!important;
+    flex-wrap:nowrap!important;
+    overflow-x:auto!important;
+    scrollbar-width:thin;
+    -webkit-overflow-scrolling:touch;
+  }
+  nav.admin-nav button,
+  nav.admin-nav a{
+    width:auto!important;
+    min-width:max-content!important;
+    white-space:nowrap!important;
+  }
+}
