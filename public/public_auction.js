@@ -31,17 +31,14 @@ function card(i){
         <img id="cover-${i.id}" src="${esc(i.frontImg||i.backImg)}" data-cover-index="0" onclick="openAuctionLightbox('${i.id}',Number(this.dataset.coverIndex||0))" alt="${esc(i.country)} — ${esc(i.denomination)}">
         <button class="cover-arrow cover-next" type="button" onclick="event.stopPropagation();shiftAuctionCover('${i.id}',1)" aria-label="الصورة التالية">›</button>
         <span class="cover-count" id="cover-count-${i.id}">1/${auctionImageGroups[i.id].length}</span>
+        <div class="auction-image-identity">
+          <div class="image-status">${statusChip}${transitionChip}</div>
+          <div class="image-title">${esc(i.country)} — ${esc(i.denomination)}</div>
+          ${(i.year||i.condition)?`<div class="image-meta">${esc(i.year||'')} ${i.condition?`| ${esc(i.condition)}`:''}</div>`:''}
+        </div>
       </div>`:''}
     </div>
     <div class="body clean-card-body">
-      <div class="clean-title-row">
-        <div class="clean-title">
-          <h2>${esc(i.country)} — ${esc(i.denomination)}</h2>
-          <p>${esc(i.year||'')} ${i.condition?`| ${esc(i.condition)}`:''}</p>
-        </div>
-        <div class="status-stack">${statusChip}${transitionChip}</div>
-      </div>
-
       <div class="clean-countdown">
         <span>الوقت المتبقي</span>
         <strong class="auction-clock" data-end="${esc(i.auctionEnd||'')}">${ended?'انتهى المزاد':esc(clock(i.auctionEnd))}</strong>
