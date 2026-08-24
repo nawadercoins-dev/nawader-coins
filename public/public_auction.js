@@ -48,7 +48,9 @@ function card(i){
 
       <div class="auction-info-column">
         <div class="info-status-row">${statusChip}${transitionChip}</div>
-        <h2>${esc(i.country)} — ${esc(i.denomination)}</h2>
+        <div class="auction-title-marquee" title="${esc(i.country)} — ${esc(i.denomination)}">
+          <div class="auction-title-track">${esc(i.country)} — ${esc(i.denomination)}</div>
+        </div>
         <div class="info-meta">${esc(i.year||'')}${i.year&&gradeState?' · ':''}${gradeState}</div>
         <div class="info-price ${reserveClass}">
           <span>السعر الحالي</span>
@@ -103,7 +105,24 @@ window.updateSwipeAmount=id=>{let input=$('amt-'+id),el=$('swipe-'+id),next=$('n
 function initPublicViewers(){document.querySelectorAll('.public-photo').forEach(box=>{if(box.dataset.ready)return;box.dataset.ready='1';let img=box.querySelector('img'),st={scale:1,rot:0,x:0,y:0,drag:false,sx:0,sy:0};let draw=()=>img.style.transform=`translate(${st.x}px,${st.y}px) scale(${st.scale}) rotate(${st.rot}deg)`;let openLarge=()=>window.openAuctionLightbox?.(img.dataset.auctionGroup,Number(img.dataset.auctionIndex||0));let tools=document.querySelector(`.public-photo-tools[data-target="${box.id}"]`);tools?.querySelectorAll('button').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();let a=b.dataset.act;if(a==='open'){openLarge();return}if(a==='zin'){openLarge();return}if(a==='zout')st.scale=Math.max(.25,st.scale-.25);if(a==='rl')st.rot-=90;if(a==='rr')st.rot+=90;if(a==='reset')Object.assign(st,{scale:1,rot:0,x:0,y:0});draw()});box.ondblclick=e=>{e.preventDefault();openLarge()};box.onpointerdown=e=>{st.drag=true;st.sx=e.clientX-st.x;st.sy=e.clientY-st.y;box.setPointerCapture(e.pointerId)};box.onpointermove=e=>{if(!st.drag)return;st.x=e.clientX-st.sx;st.y=e.clientY-st.sy;draw()};box.onpointerup=box.onpointercancel=()=>{st.drag=false}})}
 let auctionRenderToken='',initialAuctionLoad=true,hashHandled=false,auctionAllItems=[],auctionEndingOnly=false;
 function auctionMatches(i){let q=($('auctionSearch')?.value||'').trim().toLowerCase();if(q&&!JSON.stringify([i.country,i.denomination,i.year,i.condition,i.notes]).toLowerCase().includes(q))return false;if(auctionEndingOnly){let t=new Date(i.auctionEnd||0).getTime()-Date.now();return !i.auctionEnded&&t>0&&t<=6*3600000}return true}
-function renderAuctionDiscovery(){let a=auctionAllItems.filter(auctionMatches);$('publicAuctions').innerHTML=a.map(card).join('')||'<div class="panel"><h2>لا توجد مزادات مطابقة.</h2></div>';initPublicViewers();initSwipes();let soon=auctionAllItems.filter(i=>{let t=new Date(i.auctionEnd||0).getTime()-Date.now();return !i.auctionEnded&&t>0&&t<=6*3600000}).sort((x,y)=>new Date(x.auctionEnd)-new Date(y.auctionEnd));let strip=$('endingSoonStrip');if(strip){strip.hidden=!soon.length;strip.innerHTML=soon.slice(0,6).map(i=>`<button onclick="document.getElementById('${i.id}')?.scrollIntoView({behavior:'smooth',block:'center'})"><b>${esc(i.country)} — ${esc(i.denomination)}</b><small>${esc(clock(i.auctionEnd))}</small></button>`).join('')}}
+
+function initAuctionTitleMarquees(){
+  document.querySelectorAll('.auction-title-marquee').forEach(box=>{
+    const track=box.querySelector('.auction-title-track');
+    if(!track)return;
+    box.classList.remove('is-overflowing');
+    track.style.removeProperty('--marquee-distance');
+    requestAnimationFrame(()=>{
+      const overflow=Math.max(0,track.scrollWidth-box.clientWidth);
+      if(overflow>8){
+        track.style.setProperty('--marquee-distance',`-${overflow+18}px`);
+        box.classList.add('is-overflowing');
+      }
+    });
+  });
+}
+
+function renderAuctionDiscovery(){let a=auctionAllItems.filter(auctionMatches);$('publicAuctions').innerHTML=a.map(card).join('')||'<div class="panel"><h2>لا توجد مزادات مطابقة.</h2></div>';initPublicViewers();initSwipes();initAuctionTitleMarquees();let soon=auctionAllItems.filter(i=>{let t=new Date(i.auctionEnd||0).getTime()-Date.now();return !i.auctionEnded&&t>0&&t<=6*3600000}).sort((x,y)=>new Date(x.auctionEnd)-new Date(y.auctionEnd));let strip=$('endingSoonStrip');if(strip){strip.hidden=!soon.length;strip.innerHTML=soon.slice(0,6).map(i=>`<button onclick="document.getElementById('${i.id}')?.scrollIntoView({behavior:'smooth',block:'center'})"><b>${esc(i.country)} — ${esc(i.denomination)}</b><small>${esc(clock(i.auctionEnd))}</small></button>`).join('')}}
 function auctionToken(a){return a.map(i=>[i.id,i.auctionRound,i.auctionCurrentPrice,i.auctionEnd,i.auctionApproved,i.negotiationEnabled,i.negotiationPercent,i.reserveState,i.auctionEnded,i.auctionSold,i.updated].join(':')).join('|')}async function load(){try{let r=await api('/api/public/auctions'),a=r.items||[],token=auctionToken(a);auctionAllItems=a;if(initialAuctionLoad||token!==auctionRenderToken){let y=window.scrollY;auctionRenderToken=token;renderAuctionDiscovery();if(!hashHandled&&location.hash){hashHandled=true;requestAnimationFrame(()=>{let el=document.querySelector(location.hash);if(el)el.scrollIntoView({block:'start'})})}else if(!initialAuctionLoad){requestAnimationFrame(()=>window.scrollTo({top:y,left:0,behavior:'auto'}))}}initialAuctionLoad=false}catch(e){console.warn('تعذر تحديث المزادات مؤقتًا',e);if(initialAuctionLoad){$('publicAuctions').innerHTML='<div class="panel">تعذر الاتصال بالمزاد مؤقتًا. سيتم إعادة المحاولة تلقائيًا.</div>'}}}
 window.toggleAuctionReaction=(meta,kind,btn)=>{let on=kind==='like'?NawaderVisitor.toggleLike(meta):NawaderVisitor.toggleFavorite(meta);btn.classList.toggle('on',on);btn.querySelector('span').textContent=kind==='like'?(on?'معجب':'إعجاب'):(on?'في المفضلة':'مفضلة')};
 window.resetSwipe=id=>{let el=$('swipe-'+id);if(!el)return;let h=el.querySelector('.swipe-handle');h.style.transform='translateX(0)';el.classList.remove('ready','disabled')};
