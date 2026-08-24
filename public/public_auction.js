@@ -35,6 +35,11 @@ function card(i){
           <button class="cover-arrow cover-next" type="button" onclick="event.stopPropagation();shiftAuctionCover('${i.id}',1)" aria-label="الصورة التالية">›</button>
           <span class="cover-count" id="cover-count-${i.id}">1/${auctionImageGroups[i.id].length}</span>
         </div>`:'<div class="auction-cover no-photo">لا توجد صورة</div>'}
+        <div class="image-social-actions">
+          <button class="${liked?'on':''}" onclick='toggleAuctionReaction(${JSON.stringify(meta)},"like",this)'>👍 <span>${liked?'معجب':'إعجاب'}</span></button>
+          <button class="${fav?'on':''}" onclick='toggleAuctionReaction(${JSON.stringify(meta)},"favorite",this)'>❤️ <span>${fav?'في المفضلة':'مفضلة'}</span></button>
+          <button onclick="shareAuctionItem('${i.id}')">↗ <span>مشاركة</span></button>
+        </div>
       </div>
 
       <div class="auction-info-column">
@@ -70,11 +75,6 @@ function card(i){
       ${i.notes?`<p class="auction-notes">${esc(i.notes)}</p>`:''}
       <div class="clean-bid-area">${bidControls}</div>
 
-      <div class="clean-actions">
-        <button class="${liked?'on':''}" onclick='toggleAuctionReaction(${JSON.stringify(meta)},"like",this)'>👍 <span>${liked?'معجب':'إعجاب'}</span></button>
-        <button class="${fav?'on':''}" onclick='toggleAuctionReaction(${JSON.stringify(meta)},"favorite",this)'>❤️ <span>${fav?'في المفضلة':'مفضلة'}</span></button>
-        <button onclick="shareAuctionItem('${i.id}')">↗ <span>مشاركة</span></button>
-      </div>
     </div>
   </article>`
 }

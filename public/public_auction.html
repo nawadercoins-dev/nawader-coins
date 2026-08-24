@@ -677,6 +677,96 @@
   .info-mini-grid b{font-size:.61rem!important}
 }
 
+
+
+/* V4.4.4 — compact image column + social row directly below image */
+.auction-top-grid{
+  grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr)!important;
+  align-items:stretch!important;
+}
+.auction-image-column{
+  display:flex!important;
+  flex-direction:column!important;
+  background:#07111f!important;
+}
+.auction-image-column .auction-cover,
+.auction-image-column .auction-cover>img{
+  height:118px!important;
+  min-height:118px!important;
+}
+.auction-image-column .auction-cover{
+  flex:0 0 auto!important;
+}
+.image-social-actions{
+  display:grid!important;
+  grid-template-columns:repeat(3,1fr)!important;
+  gap:4px!important;
+  padding:6px!important;
+  background:#0b1d32!important;
+  border-top:1px solid #d1aa5544!important;
+}
+.image-social-actions button{
+  min-width:0!important;
+  padding:5px 3px!important;
+  border-radius:7px!important;
+  background:#102a47!important;
+  color:#fff!important;
+  border:1px solid #2a4c6d!important;
+  font-size:.6rem!important;
+  line-height:1!important;
+}
+.image-social-actions button.on{
+  background:#9a741f!important;
+  border-color:#b88c32!important;
+}
+.image-social-actions button span{
+  font-size:.57rem!important;
+}
+.auction-info-column{
+  padding:9px 10px!important;
+}
+.auction-info-column h2{
+  font-size:.95rem!important;
+}
+.info-price{
+  margin-top:6px!important;
+  padding:6px 7px!important;
+}
+.info-mini-grid{
+  margin-top:5px!important;
+  gap:3px!important;
+}
+.info-mini-grid>div{
+  padding:4px!important;
+}
+.auction-lower{
+  padding-top:7px!important;
+}
+.clean-actions{
+  display:none!important;
+}
+@media(max-width:620px){
+  .auction-top-grid{
+    grid-template-columns:1.05fr .95fr!important;
+  }
+  .auction-image-column .auction-cover,
+  .auction-image-column .auction-cover>img{
+    height:108px!important;
+    min-height:108px!important;
+  }
+  .image-social-actions{
+    padding:4px!important;
+    gap:3px!important;
+  }
+  .image-social-actions button{
+    padding:4px 2px!important;
+    font-size:.55rem!important;
+  }
+  .image-social-actions button span{
+    display:none!important;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -686,5 +776,5 @@
 <section class="panel auction-discovery"><div class="auction-search-row"><input id="auctionSearch" type="search" placeholder="🔎 ابحث بالدولة أو الفئة أو السنة أو الوصف"><button id="endingSoonBtn" type="button" class="ending-soon-btn">⏳ مزادات قاربت على الانتهاء</button><button id="allAuctionsBtn" type="button" class="all-auctions-btn">كل المزادات</button></div><div id="endingSoonStrip" class="ending-soon-strip" hidden></div></section>
 <div id="publicAuctions"></div>
 </main>
-<dialog id="auctionLightbox" class="auction-lightbox" aria-label="عارض صور المزاد"><button id="auctionLightboxClose" class="auction-lightbox-close" aria-label="إغلاق العارض">×</button><div class="auction-lightbox-toolbar"><button data-alb="prev">‹ السابق</button><button data-alb="zin">＋ تكبير</button><button data-alb="zout">− تصغير</button><button data-alb="rl">↺ تدوير</button><button data-alb="rr">↻ تدوير</button><button data-alb="center">◎ توسيط</button><button data-alb="reset">100%</button><button data-alb="full">⛶ ملء الشاشة</button><button data-alb="next">التالي ›</button></div><div id="auctionLightboxStage" class="auction-lightbox-stage"><img id="auctionLightboxImg" alt="صورة المقتنى في المزاد"></div><div id="auctionLightboxCount" class="auction-lightbox-count"></div></dialog><script src="/visitor.js?v=4.0.25.4"></script><script src="public_auction.js?v=4.4.3-two-column"></script>
+<dialog id="auctionLightbox" class="auction-lightbox" aria-label="عارض صور المزاد"><button id="auctionLightboxClose" class="auction-lightbox-close" aria-label="إغلاق العارض">×</button><div class="auction-lightbox-toolbar"><button data-alb="prev">‹ السابق</button><button data-alb="zin">＋ تكبير</button><button data-alb="zout">− تصغير</button><button data-alb="rl">↺ تدوير</button><button data-alb="rr">↻ تدوير</button><button data-alb="center">◎ توسيط</button><button data-alb="reset">100%</button><button data-alb="full">⛶ ملء الشاشة</button><button data-alb="next">التالي ›</button></div><div id="auctionLightboxStage" class="auction-lightbox-stage"><img id="auctionLightboxImg" alt="صورة المقتنى في المزاد"></div><div id="auctionLightboxCount" class="auction-lightbox-count"></div></dialog><script src="/visitor.js?v=4.0.25.4"></script><script src="public_auction.js?v=4.4.4-image-social-row"></script>
 </body></html>
