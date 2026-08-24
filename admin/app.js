@@ -2827,6 +2827,7 @@ window.openAuctionQuickEdit = async (id) => {
     $("auctionQuickEditStep").value = Number(i.auctionBidStep || 1);
     $("auctionQuickEditTarget").value = Number(i.auctionTargetPrice || (Number(i.auctionStartPrice || 0) + 1));
     $("auctionQuickEditCurrent").value = money(current);
+    $("auctionQuickEditTerms").value = i.auctionAdditionalTerms || "";
     $("auctionQuickEditOpening").disabled = hasBids;
     $("auctionQuickEditOpening").title = hasBids ? "لا يمكن تغيير سعر الافتتاح بعد تسجيل أول مزايدة" : "";
     $("auctionQuickEditHint").textContent = hasBids
@@ -2850,7 +2851,8 @@ if ($("confirmAuctionQuickEdit")) $("confirmAuctionQuickEdit").onclick = async (
       id: $("auctionQuickEditItemId").value,
       auctionEnd: $("auctionQuickEditEnd").value,
       auctionBidStep: Number($("auctionQuickEditStep").value || 0),
-      auctionTargetPrice: Number($("auctionQuickEditTarget").value || 0)
+      auctionTargetPrice: Number($("auctionQuickEditTarget").value || 0),
+      auctionAdditionalTerms: $("auctionQuickEditTerms").value.trim()
     };
     if (!$("auctionQuickEditOpening").disabled) payload.auctionOpeningPrice=Number($("auctionQuickEditOpening").value || 0);
     let r=await api("/api/auction/quick-edit",{method:"POST",body:JSON.stringify(payload)});

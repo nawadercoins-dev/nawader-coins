@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#071b35" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="/admin/styles.css?v=4.3.0-special-admin" />
+    <link rel="stylesheet" href="/admin/styles.css?v=4.3.5-final" />
     <title>نوادر العملات — الإدارة V4.3.1</title>
   </head>
   <body>
@@ -1653,6 +1653,7 @@
         <label>حد البيع المستهدف • إدارة فقط<input id="auctionQuickEditTarget" type="number" step="0.01" min="0" /></label>
         <label>السعر الحالي<input id="auctionQuickEditCurrent" type="text" readonly /></label>
       </div>
+      <label>الشروط الإضافية للمزاد<textarea id="auctionQuickEditTerms" rows="3" maxlength="1000" placeholder="مثال: طريقة التسليم، مهلة السداد، أو أي شرط إضافي يظهر للزائر"></textarea></label>
       <p id="auctionQuickEditHint" class="muted"></p>
       <div class="actions">
         <button type="button" id="auctionQuickEditToday" class="ghost">نهاية اليوم</button>
@@ -1747,6 +1748,6 @@
       <div id="quickResults"></div>
       <div id="recent"></div>
     </div>
-    <script src="/admin/app.js?v=4.3.3.2"></script>
+    <script src="/admin/app.js?v=4.3.5-final"></script>
   </body>
 </html>

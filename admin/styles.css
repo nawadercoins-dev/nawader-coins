@@ -6126,3 +6126,16 @@ main {
  .auction-actions>*{min-width:0!important;min-height:0!important;padding:6px 4px;font-size:.66rem}
 }
 @media(max-width:420px){#auctionItems.grid,#endedAuctionItems.grid{grid-template-columns:1fr}}
+
+
+/* V4.3.5 FINAL — compact auction administration */
+#auctionItems.grid,#endedAuctionItems.grid{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))!important;gap:9px!important}
+.auction-item .auction-card-image{min-height:105px!important}.auction-item .auction-card-image img{height:120px!important}
+.auction-item .auction-card-body{padding:8px!important}.auction-item .auction-card-title h3{font-size:.92rem!important}
+.auction-item .auction-admin-metrics{gap:4px!important;margin:5px 0!important}.auction-item .auction-admin-metrics>div{padding:5px!important}
+.auction-item .auction-admin-metrics b{font-size:.82rem!important}.auction-item .auction-admin-metrics span{font-size:.61rem!important}
+.auction-item .auction-actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px!important}
+.auction-item .auction-actions>*{min-width:0!important;min-height:0!important;padding:7px 5px!important;font-size:.7rem!important}
+.auction-quick-edit-btn{background:#b8892f!important;color:#fff!important;border-color:#9a711f!important}
+@media(max-width:650px){#auctionItems.grid,#endedAuctionItems.grid{grid-template-columns:1fr 1fr!important}}
+@media(max-width:420px){#auctionItems.grid,#endedAuctionItems.grid{grid-template-columns:1fr!important}}
