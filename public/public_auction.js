@@ -1,4 +1,9 @@
 const $=x=>document.getElementById(x),esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])),money=x=>Number(x||0).toLocaleString('ar-SA')+' ر.س';
+
+function auctionMarqueeText(value,extraClass=''){
+  const text=esc(value||'—');
+  return `<div class="auction-auto-marquee ${extraClass}" title="${text}"><span class="auction-auto-track">${text}</span></div>`;
+}
 async function api(path,opt={}){let r=await fetch(path,{...opt,headers:{'Content-Type':'application/json',...(opt.headers||{})},cache:'no-store'});let j={};try{j=await r.json()}catch{}if(!r.ok)throw new Error(j.error||'تعذر الاتصال');return j}
 function clock(end){if(!end)return'بدون وقت انتهاء';let d=new Date(end).getTime()-Date.now();if(d<=0)return'انتهى المزاد';let days=Math.floor(d/86400000);d%=86400000;let h=Math.floor(d/3600000);d%=3600000;let m=Math.floor(d/60000),s=Math.floor((d%60000)/1000);return`${days} يوم، ${h} ساعة، ${m} دقيقة، ${s} ثانية`}
 let pid=localStorage.getItem('khazinaParticipantId')||'',platformSettings={buyerFeePercent:2.5,auctionEntryFee:10,entryFeeEnabled:false,negotiationHours:48};async function loadSettings(){try{platformSettings=await api('/api/settings/public');let x=$('feePolicy');if(x)x.textContent=`عمولة المشتري عند نجاح البيع ${Number(platformSettings.buyerFeePercent||0)}% لصالح المنصة${platformSettings.entryFeeEnabled?`، ورسم دخول المزاد ${money(platformSettings.auctionEntryFee||0)}`:''}.`;}catch(e){}}
@@ -48,16 +53,14 @@ function card(i){
 
       <div class="auction-info-column">
         <div class="info-status-row">${statusChip}${transitionChip}</div>
-        <div class="auction-title-marquee" title="${esc(i.country)} — ${esc(i.denomination)}">
-          <div class="auction-title-track">${esc(i.country)} — ${esc(i.denomination)}</div>
-        </div>
+        ${auctionMarqueeText(`${i.country||''} — ${i.denomination||''}`,'auction-title-marquee')}
         <div class="info-meta">${esc(i.year||'')}${i.year&&gradeState?' · ':''}${gradeState}</div>
         <div class="info-price ${reserveClass}">
           <span>السعر الحالي</span>
           <strong>${money(current)}</strong>
         </div>
         <div class="info-mini-grid">
-          <div><span>الفئة</span><b>${esc(i.denomination||'—')}</b></div>
+          <div><span>الفئة</span><b>${auctionMarqueeText(i.denomination||'—','auction-mini-marquee')}</b></div>
           <div><span>المزايدات</span><b>${bids}</b></div>
           <div><span>الزيادة</span><b>${money(step)}</b></div>
           <div><span>سعر الفتح</span><b>${money(opening)}</b></div>
@@ -72,8 +75,8 @@ function card(i){
       </div>
 
       ${result}
-      ${i.auctionAdditionalTerms?`<div class="auction-extra-terms"><b>الشروط الإضافية</b><p>${esc(i.auctionAdditionalTerms)}</p></div>`:''}
-      ${i.notes?`<p class="auction-notes">${esc(i.notes)}</p>`:''}
+      ${i.auctionAdditionalTerms?`<div class="auction-extra-terms"><b>الشروط الإضافية</b>${auctionMarqueeText(i.auctionAdditionalTerms,'auction-detail-marquee')}</div>`:''}
+      ${i.notes?`<div class="auction-notes">${auctionMarqueeText(i.notes,'auction-detail-marquee')}</div>`:''}
       <div class="clean-bid-area">${bidControls}</div>
 
     </div>
@@ -107,8 +110,8 @@ let auctionRenderToken='',initialAuctionLoad=true,hashHandled=false,auctionAllIt
 function auctionMatches(i){let q=($('auctionSearch')?.value||'').trim().toLowerCase();if(q&&!JSON.stringify([i.country,i.denomination,i.year,i.condition,i.notes]).toLowerCase().includes(q))return false;if(auctionEndingOnly){let t=new Date(i.auctionEnd||0).getTime()-Date.now();return !i.auctionEnded&&t>0&&t<=6*3600000}return true}
 
 function initAuctionTitleMarquees(){
-  document.querySelectorAll('.auction-title-marquee').forEach(box=>{
-    const track=box.querySelector('.auction-title-track');
+  document.querySelectorAll('.auction-auto-marquee').forEach(box=>{
+    const track=box.querySelector('.auction-auto-track');
     if(!track)return;
     box.classList.remove('is-overflowing');
     track.style.removeProperty('--marquee-distance');
