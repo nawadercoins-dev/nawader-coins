@@ -1,3 +1,4 @@
+document.documentElement.dataset.marketVersion='4.5.1';console.info('Nawader Market V4.5.1 loaded');
 const $=id=>document.getElementById(id);let ITEMS=[],SETTINGS={},CURRENT=null,HASH_DONE=false;
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const money=x=>Number(x||0).toLocaleString('ar-SA',{maximumFractionDigits:2})+' ر.س';
@@ -16,10 +17,118 @@ function briefDescription(i){
 }
 async function get(url){let r=await fetch(url,{cache:'no-store'});if(!r.ok)throw new Error('تعذر تحميل السوق');return r.json()}
 function totalFor(i,qty=1){return displayPrice(i)*Math.max(1,Number(qty||1))}
-function reactionButtons(i){let meta={id:i.id,title:i.marketTitle||`${i.country} — ${i.denomination}`,image:i.frontImg||'',url:'/market#'+encodeURIComponent(i.id),kind:'market'},fav=NawaderVisitor.isFavorite(i.id),liked=NawaderVisitor.isLiked(i.id);return `<div class="reaction-actions"><button class="reaction-btn ${liked?'on':''}" onclick='toggleMarketReaction(${JSON.stringify(meta)},"like",this)'>👍 <span>${liked?'معجب':'إعجاب'}</span></button><button class="reaction-btn ${fav?'on':''}" onclick='toggleMarketReaction(${JSON.stringify(meta)},"favorite",this)'>❤️ <span>${fav?'في المفضلة':'مفضلة'}</span></button></div>`}
+function reactionButtons(i){
+  let meta={id:i.id,title:i.marketTitle||`${i.country} — ${i.denomination}`,image:i.frontImg||'',url:'/market#'+encodeURIComponent(i.id),kind:'market'},
+      fav=NawaderVisitor.isFavorite(i.id),liked=NawaderVisitor.isLiked(i.id);
+  return `<div class="market-social-actions">
+    <button class="reaction-btn ${liked?'on':''}" onclick='toggleMarketReaction(${JSON.stringify(meta)},"like",this)'>👍 <span>${liked?'معجب':'إعجاب'}</span></button>
+    <button class="reaction-btn ${fav?'on':''}" onclick='toggleMarketReaction(${JSON.stringify(meta)},"favorite",this)'>❤️ <span>${fav?'في المفضلة':'مفضلة'}</span></button>
+    <button class="reaction-btn" onclick="shareMarketItem('${i.id}')">↗ <span>مشاركة</span></button>
+  </div>`
+}
 window.toggleMarketReaction=(meta,kind,btn)=>{let on=kind==='like'?NawaderVisitor.toggleLike(meta):NawaderVisitor.toggleFavorite(meta);btn.classList.toggle('on',on);btn.querySelector('span').textContent=kind==='like'?(on?'معجب':'إعجاب'):(on?'في المفضلة':'مفضلة')};
-function card(i){let price=displayPrice(i),grade=i.isGraded?`<span class="badge graded">${esc(i.gradingCompany||'مُقيَّم')} ${esc(i.gradeValue||'')}</span>`:'',transition=i.transitionalIssueEnabled?`<span class="badge transitional-public-badge">⇄ إصدار انتقالي</span>`:'',available=Number(i.availableQuantity||0),pieces=Number(i.marketSetPieces||0),size=setSizeLabel(i.marketSetSize),mode=setModeLabel(i.marketSetCurrencyMode),brief=briefDescription(i);return `<article class="card" id="${esc(i.id)}"><div class="photo">${i.frontImg?`<img src="${esc(i.frontImg)}" loading="lazy">`:'لا توجد صورة'}</div><div class="body"><div class="market-info-scroll"><span class="badge">${typeLabel(i.marketOfferType)}</span> ${grade} ${transition}<h3>${esc(i.marketTitle||`${i.country} — ${i.denomination}`)}</h3><div class="market-brief" title="${esc(brief)}">${esc(brief)}</div><div class="price-label">سعر ${priceUnitLabel(i)}</div><div class="price">${money(price)}</div><div class="available">المتاح: <strong>${available}</strong> ${qtyUnitLabel(i,available)}</div>${pieces?`<div class="set-pieces"><span>كل ${i.marketOfferType==='set'?'طقم':'حزمة'}</span><b>${pieces}</b><span>ورقة / قطعة</span></div>`:''}${size?`<div class="spec-row"><span>حجم الطقم</span><b>${esc(size)}</b></div>`:''}${mode?`<div class="spec-row"><span>تكوين الطقم</span><b>${esc(mode)}</b></div>`:''}</div>${reactionButtons(i)}<div class="actions"><button class="buy" onclick="addToCart('${i.id}')">🛒 أضف للسلة</button>${i.marketNegotiationEnabled?`<button class="offer" onclick="openRequest('${i.id}','offer')">تفاوض</button>`:''}</div></div></article>`}
-function render(){let q=$('search').value.trim().toLowerCase(),t=$('type').value;let a=ITEMS.filter(i=>(!t||i.marketOfferType===t)&&(!q||JSON.stringify(i).toLowerCase().includes(q)));$('items').innerHTML=a.map(card).join('')||'<div class="empty">لا توجد عروض مطابقة حاليًا.</div>'}
+
+window.shareMarketItem=async(id)=>{
+  const i=ITEMS.find(x=>String(x.id)===String(id));
+  if(!i)return;
+  const url=location.origin+location.pathname+'#'+encodeURIComponent(id);
+  const title=i.marketTitle||`${i.country||''} — ${i.denomination||''}`;
+  const text=`شاهد هذا المعروض في سوق نوادر العملات: ${title}`;
+  try{
+    if(navigator.share){await navigator.share({title,text,url});return}
+  }catch(e){if(e&&e.name==='AbortError')return}
+  const action=prompt('اختر طريقة المشاركة:\\n1 = واتساب\\n2 = نسخ الرابط','1');
+  if(action==='1')window.open('https://wa.me/?text='+encodeURIComponent(text+' '+url),'_blank','noopener');
+  else if(action==='2'){
+    try{await navigator.clipboard.writeText(url);alert('تم نسخ رابط المعروض')}
+    catch(e){prompt('انسخ الرابط:',url)}
+  }
+};
+
+let MARKET_IMAGE_GROUPS={};
+window.shiftMarketImage=(id,dir)=>{
+  const g=MARKET_IMAGE_GROUPS[id]||[],img=document.getElementById('market-cover-'+id),count=document.getElementById('market-cover-count-'+id);
+  if(!img||!g.length)return;
+  let n=(Number(img.dataset.marketIndex||0)+dir+g.length)%g.length;
+  img.dataset.marketIndex=String(n);img.src=g[n];if(count)count.textContent=`${n+1}/${g.length}`;
+};
+
+function initMarketTitleMarquees(){
+  document.querySelectorAll('.market-title-marquee,.market-line-scroll').forEach(box=>{
+    const track=box.querySelector('.market-scroll-track');
+    if(!track)return;
+    box.classList.remove('is-overflowing');
+    track.style.removeProperty('--market-marquee-distance');
+    requestAnimationFrame(()=>{
+      const overflow=Math.max(0,track.scrollWidth-box.clientWidth);
+      if(overflow>8){
+        track.style.setProperty('--market-marquee-distance',`-${overflow+16}px`);
+        box.classList.add('is-overflowing');
+      }
+    });
+  });
+}
+function card(i){
+  let price=displayPrice(i),
+      grade=i.isGraded?`${esc(i.gradingCompany||'مُقيَّم')} ${esc(i.gradeValue||'')}`:'',
+      available=Number(i.availableQuantity||0),
+      pieces=Number(i.marketSetPieces||0),
+      size=setSizeLabel(i.marketSetSize),
+      mode=setModeLabel(i.marketSetCurrencyMode),
+      brief=briefDescription(i),
+      title=i.marketTitle||`${i.country} — ${i.denomination}`,
+      images=[i.frontImg,i.backImg,i.gradingCertImage,...(i.additionalImages||[])].filter(Boolean);
+  MARKET_IMAGE_GROUPS[i.id]=images;
+  return `<article class="card market-compact-card" id="${esc(i.id)}">
+    <div class="market-card-top">
+      <div class="market-image-column">
+        <div class="photo market-photo">
+          ${images.length?`<button class="market-photo-arrow market-photo-prev" type="button" onclick="event.stopPropagation();shiftMarketImage('${i.id}',-1)">‹</button>
+          <img id="market-cover-${i.id}" src="${esc(images[0])}" data-market-index="0" loading="lazy" alt="${esc(title)}">
+          <button class="market-photo-arrow market-photo-next" type="button" onclick="event.stopPropagation();shiftMarketImage('${i.id}',1)">›</button>
+          <span class="market-photo-count" id="market-cover-count-${i.id}">1/${images.length}</span>`:'<span class="no-market-photo">لا توجد صورة</span>'}
+        </div>
+        ${reactionButtons(i)}
+      </div>
+
+      <div class="market-info-column">
+        <div class="market-badge-row">
+          <span class="badge">${typeLabel(i.marketOfferType)}</span>
+          ${i.isGraded?`<span class="badge graded">${grade}</span>`:''}
+          ${i.transitionalIssueEnabled?`<span class="badge transitional-public-badge">⇄ انتقالي</span>`:''}
+        </div>
+
+        <div class="market-title-marquee" title="${esc(title)}">
+          <div class="market-scroll-track">${esc(title)}</div>
+        </div>
+
+        <div class="market-line-scroll" title="${esc(brief)}">
+          <div class="market-scroll-track market-brief-track">${esc(brief)}</div>
+        </div>
+
+        <div class="market-price-box">
+          <span>سعر ${priceUnitLabel(i)}</span>
+          <strong>${money(price)}</strong>
+        </div>
+
+        <div class="market-mini-grid">
+          <div><span>المتاح</span><b>${available} ${qtyUnitLabel(i,available)}</b></div>
+          <div><span>الحالة</span><b>${esc(i.condition||'—')}</b></div>
+          ${pieces?`<div><span>محتوى ${i.marketOfferType==='set'?'الطقم':'الحزمة'}</span><b>${pieces} قطعة</b></div>`:''}
+          ${size?`<div><span>الحجم</span><b>${esc(size)}</b></div>`:''}
+        </div>
+      </div>
+    </div>
+
+    ${(mode||i.notes)?`<div class="market-secondary-line market-line-scroll"><div class="market-scroll-track">${mode?`التكوين: ${esc(mode)}`:''}${mode&&i.notes?' • ':''}${i.notes?esc(String(i.notes).replace(/\\s+/g,' ').trim()):''}</div></div>`:''}
+
+    <div class="actions market-card-actions">
+      <button class="buy" onclick="addToCart('${i.id}')">🛒 أضف للسلة</button>
+      ${i.marketNegotiationEnabled?`<button class="offer" onclick="openRequest('${i.id}','offer')">تفاوض</button>`:''}
+    </div>
+  </article>`
+}
+function render(){let q=$('search').value.trim().toLowerCase(),t=$('type').value;let a=ITEMS.filter(i=>(!t||i.marketOfferType===t)&&(!q||JSON.stringify(i).toLowerCase().includes(q)));$('items').innerHTML=a.map(card).join('')||'<div class="empty">لا توجد عروض مطابقة حاليًا.</div>';initMarketTitleMarquees()}
 function setQty(v){if(!CURRENT)return;let max=Math.max(1,Number(CURRENT.availableQuantity||1)),n=Math.max(1,Math.min(max,Number(v||1)));$('requestQty').value=n;$('qtyNow').textContent=n;updateSummary()}
 window.qtyStep=d=>setQty(Number($('requestQty').value||1)+d);
 window.openRequest=(id,action)=>{let i=ITEMS.find(x=>x.id===id);if(!i)return;CURRENT=i;$('itemId').value=id;$('action').value=action;$('dlgTitle').textContent=action==='offer'?'تقديم عرض تفاوض':'السلة / طلب شراء';$('offerWrap').hidden=action!=='offer';$('requestQty').value=1;$('requestQty').max=Math.max(1,Number(i.availableQuantity||1));$('qtyUnit').textContent=qtyUnitLabel(i,2);$('qtyNow').textContent='1';$('offerAmount').value='';$('msg').textContent='';$('requestReceipt').hidden=true;$('requestReceipt').innerHTML='';updateSummary();if(typeof $('requestDlg').showModal==='function')$('requestDlg').showModal();else $('requestDlg').setAttribute('open','open')};
