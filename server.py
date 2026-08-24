@@ -340,9 +340,14 @@ def ensure_dues_tracking_start():
         except Exception: pass
     now=datetime.datetime.now(); st['duesTrackingStartedAt']=now.isoformat(); save_json(SETTINGS,st); return now
 
+def auction_local_now():
+    # auctionEnd is stored as local Saudi wall-clock time (datetime-local).
+    # Render runs in UTC, so comparing with datetime.now() directly delays settlement by 3 hours.
+    return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=3))).replace(tzinfo=None)
+
 def ensure_auction_outcomes():
     """Create winner dues/notifications once for ended successful auction rounds. Safe to call repeatedly."""
-    now=datetime.datetime.now(); tracking_start=ensure_dues_tracking_start(); items=load(); bids=load_bids(); dues=load_auction_dues(); due_keys={(str(x.get('itemId')),int(x.get('auctionRound') or 1)) for x in dues}
+    now=auction_local_now(); tracking_start=ensure_dues_tracking_start(); items=load(); bids=load_bids(); dues=load_auction_dues(); due_keys={(str(x.get('itemId')),int(x.get('auctionRound') or 1)) for x in dues}
     changed=False
     for item in items:
         if not (item.get('forAuction') and item.get('auctionApproved')): continue
@@ -501,10 +506,10 @@ def public_item(i):
     ended=False
     end=str(i.get('auctionEnd') or '').strip()
     if end:
-        try: ended=datetime.datetime.fromisoformat(end) <= datetime.datetime.now()
+        try: ended=datetime.datetime.fromisoformat(end) <= auction_local_now()
         except Exception: ended=False
     sold=bool(ended and bids and (target<=0 or top>=target))
-    public_keys=['id','country','denomination','year','type','condition','quantity','serials','frontImg','backImg','auctionEnd','auctionOpeningPrice','auctionBidStep','notes','negotiationEnabled','negotiationPercent','auctionRound','issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason','updated']
+    public_keys=['id','country','denomination','year','type','condition','quantity','serials','frontImg','backImg','auctionEnd','auctionOpeningPrice','auctionBidStep','auctionAdditionalTerms','notes','negotiationEnabled','negotiationPercent','auctionRound','issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason','updated']
     return {k:i.get(k) for k in public_keys} | {'auctionCurrentPrice':top,'bidCount':len(bids),'reserveState':reserve_state,'auctionEnded':ended,'auctionSold':sold}
 
 
@@ -1649,7 +1654,7 @@ class H(SimpleHTTPRequestHandler):
                 old_end=str(item.get('auctionEnd') or '').strip()
                 try: old_end_dt=datetime.datetime.fromisoformat(old_end) if old_end else None
                 except Exception: old_end_dt=None
-                now=datetime.datetime.now()
+                now=auction_local_now()
                 if old_end_dt and old_end_dt<=now: self.sendj({'ok':False,'error':'انتهت الجولة بالفعل؛ استخدم إجراءات المزادات المنتهية'},409); return
                 new_end=str(d.get('auctionEnd') or '').strip()
                 if not new_end: self.sendj({'ok':False,'error':'موعد انتهاء المزاد مطلوب'},400); return
@@ -1670,11 +1675,12 @@ class H(SimpleHTTPRequestHandler):
                     if requested_opening<0: self.sendj({'ok':False,'error':'سعر الافتتاح لا يمكن أن يكون سالبًا'},400); return
                     if round_bids and abs(requested_opening-opening)>1e-9: self.sendj({'ok':False,'error':'لا يمكن تغيير سعر الافتتاح بعد تسجيل أول مزايدة'},409); return
                     opening=requested_opening
-                before={'auctionEnd':old_end,'auctionOpeningPrice':float(item.get('auctionOpeningPrice') or item.get('auctionStartPrice') or 0),'auctionBidStep':float(item.get('auctionBidStep') or 1),'auctionTargetPrice':float(item.get('auctionTargetPrice') if item.get('auctionTargetPrice') not in (None,'') else auction_target(item))}
-                item['auctionEnd']=new_end; item['auctionOpeningPrice']=opening; item['auctionBidStep']=step; item['auctionTargetPrice']=target; item['updated']=int(now.timestamp()*1000)
+                before={'auctionEnd':old_end,'auctionOpeningPrice':float(item.get('auctionOpeningPrice') or item.get('auctionStartPrice') or 0),'auctionBidStep':float(item.get('auctionBidStep') or 1),'auctionTargetPrice':float(item.get('auctionTargetPrice') if item.get('auctionTargetPrice') not in (None,'') else auction_target(item)),'auctionAdditionalTerms':str(item.get('auctionAdditionalTerms') or '')}
+                terms=str(d.get('auctionAdditionalTerms') or '').strip()[:1000]
+                item['auctionEnd']=new_end; item['auctionOpeningPrice']=opening; item['auctionBidStep']=step; item['auctionTargetPrice']=target; item['auctionAdditionalTerms']=terms; item['updated']=int(now.timestamp()*1000)
                 changes=[]
-                labels={'auctionEnd':'موعد الانتهاء','auctionOpeningPrice':'سعر الافتتاح','auctionBidStep':'قيمة الزيادة','auctionTargetPrice':'حد البيع'}
-                after={'auctionEnd':new_end,'auctionOpeningPrice':opening,'auctionBidStep':step,'auctionTargetPrice':target}
+                labels={'auctionEnd':'موعد الانتهاء','auctionOpeningPrice':'سعر الافتتاح','auctionBidStep':'قيمة الزيادة','auctionTargetPrice':'حد البيع','auctionAdditionalTerms':'الشروط الإضافية'}
+                after={'auctionEnd':new_end,'auctionOpeningPrice':opening,'auctionBidStep':step,'auctionTargetPrice':target,'auctionAdditionalTerms':terms}
                 for k in after:
                     if str(before.get(k))!=str(after.get(k)): changes.append(k)
                 history=item.get('auctionEditHistory') or []
@@ -1689,6 +1695,7 @@ class H(SimpleHTTPRequestHandler):
                     if 'auctionEnd' in changes: public_changes.append('موعد انتهاء المزاد')
                     if 'auctionBidStep' in changes: public_changes.append('قيمة الزيادة للمزايدات القادمة')
                     if 'auctionTargetPrice' in changes: public_changes.append('إعدادات البيع الإدارية')
+                    if 'auctionAdditionalTerms' in changes: public_changes.append('الشروط الإضافية')
                     msg='تم تحديث '+(' و'.join(public_changes) if public_changes else 'إعدادات المزاد')+f' في {title}. مزايداتك المسجلة محفوظة كما هي.'
                     for b in round_bids:
                         pid=str(b.get('participantId') or '')
@@ -2101,6 +2108,16 @@ def open_browser():
 threading.Thread(target=open_browser,daemon=True).start()
 def final_backup(): backup_data('shutdown')
 atexit.register(final_backup)
+def auction_settlement_worker():
+    # Settlement must not depend on a visitor/admin refreshing the page.
+    while True:
+        try:
+            time.sleep(5)
+            with LOCK:
+                ensure_auction_outcomes()
+        except Exception as e:
+            print('تنبيه تسوية المزاد:', e)
+threading.Thread(target=auction_settlement_worker,daemon=True).start()
 try: server.serve_forever()
 except KeyboardInterrupt: print('\nإيقاف آمن للخادم...')
 finally: server.server_close(); final_backup()
