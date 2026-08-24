@@ -16,7 +16,7 @@ function card(i){
   let statusChip=ended?(sold?`<span class="winner-chip">🏆 تم البيع / الفائز</span>`:`<span class="ended-chip">انتهى المزاد</span>`):`<span class="live-chip">● مزاد نشط</span>`;
   let transitionChip=i.transitionalIssueEnabled?`<span class="transitional-public-badge">⇄ إصدار انتقالي</span>`:'';
   let meta={id:i.id,title:`${i.country} — ${i.denomination}`,image:i.frontImg||'',url:'/auction#'+encodeURIComponent(i.id),kind:'auction'},fav=NawaderVisitor.isFavorite(i.id),liked=NawaderVisitor.isLiked(i.id);
-  let reactions=`<div class="auction-reactions"><button class="${liked?'on':''}" onclick='toggleAuctionReaction(${JSON.stringify(meta)},"like",this)'>👍 <span>${liked?'معجب':'إعجاب'}</span></button><button class="${fav?'on':''}" onclick='toggleAuctionReaction(${JSON.stringify(meta)},"favorite",this)'>❤️ <span>${fav?'في المفضلة':'مفضلة'}</span></button><button class="share-auction-btn" onclick="shareAuctionItem('${i.id}',this)">↗ <span>مشاركة</span></button></div>`;
+  let reactions=`<div class="auction-reactions"><button class="${liked?'on':''}" onclick='toggleAuctionReaction(${JSON.stringify(meta)},"like",this)'>👍 <span>${liked?'معجب':'إعجاب'}</span></button><button class="${fav?'on':''}" onclick='toggleAuctionReaction(${JSON.stringify(meta)},"favorite",this)'>❤️ <span>${fav?'في المفضلة':'مفضلة'}</span></button><button onclick="shareAuctionItem('${i.id}')">↗ <span>مشاركة</span></button></div>`;
   let result=ended?(sold?`<div class="auction-result sold">🏆 تم البيع بنجاح — تم اعتماد الفائز بالمزاد</div>`:`<div class="auction-result unsold">لم يتم البيع / لم يتحقق شرط البيع</div>`):'';
   let bidControls=ended?'':`
       <div class="bid-compact-row">
@@ -26,15 +26,20 @@ function card(i){
       <div class="swipe-bid" id="swipe-${i.id}"><span class="swipe-text">${slideLabel}</span><span class="swipe-handle">◀</span></div><p class="muted" id="msg-${i.id}"></p>`;
   auctionImageGroups[i.id]=[i.frontImg,i.backImg,i.gradingCertImage,...(i.additionalImages||[])].filter(Boolean);
   return `<article class="auction-public-card" id="${i.id}" data-current="${current}" data-opening="${opening}" data-step="${step}" data-bids="${bids}">
-    <div class="photos single-photo">${(i.frontImg||i.backImg)?`<div class="auction-cover" data-cover-id="${esc(i.id)}"><button class="cover-arrow cover-prev" type="button" onclick="event.stopPropagation();shiftAuctionCover('${i.id}',-1)" aria-label="الصورة السابقة">‹</button><img id="cover-${i.id}" src="${esc(i.frontImg||i.backImg)}" data-cover-index="0" onclick="openAuctionLightbox('${i.id}',Number(this.dataset.coverIndex||0))" alt="${esc(i.country)} — ${esc(i.denomination)}"><button class="cover-arrow cover-next" type="button" onclick="event.stopPropagation();shiftAuctionCover('${i.id}',1)" aria-label="الصورة التالية">›</button><span class="cover-count" id="cover-count-${i.id}">1/${auctionImageGroups[i.id].length}</span><div class="cover-reactions">${reactions}</div><span class="photo-view-hint">اضغط للتكبير</span></div>`:''}</div>
+    <div class="photos single-photo">${(i.frontImg||i.backImg)?`<div class="auction-cover" data-cover-id="${esc(i.id)}"><button class="cover-arrow cover-prev" type="button" onclick="event.stopPropagation();shiftAuctionCover('${i.id}',-1)" aria-label="الصورة السابقة">‹</button><img id="cover-${i.id}" src="${esc(i.frontImg||i.backImg)}" data-cover-index="0" onclick="openAuctionLightbox('${i.id}',Number(this.dataset.coverIndex||0))" alt="${esc(i.country)} — ${esc(i.denomination)}"><button class="cover-arrow cover-next" type="button" onclick="event.stopPropagation();shiftAuctionCover('${i.id}',1)" aria-label="الصورة التالية">›</button><span class="cover-count" id="cover-count-${i.id}">1/${auctionImageGroups[i.id].length}</span><span class="photo-view-hint">اضغط للتكبير</span></div>`:''}</div>
     <div class="body">
       <div class="item-head"><div class="item-title"><h2>${esc(i.country)} — ${esc(i.denomination)}</h2><p>${esc(i.year||'')} | ${esc(i.condition||'')}</p></div>${statusChip}${transitionChip}</div>
-      <div class="auction-clock-box"><div class="clock-label">${ended?'حالة المزاد':'الوقت المتبقي لانتهاء المزاد'}</div><div class="big-clock auction-clock" data-end="${esc(i.auctionEnd||'')}">${ended?'انتهى المزاد':esc(clock(i.auctionEnd))}</div></div>
+      ${reactions}<div class="auction-clock-box"><div class="clock-label">${ended?'حالة المزاد':'الوقت المتبقي لانتهاء المزاد'}</div><div class="big-clock auction-clock" data-end="${esc(i.auctionEnd||'')}">${ended?'انتهى المزاد':esc(clock(i.auctionEnd))}</div></div>
       <div class="stats">
         <div class="stat primary ${reserveClass}"><span class="label">السعر الحالي</span><strong class="price">${money(current)}</strong></div>
         <div class="stat"><span class="label">سعر الفتح</span><strong>${money(opening)}</strong></div>
         <div class="stat"><span class="label">قيمة الزيادة</span><strong>${money(step)}</strong></div>
         <div class="stat"><span class="label">عدد المزايدات</span><strong>${bids}</strong><small>مزايدة</small></div>
+      </div>
+      <div class="activity-box">
+        <div class="activity-head"><b>مؤشر المزاد</b><span>${i.reserveState==='met'?'✅ تحقق حد البيع':i.reserveState==='below'?'المزاد يتقدم':'بانتظار المزايدات'}</span></div>
+        <div class="auction-activity"><span class="activity-marker" style="left:${i.reserveState==='met'?88:Math.min(70,18+(bids*9))}%"></span></div>
+        <div class="activity-legend"><span>بداية</span><span>نشاط</span><span>جاهز للبيع</span></div>
       </div>
       ${result}
       ${i.auctionAdditionalTerms?`<div class="auction-extra-terms"><b>الشروط الإضافية</b><p>${esc(i.auctionAdditionalTerms)}</p></div>`:''}
@@ -48,25 +53,20 @@ window.shiftAuctionCover=(id,dir)=>{
   let n=(Number(img.dataset.coverIndex||0)+dir+g.length)%g.length;
   img.dataset.coverIndex=String(n); img.src=g[n]; if(count)count.textContent=`${n+1}/${g.length}`;
 };
-window.shareAuctionItem=async(id,btn)=>{
-  const i=(publicAuctionItems||[]).find(x=>String(x.id)===String(id));
+window.shareAuctionItem=async(id)=>{
+  const i=(auctionAllItems||[]).find(x=>String(x.id)===String(id));
   if(!i)return;
-  const base=location.origin+location.pathname;
-  const url=base+'?auction='+encodeURIComponent(id)+'#auction-'+encodeURIComponent(id);
+  const url=location.origin+location.pathname+'#'+encodeURIComponent(id);
   const title=`مزاد ${i.country||''} ${i.denomination||''}`.trim();
   const text=`شاهد هذا المزاد في نوادر العملات: ${title}`;
   try{
-    if(navigator.share){
-      await navigator.share({title,text,url});
-      return;
-    }
-  }catch(e){ if(e&&e.name==='AbortError') return; }
-  const wa='https://wa.me/?text='+encodeURIComponent(text+' '+url);
-  const choice=prompt('المشاركة:\n1 = واتساب\n2 = نسخ رابط المزاد','1');
-  if(choice==='1') window.open(wa,'_blank','noopener');
-  else if(choice==='2'){
-    try{await navigator.clipboard.writeText(url);alert('تم نسخ رابط المزاد');}
-    catch(e){prompt('انسخ رابط المزاد:',url);}
+    if(navigator.share){ await navigator.share({title,text,url}); return; }
+  }catch(e){ if(e && e.name==='AbortError') return; }
+  const action=prompt('اختر طريقة المشاركة:\n1 = واتساب\n2 = نسخ الرابط','1');
+  if(action==='1') window.open('https://wa.me/?text='+encodeURIComponent(text+' '+url),'_blank','noopener');
+  else if(action==='2'){
+    try{ await navigator.clipboard.writeText(url); alert('تم نسخ رابط المزاد'); }
+    catch(e){ prompt('انسخ الرابط:',url); }
   }
 };
 window.updateSwipeAmount=id=>{let input=$('amt-'+id),el=$('swipe-'+id),next=$('next-'+id);if(!input||!el)return;let amount=Number(input.value||0),card=document.getElementById(id),bids=Number(card?.dataset.bids||0);if(next)next.textContent=money(amount);let t=el.querySelector('.swipe-text');if(t)t.textContent=(bids?`اسحب للمزايدة بـ ${money(amount)} ←`:`اسحب لفتح المزايدة بـ ${money(amount)} ←`);resetSwipe(id)};
