@@ -301,4 +301,136 @@
   .market-photo,.market-photo img{height:124px!important}
 }
 
-</style></head><body><header><div class="brand"><img class="brand-logo" src="/assets/nawader-logo.jpg" alt="شعار نوادر العملات"><div><h1>نوادر العملات</h1><p>السوق العام — بيع مباشر للمقتنيات والعملات</p></div></div><div class="nav visitor-nav"><a class="home primary" href="/home">⌂ الرئيسية</a><button data-back>↩ رجوع</button><a href="/auction">⚖ المزاد</a><a href="/special-numbers">✦ الأرقام المميزة</a><a href="/announcements">📣 الإعلانات</a><a href="/account">👤 حسابي</a><a href="/notifications">🔔 <span data-notification-count>0</span></a><button id="cartOpen">🛒 السلة <span class="count" data-cart-count>0</span></button><button data-logout hidden>خروج</button></div></header><main class="wrap"><section class="hero"><div class="market-titlebar"><div class="market-icon">▣</div><div><h2>السوق العام</h2><small>بيع مباشر للمقتنيات والعملات</small></div></div><div class="market-tools"><div class="toolbar"><input id="search" placeholder="ابحث بالدولة أو الفئة أو السنة..."><select id="type"><option value="">كل أنواع العروض</option><option value="single">قطعة واحدة</option><option value="bundle">حزمة / بندل</option><option value="set">طقم</option></select></div></div></section><section id="items" class="grid"></section></main><dialog id="imageDlg" style="max-width:min(1100px,96vw);background:#071b35"><div id="imageToolbar" style="padding:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button data-imgact="zin" class="cancel">＋ تكبير</button><button data-imgact="zout" class="cancel">－ تصغير</button><button data-imgact="rl" class="cancel">↺ تدوير</button><button data-imgact="rr" class="cancel">↻ تدوير</button><button data-imgact="center" class="cancel">◎ توسيط</button><button data-imgact="reset" class="cancel">إعادة</button><button id="closeImageDlg" class="cancel">إغلاق ×</button></div><div id="imageStage" style="height:min(78vh,780px);padding:10px;display:grid;place-items:center;overflow:hidden;touch-action:none;background:#071b35"><img id="fullImage" alt="صورة المقتنى كاملة" style="max-width:96%;max-height:96%;object-fit:contain;background:#fff;border-radius:12px;transform-origin:center;user-select:none;pointer-events:none"></div></dialog><dialog id="requestDlg"><div class="dlg-head"><button type="button" id="closeDlgTop" class="dlg-close" aria-label="إغلاق">×</button><h2 id="dlgTitle">طلب شراء</h2></div><div class="dlg-body"><input id="itemId" type="hidden"><input id="action" type="hidden"><div id="requestSummary" class="summary"></div><label>الاسم</label><input id="buyerName" autocomplete="name" placeholder="الاسم الكامل"><label>رقم الجوال</label><input id="buyerPhone" inputmode="tel" autocomplete="tel" placeholder="05xxxxxxxx"><label id="qtyLabel">الكمية</label><div class="qty-stepper"><button type="button" onclick="qtyStep(-1)">−</button><div class="qty-display"><strong id="qtyNow">1</strong> <span id="qtyUnit">قطعة</span></div><button type="button" onclick="qtyStep(1)">+</button></div><input id="requestQty" type="number" min="1" value="1" inputmode="numeric" style="margin-top:8px"><div id="offerWrap" hidden><label>مبلغ العرض</label><input id="offerAmount" type="number" min="0" step="0.01"></div><div class="dlg-actions"><button id="sendRequest" class="confirm">إرسال الطلب</button><button id="closeDlg" class="cancel">إلغاء</button></div><div id="requestReceipt" class="request-receipt" hidden></div><p id="msg"></p></div></dialog><div class="market-version-badge">السوق V4.5.1</div><footer>نوادر العملات — السوق العام · التواصل عبر واتساب فقط</footer><script src="/visitor.js"></script><script src="/public_market.js?v=4.5.2-autoheight"></script></body></html>
+
+
+/* V4.5.3 — equal-height market cards with flexible internal content */
+#items.grid{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:12px!important;
+  align-items:stretch!important;
+  grid-auto-rows:1fr!important;
+}
+
+.market-compact-card{
+  height:100%!important;
+  min-height:390px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-self:stretch!important;
+}
+
+.market-card-top{
+  flex:0 0 auto!important;
+  min-height:180px!important;
+}
+
+.market-image-column{
+  min-height:180px!important;
+}
+
+.market-photo,
+.market-photo img{
+  height:128px!important;
+  min-height:128px!important;
+}
+
+.market-social-actions{
+  min-height:40px!important;
+  flex:0 0 auto!important;
+}
+
+.market-info-column{
+  min-height:180px!important;
+  display:flex!important;
+  flex-direction:column!important;
+}
+
+.market-badge-row{
+  min-height:24px!important;
+  max-height:24px!important;
+  overflow:hidden!important;
+}
+
+.market-title-marquee{
+  height:30px!important;
+  min-height:30px!important;
+  max-height:30px!important;
+}
+
+.market-line-scroll{
+  height:22px!important;
+  min-height:22px!important;
+  max-height:22px!important;
+}
+
+.market-price-box{
+  min-height:58px!important;
+  flex:0 0 auto!important;
+}
+
+.market-mini-grid{
+  min-height:70px!important;
+  grid-auto-rows:1fr!important;
+}
+
+.market-mini-grid>div{
+  min-height:32px!important;
+}
+
+.market-secondary-line{
+  height:26px!important;
+  min-height:26px!important;
+  max-height:26px!important;
+  flex:0 0 26px!important;
+}
+
+.market-card-actions{
+  margin-top:auto!important;
+  min-height:52px!important;
+  flex:0 0 52px!important;
+  align-items:stretch!important;
+}
+
+.market-card-actions button{
+  height:38px!important;
+  align-self:center!important;
+}
+
+/* Missing optional content should not distort the card */
+.market-compact-card:not(:has(.market-secondary-line)) .market-card-actions{
+  margin-top:auto!important;
+}
+
+/* Keep long content on one visual line; animate only if it overflows */
+.market-title-marquee,
+.market-line-scroll,
+.market-mini-grid b{
+  white-space:nowrap!important;
+  overflow:hidden!important;
+}
+
+@media(max-width:1150px){
+  #items.grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+}
+
+@media(max-width:700px){
+  #items.grid{
+    grid-template-columns:1fr!important;
+    grid-auto-rows:auto!important;
+  }
+  .market-compact-card{
+    min-height:360px!important;
+    max-width:620px!important;
+    margin:0 auto!important;
+  }
+  .market-photo,
+  .market-photo img{
+    height:120px!important;
+    min-height:120px!important;
+  }
+}
+
+</style></head><body><header><div class="brand"><img class="brand-logo" src="/assets/nawader-logo.jpg" alt="شعار نوادر العملات"><div><h1>نوادر العملات</h1><p>السوق العام — بيع مباشر للمقتنيات والعملات</p></div></div><div class="nav visitor-nav"><a class="home primary" href="/home">⌂ الرئيسية</a><button data-back>↩ رجوع</button><a href="/auction">⚖ المزاد</a><a href="/special-numbers">✦ الأرقام المميزة</a><a href="/announcements">📣 الإعلانات</a><a href="/account">👤 حسابي</a><a href="/notifications">🔔 <span data-notification-count>0</span></a><button id="cartOpen">🛒 السلة <span class="count" data-cart-count>0</span></button><button data-logout hidden>خروج</button></div></header><main class="wrap"><section class="hero"><div class="market-titlebar"><div class="market-icon">▣</div><div><h2>السوق العام</h2><small>بيع مباشر للمقتنيات والعملات</small></div></div><div class="market-tools"><div class="toolbar"><input id="search" placeholder="ابحث بالدولة أو الفئة أو السنة..."><select id="type"><option value="">كل أنواع العروض</option><option value="single">قطعة واحدة</option><option value="bundle">حزمة / بندل</option><option value="set">طقم</option></select></div></div></section><section id="items" class="grid"></section></main><dialog id="imageDlg" style="max-width:min(1100px,96vw);background:#071b35"><div id="imageToolbar" style="padding:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button data-imgact="zin" class="cancel">＋ تكبير</button><button data-imgact="zout" class="cancel">－ تصغير</button><button data-imgact="rl" class="cancel">↺ تدوير</button><button data-imgact="rr" class="cancel">↻ تدوير</button><button data-imgact="center" class="cancel">◎ توسيط</button><button data-imgact="reset" class="cancel">إعادة</button><button id="closeImageDlg" class="cancel">إغلاق ×</button></div><div id="imageStage" style="height:min(78vh,780px);padding:10px;display:grid;place-items:center;overflow:hidden;touch-action:none;background:#071b35"><img id="fullImage" alt="صورة المقتنى كاملة" style="max-width:96%;max-height:96%;object-fit:contain;background:#fff;border-radius:12px;transform-origin:center;user-select:none;pointer-events:none"></div></dialog><dialog id="requestDlg"><div class="dlg-head"><button type="button" id="closeDlgTop" class="dlg-close" aria-label="إغلاق">×</button><h2 id="dlgTitle">طلب شراء</h2></div><div class="dlg-body"><input id="itemId" type="hidden"><input id="action" type="hidden"><div id="requestSummary" class="summary"></div><label>الاسم</label><input id="buyerName" autocomplete="name" placeholder="الاسم الكامل"><label>رقم الجوال</label><input id="buyerPhone" inputmode="tel" autocomplete="tel" placeholder="05xxxxxxxx"><label id="qtyLabel">الكمية</label><div class="qty-stepper"><button type="button" onclick="qtyStep(-1)">−</button><div class="qty-display"><strong id="qtyNow">1</strong> <span id="qtyUnit">قطعة</span></div><button type="button" onclick="qtyStep(1)">+</button></div><input id="requestQty" type="number" min="1" value="1" inputmode="numeric" style="margin-top:8px"><div id="offerWrap" hidden><label>مبلغ العرض</label><input id="offerAmount" type="number" min="0" step="0.01"></div><div class="dlg-actions"><button id="sendRequest" class="confirm">إرسال الطلب</button><button id="closeDlg" class="cancel">إلغاء</button></div><div id="requestReceipt" class="request-receipt" hidden></div><p id="msg"></p></div></dialog><div class="market-version-badge">السوق V4.5.1</div><footer>نوادر العملات — السوق العام · التواصل عبر واتساب فقط</footer><script src="/visitor.js"></script><script src="/public_market.js?v=4.5.3-equal-cards"></script></body></html>
