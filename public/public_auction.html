@@ -127,6 +127,54 @@
 .auction-extra-terms{margin:7px 0;padding:7px 9px;border:1px solid #e4d19c;border-radius:9px;background:#fff9e9;font-size:.82rem}.auction-extra-terms p{margin:3px 0 0}
 @media(max-width:900px){#publicAuctions{grid-template-columns:1fr}.auction-public-card{display:grid!important;grid-template-columns:180px minmax(0,1fr)}.auction-public-card .photos.single-photo,.auction-cover,.auction-cover>img{height:180px!important;min-height:180px}}
 @media(max-width:560px){#publicAuctions{gap:8px}.auction-public-card{grid-template-columns:112px minmax(0,1fr)}.auction-public-card .photos.single-photo,.auction-cover,.auction-cover>img{height:155px!important;min-height:155px}.cover-arrow{width:26px;height:34px;font-size:1.2rem}.stats{grid-template-columns:1fr 1fr!important}.photo-view-hint{display:none}}
+
+/* V4.3.6 — tighter fixed auction cards */
+#publicAuctions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important;align-items:stretch!important}
+.auction-public-card{display:flex!important;flex-direction:column!important;min-width:0!important;height:100%!important;max-width:none!important;margin:0!important;border-radius:12px!important;box-shadow:0 5px 15px #071b3512!important}
+.auction-public-card .photos.single-photo{height:145px!important;min-height:145px!important}
+.auction-cover,.auction-cover>img{height:145px!important;min-height:145px!important}
+.auction-cover>img{object-fit:contain!important}
+.cover-arrow{width:28px!important;height:36px!important;font-size:1.25rem!important;border-radius:8px!important}
+.cover-prev{right:5px!important}.cover-next{left:5px!important}
+.cover-count{bottom:5px!important;right:6px!important;font-size:.65rem!important;padding:2px 6px!important}
+.photo-view-hint{bottom:5px!important;left:6px!important;font-size:.62rem!important;padding:3px 6px!important}
+.cover-reactions{position:absolute;top:5px;left:6px;z-index:7}
+.cover-reactions .auction-reactions{display:flex!important;gap:4px!important;margin:0!important;transform:none!important}
+.cover-reactions .auction-reactions button{width:30px!important;height:30px!important;min-width:30px!important;padding:0!important;border-radius:50%!important;font-size:0!important;display:grid!important;place-items:center!important;box-shadow:0 2px 7px #0003!important}
+.cover-reactions .auction-reactions button::first-letter{font-size:14px}
+.cover-reactions .auction-reactions button span{display:none!important}
+.auction-public-card .body{padding:8px 9px!important;display:flex!important;flex-direction:column!important;flex:1!important}
+.item-head{margin-bottom:4px!important;gap:5px!important}.item-title h2{font-size:.98rem!important;line-height:1.35!important;margin:0!important}.item-title p{font-size:.72rem!important;line-height:1.3!important;margin:2px 0!important}
+.live-chip,.ended-chip,.winner-chip{font-size:.62rem!important;padding:3px 6px!important;border-radius:8px!important}
+.auction-clock-box{padding:5px 6px!important;margin:4px 0 5px!important;border-radius:9px!important}.clock-label{font-size:.67rem!important;margin-bottom:2px!important}.big-clock{font-size:.92rem!important;line-height:1.35!important}
+.stats{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:3px!important;margin:4px 0!important}
+.stat{padding:4px 2px!important;border-radius:7px!important;min-width:0!important}.stat .label{font-size:.59rem!important;line-height:1.2!important;margin-bottom:2px!important;white-space:nowrap!important}.stat strong,.stat.primary strong{font-size:.78rem!important;line-height:1.2!important;white-space:nowrap!important}.stat small{font-size:.55rem!important}
+.auction-result{font-size:.72rem!important;padding:5px 7px!important;margin:4px 0!important}
+.auction-extra-terms{font-size:.69rem!important;padding:5px 6px!important;margin:4px 0!important;max-height:48px!important;overflow:auto!important}
+.auction-public-card .body>p:not(.muted){font-size:.72rem!important;line-height:1.35!important;margin:4px 0!important;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.bid-compact-row{gap:4px!important;margin:4px 0!important}.bid-mini{padding:5px!important}.mini-label{font-size:.62rem!important}.mini-value,.bid-mini input{font-size:.82rem!important}
+.swipe-bid{height:48px!important;border-radius:24px!important;margin:5px auto 2px!important}.swipe-bid .swipe-handle{width:40px!important;height:40px!important}.swipe-bid .swipe-text{font-size:.72rem!important}
+@media(max-width:650px){#publicAuctions{grid-template-columns:1fr!important}.auction-public-card{display:grid!important;grid-template-columns:110px minmax(0,1fr)!important}.auction-public-card .photos.single-photo,.auction-cover,.auction-cover>img{height:150px!important;min-height:150px!important}}
+
+
+/* V4.3.7 — visitor auction cards aligned with compact admin cards */
+#publicAuctions{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))!important;gap:10px!important;align-items:start!important}
+.auction-public-card{display:block!important;width:100%!important;max-width:none!important;margin:0!important;border-radius:13px!important;overflow:hidden!important;position:relative!important}
+.auction-public-card .photos.single-photo,.auction-cover,.auction-cover>img{height:120px!important;min-height:120px!important}
+.auction-cover>img{width:100%!important;object-fit:contain!important}
+.cover-arrow{width:28px!important;height:36px!important;font-size:1.25rem!important;border-radius:8px!important}.cover-prev{right:5px!important}.cover-next{left:5px!important}
+.cover-count{bottom:5px!important;right:6px!important;font-size:.63rem!important;padding:2px 6px!important}.photo-view-hint{bottom:5px!important;left:6px!important;font-size:.62rem!important;padding:3px 6px!important}
+.auction-public-card .body{padding:8px!important}.item-head{gap:5px!important;margin-bottom:5px!important}.item-title h2{font-size:.93rem!important;line-height:1.35!important;margin:0!important}.item-title p{font-size:.72rem!important;margin:2px 0!important}
+.live-chip,.ended-chip,.winner-chip,.transitional-public-badge{font-size:.62rem!important;padding:3px 6px!important;border-radius:8px!important}
+.auction-reactions{position:absolute!important;top:6px!important;left:6px!important;z-index:8!important;display:flex!important;gap:3px!important;margin:0!important}
+.auction-reactions button{min-width:0!important;padding:4px 6px!important;font-size:.62rem!important;border-radius:7px!important;line-height:1.1!important;background:#071b35e8!important;color:#fff!important;border:1px solid #d0a54888!important}.auction-reactions button.on{background:#9b7429!important}.auction-reactions button span{font-size:.6rem!important}
+.auction-clock-box{padding:5px 6px!important;margin:5px 0!important;border-radius:9px!important}.clock-label{font-size:.65rem!important;margin-bottom:2px!important}.big-clock{font-size:.86rem!important;line-height:1.35!important}
+.stats{grid-template-columns:1fr 1fr!important;gap:4px!important;margin:5px 0!important}.stat{padding:5px 3px!important;border-radius:8px!important}.stat .label{font-size:.6rem!important;margin-bottom:2px!important}.stat strong,.stat.primary strong{font-size:.82rem!important;line-height:1.2!important}.stat small{font-size:.58rem!important}
+.auction-result,.auction-extra-terms,.auction-public-card .body>p{font-size:.68rem!important;line-height:1.45!important}.bid-compact-row{gap:4px!important;margin-top:5px!important}.bid-mini{padding:5px!important;border-radius:8px!important}.bid-mini .mini-label{font-size:.6rem!important}.bid-mini .mini-value,.bid-mini input{font-size:.78rem!important}
+.swipe-bid{height:46px!important;border-radius:23px!important;margin:6px auto 2px!important}.swipe-bid .swipe-text{font-size:.7rem!important;padding:0 58px 0 10px!important}.swipe-bid .swipe-handle{width:38px!important;height:38px!important;top:2px!important;right:2px!important;font-size:1rem!important}
+@media(max-width:900px){#publicAuctions{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:560px){#publicAuctions{grid-template-columns:1fr!important}.auction-public-card{display:grid!important;grid-template-columns:105px minmax(0,1fr)!important}.auction-public-card .photos.single-photo,.auction-cover,.auction-cover>img{height:145px!important;min-height:145px!important}.auction-reactions button span{display:none!important}}
+
 </style>
 </head>
 <body>
@@ -136,5 +184,5 @@
 <section class="panel auction-discovery"><div class="auction-search-row"><input id="auctionSearch" type="search" placeholder="🔎 ابحث بالدولة أو الفئة أو السنة أو الوصف"><button id="endingSoonBtn" type="button" class="ending-soon-btn">⏳ مزادات قاربت على الانتهاء</button><button id="allAuctionsBtn" type="button" class="all-auctions-btn">كل المزادات</button></div><div id="endingSoonStrip" class="ending-soon-strip" hidden></div></section>
 <div id="publicAuctions"></div>
 </main>
-<dialog id="auctionLightbox" class="auction-lightbox" aria-label="عارض صور المزاد"><button id="auctionLightboxClose" class="auction-lightbox-close" aria-label="إغلاق العارض">×</button><div class="auction-lightbox-toolbar"><button data-alb="prev">‹ السابق</button><button data-alb="zin">＋ تكبير</button><button data-alb="zout">− تصغير</button><button data-alb="rl">↺ تدوير</button><button data-alb="rr">↻ تدوير</button><button data-alb="center">◎ توسيط</button><button data-alb="reset">100%</button><button data-alb="full">⛶ ملء الشاشة</button><button data-alb="next">التالي ›</button></div><div id="auctionLightboxStage" class="auction-lightbox-stage"><img id="auctionLightboxImg" alt="صورة المقتنى في المزاد"></div><div id="auctionLightboxCount" class="auction-lightbox-count"></div></dialog><script src="/visitor.js?v=4.0.25.4"></script><script src="public_auction.js?v=4.3.5-final"></script>
+<dialog id="auctionLightbox" class="auction-lightbox" aria-label="عارض صور المزاد"><button id="auctionLightboxClose" class="auction-lightbox-close" aria-label="إغلاق العارض">×</button><div class="auction-lightbox-toolbar"><button data-alb="prev">‹ السابق</button><button data-alb="zin">＋ تكبير</button><button data-alb="zout">− تصغير</button><button data-alb="rl">↺ تدوير</button><button data-alb="rr">↻ تدوير</button><button data-alb="center">◎ توسيط</button><button data-alb="reset">100%</button><button data-alb="full">⛶ ملء الشاشة</button><button data-alb="next">التالي ›</button></div><div id="auctionLightboxStage" class="auction-lightbox-stage"><img id="auctionLightboxImg" alt="صورة المقتنى في المزاد"></div><div id="auctionLightboxCount" class="auction-lightbox-count"></div></dialog><script src="/visitor.js?v=4.0.25.4"></script><script src="public_auction.js?v=4.3.7-share-compact"></script>
 </body></html>
