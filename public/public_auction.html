@@ -85,6 +85,32 @@
 }
 @media(max-width:420px){.hero-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.brand{grid-template-columns:62px 1fr}.brand-logo{width:62px;height:62px}.brand h1{font-size:1.35rem}}
 
+
+/* V4.3.1 — Compact auction cards: one cover image, full two-side viewer on click */
+.auction-public-card{max-width:900px;grid-template-columns:minmax(260px,.78fr) minmax(390px,1.22fr);border-radius:16px;margin:12px auto}
+.auction-public-card .photos.single-photo{display:block;position:relative;min-height:0;background:#07111f}
+.auction-public-card .photos.single-photo .public-photo{height:100%;min-height:230px;cursor:zoom-in}
+.auction-public-card .photos.single-photo img{height:250px}
+.auction-public-card .photos.single-photo .public-photo-tools{display:none}
+.photo-view-hint{position:absolute;left:10px;bottom:10px;background:#071b35dd;color:#fff;border:1px solid #d0a54888;border-radius:999px;padding:5px 9px;font-size:.76rem;font-weight:800;pointer-events:none}
+.auction-public-card .body{padding:12px 14px}
+.item-title h2{font-size:1.32rem}.item-title p{margin:3px 0;font-size:.9rem}
+.live-chip,.ended-chip,.winner-chip{padding:5px 9px;font-size:.78rem}
+.auction-clock-box{padding:7px 10px;margin:6px 0 8px}.big-clock{font-size:1.42rem}
+.stats{gap:5px;margin:6px 0}.stat{padding:7px 5px;border-radius:10px}.stat .label{font-size:.78rem;margin-bottom:3px}.stat strong{font-size:1.12rem}.stat.primary strong{font-size:1.65rem}
+.bid-compact-row{margin-top:7px}
+@media (max-width:700px){
+ .auction-public-card{display:grid;grid-template-columns:118px minmax(0,1fr);margin:9px 0;border-radius:13px}
+ .auction-public-card .photos.single-photo .public-photo{min-height:150px;height:100%}
+ .auction-public-card .photos.single-photo img{height:165px}
+ .photo-view-hint{left:5px;right:5px;bottom:5px;text-align:center;font-size:.64rem;padding:4px}
+ .auction-public-card .body{padding:9px}
+ .item-head{gap:6px;margin-bottom:5px}.item-title h2{font-size:1.05rem}.item-title p{font-size:.78rem}
+ .live-chip,.ended-chip,.winner-chip{font-size:.68rem;padding:4px 6px}
+ .auction-clock-box{padding:5px 6px}.clock-label{font-size:.72rem}.big-clock{font-size:1.05rem}
+ .stats{grid-template-columns:1fr 1fr;gap:4px}.stat{padding:5px 3px}.stat .label{font-size:.68rem}.stat strong{font-size:.94rem}.stat.primary strong{font-size:1.18rem}
+ .auction-reactions{transform:scale(.9);transform-origin:right center}
+}
 </style>
 </head>
 <body>

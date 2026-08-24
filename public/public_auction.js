@@ -26,7 +26,7 @@ function card(i){
       <div class="swipe-bid" id="swipe-${i.id}"><span class="swipe-text">${slideLabel}</span><span class="swipe-handle">◀</span></div><p class="muted" id="msg-${i.id}"></p>`;
   auctionImageGroups[i.id]=[i.frontImg,i.backImg,i.gradingCertImage,...(i.additionalImages||[])].filter(Boolean);
   return `<article class="auction-public-card" id="${i.id}" data-current="${current}" data-opening="${opening}" data-step="${step}" data-bids="${bids}">
-    <div class="photos">${photo(i.frontImg,i.id+'f',i.id,0)}${photo(i.backImg,i.id+'b',i.id,1)}</div>
+    <div class="photos single-photo">${photo(i.frontImg||i.backImg,i.id+'f',i.id,i.frontImg?0:1)}${(i.frontImg||i.backImg)?`<span class="photo-view-hint">اضغط لعرض الوجه والخلف</span>`:''}</div>
     <div class="body">
       <div class="item-head"><div class="item-title"><h2>${esc(i.country)} — ${esc(i.denomination)}</h2><p>${esc(i.year||'')} | ${esc(i.condition||'')}</p></div>${statusChip}${transitionChip}</div>
       ${reactions}<div class="auction-clock-box"><div class="clock-label">${ended?'حالة المزاد':'الوقت المتبقي لانتهاء المزاد'}</div><div class="big-clock auction-clock" data-end="${esc(i.auctionEnd||'')}">${ended?'انتهى المزاد':esc(clock(i.auctionEnd))}</div></div>
