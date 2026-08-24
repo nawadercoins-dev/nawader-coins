@@ -128,7 +128,33 @@ function card(i){
     </div>
   </article>`
 }
-function render(){let q=$('search').value.trim().toLowerCase(),t=$('type').value;let a=ITEMS.filter(i=>(!t||i.marketOfferType===t)&&(!q||JSON.stringify(i).toLowerCase().includes(q)));$('items').innerHTML=a.map(card).join('')||'<div class="empty">لا توجد عروض مطابقة حاليًا.</div>';initMarketTitleMarquees()}
+
+function equalizeMarketCardRows(){
+  const cards=[...document.querySelectorAll('#items .market-compact-card')];
+  cards.forEach(c=>c.style.height='auto');
+  if(!cards.length)return;
+
+  const rows=[];
+  cards.forEach(card=>{
+    const top=Math.round(card.offsetTop);
+    let row=rows.find(r=>Math.abs(r.top-top)<=3);
+    if(!row){row={top,cards:[]};rows.push(row)}
+    row.cards.push(card);
+  });
+
+  rows.forEach(row=>{
+    const max=Math.max(...row.cards.map(c=>Math.ceil(c.getBoundingClientRect().height)));
+    row.cards.forEach(c=>c.style.height=max+'px');
+  });
+}
+
+let marketEqualizeTimer=null;
+function scheduleMarketEqualize(){
+  clearTimeout(marketEqualizeTimer);
+  marketEqualizeTimer=setTimeout(equalizeMarketCardRows,80);
+}
+
+function render(){let q=$('search').value.trim().toLowerCase(),t=$('type').value;let a=ITEMS.filter(i=>(!t||i.marketOfferType===t)&&(!q||JSON.stringify(i).toLowerCase().includes(q)));$('items').innerHTML=a.map(card).join('')||'<div class="empty">لا توجد عروض مطابقة حاليًا.</div>';initMarketTitleMarquees();scheduleMarketEqualize()}
 function setQty(v){if(!CURRENT)return;let max=Math.max(1,Number(CURRENT.availableQuantity||1)),n=Math.max(1,Math.min(max,Number(v||1)));$('requestQty').value=n;$('qtyNow').textContent=n;updateSummary()}
 window.qtyStep=d=>setQty(Number($('requestQty').value||1)+d);
 window.openRequest=(id,action)=>{let i=ITEMS.find(x=>x.id===id);if(!i)return;CURRENT=i;$('itemId').value=id;$('action').value=action;$('dlgTitle').textContent=action==='offer'?'تقديم عرض تفاوض':'السلة / طلب شراء';$('offerWrap').hidden=action!=='offer';$('requestQty').value=1;$('requestQty').max=Math.max(1,Number(i.availableQuantity||1));$('qtyUnit').textContent=qtyUnitLabel(i,2);$('qtyNow').textContent='1';$('offerAmount').value='';$('msg').textContent='';$('requestReceipt').hidden=true;$('requestReceipt').innerHTML='';updateSummary();if(typeof $('requestDlg').showModal==='function')$('requestDlg').showModal();else $('requestDlg').setAttribute('open','open')};
@@ -162,3 +188,9 @@ function ensureCartPanel(){if(document.getElementById('visitorCartPanel'))return
 function renderCart(){ensureCartPanel();let a=NawaderVisitor.cart(),rows=document.getElementById('visitorCartRows'),total=a.reduce((s,x)=>s+Number(x.unitPrice||0)*Number(x.quantity||1),0);rows.innerHTML=a.map(x=>`<div class="visitor-cart-row"><div><b>${esc(x.title)}</b><div>${Number(x.quantity||1)} × ${money(x.unitPrice)}</div></div><button onclick="NawaderVisitor.remove('${esc(x.id)}')">حذف</button></div>`).join('')||'<p>السلة فارغة.</p>';document.getElementById('visitorCartTotal').innerHTML=a.length?`<h3>قيمة المشتريات: ${money(total)}</h3><small>تضاف رسوم المنصة عند تسجيل الطلب.</small>`:''}
 async function checkoutCart(){let v=NawaderVisitor.get(),a=NawaderVisitor.cart(),msg=document.getElementById('visitorCartMsg');if(!v?.verified){location.href='/account?next=/market';return}if(!a.length){msg.textContent='السلة فارغة.';return}try{msg.textContent='جارٍ تسجيل الطلبات...';for(const x of a){let r=await fetch('/api/market/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itemId:x.id,action:'buy',name:v.name,phone:v.phone,quantity:Number(x.quantity||1),participantId:v.id}),cache:'no-store'}),d=await r.json();if(!r.ok)throw Error(d.error||'تعذر تسجيل أحد الطلبات')}NawaderVisitor.clear();msg.textContent='✅ تم إرسال مشترياتك إلى الإدارة. يمكنك متابعتها من «حسابي».';setTimeout(load,300)}catch(e){msg.textContent='⚠️ '+e.message}}
 document.addEventListener('DOMContentLoaded',()=>{ensureCartPanel();document.getElementById('cartOpen')?.addEventListener('click',()=>{renderCart();document.getElementById('visitorCartPanel').hidden=false});let v=NawaderVisitor.get();if(v){if($('buyerName'))$('buyerName').value=v.name||'';if($('buyerPhone'))$('buyerPhone').value=v.phone||''}});
+
+
+document.addEventListener('load',e=>{
+  if(e.target && e.target.matches && e.target.matches('#items .market-photo img')) scheduleMarketEqualize();
+},true);
+window.addEventListener('resize',scheduleMarketEqualize);
