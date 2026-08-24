@@ -40,6 +40,10 @@ function card(i){
           <button class="${fav?'on':''}" onclick='toggleAuctionReaction(${JSON.stringify(meta)},"favorite",this)'>❤️ <span>${fav?'في المفضلة':'مفضلة'}</span></button>
           <button onclick="shareAuctionItem('${i.id}')">↗ <span>مشاركة</span></button>
         </div>
+        <div class="image-column-countdown">
+          <span>الوقت المتبقي</span>
+          <strong class="auction-clock" data-end="${esc(i.auctionEnd||'')}">${ended?'انتهى المزاد':esc(clock(i.auctionEnd))}</strong>
+        </div>
       </div>
 
       <div class="auction-info-column">
@@ -60,11 +64,6 @@ function card(i){
     </div>
 
     <div class="auction-lower">
-      <div class="clean-countdown">
-        <span>الوقت المتبقي</span>
-        <strong class="auction-clock" data-end="${esc(i.auctionEnd||'')}">${ended?'انتهى المزاد':esc(clock(i.auctionEnd))}</strong>
-      </div>
-
       <div class="clean-activity">
         <div class="activity-head"><b>مؤشر المزاد</b><span>${i.reserveState==='met'?'✅ جاهز للبيع':i.reserveState==='below'?'يتقدم':'بانتظار المزايدات'}</span></div>
         <div class="auction-activity"><span class="activity-marker" style="left:${i.reserveState==='met'?88:Math.min(70,18+(bids*9))}%"></span></div>
