@@ -394,6 +394,122 @@
   .auction-details summary{font-size:.6rem!important;padding:4px!important}
 }
 
+
+
+/* V4.4.1 — clean, balanced Nawader auction cards */
+#publicAuctions{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:14px!important;
+  align-items:start!important;
+}
+.clean-auction-card{
+  display:block!important;
+  margin:0!important;
+  width:100%!important;
+  max-width:none!important;
+  border-radius:15px!important;
+  overflow:hidden!important;
+  background:#fff!important;
+  border:1px solid #d9e2eb!important;
+  box-shadow:0 7px 20px #071b3512!important;
+}
+.clean-photo-wrap,.clean-photo-wrap .auction-cover,.clean-photo-wrap .auction-cover>img{
+  height:165px!important;
+  min-height:165px!important;
+}
+.clean-photo-wrap .auction-cover{
+  position:relative!important;background:#07111f!important
+}
+.clean-photo-wrap .auction-cover>img{
+  width:100%!important;object-fit:contain!important;transform:none!important
+}
+.cover-arrow{
+  width:30px!important;height:38px!important;border-radius:9px!important;
+  background:#071b35d9!important;color:#fff!important;border:1px solid #d1aa55aa!important;
+  font-size:1.25rem!important;z-index:7!important
+}
+.cover-prev{right:6px!important}.cover-next{left:6px!important}
+.cover-count{
+  right:8px!important;bottom:7px!important;background:#071b35d9!important;color:#fff!important;
+  border-radius:999px!important;padding:3px 7px!important;font-size:.65rem!important;font-weight:900!important
+}
+.clean-card-body{padding:10px 11px!important}
+.clean-title-row{
+  display:flex!important;gap:8px!important;align-items:flex-start!important;margin-bottom:7px!important
+}
+.clean-title{flex:1!important;min-width:0!important}
+.clean-title h2{
+  margin:0!important;color:#102a47!important;font-size:1.05rem!important;
+  line-height:1.35!important;font-weight:950!important
+}
+.clean-title p{margin:2px 0 0!important;color:#69798b!important;font-size:.7rem!important}
+.status-stack{display:flex!important;flex-direction:column!important;gap:3px!important;align-items:flex-end!important}
+.live-chip,.ended-chip,.winner-chip,.transitional-public-badge{
+  font-size:.62rem!important;padding:4px 7px!important;border-radius:9px!important;white-space:nowrap!important
+}
+.clean-countdown{
+  background:#fff7e8!important;border:1px solid #ead29a!important;border-radius:10px!important;
+  padding:6px 8px!important;margin-bottom:7px!important
+}
+.clean-countdown span{display:block!important;color:#8b6619!important;font-size:.61rem!important;margin-bottom:2px!important}
+.clean-countdown strong{
+  display:block!important;color:#2c3540!important;font-size:.86rem!important;line-height:1.3!important
+}
+.clean-price-row{
+  display:grid!important;grid-template-columns:1.35fr .65fr .8fr!important;gap:5px!important;margin-bottom:7px!important
+}
+.clean-price,.clean-mini{
+  border:1px solid #dce4ec!important;border-radius:9px!important;background:#f8fafc!important;padding:6px 7px!important
+}
+.clean-price span,.clean-mini span{display:block!important;color:#6c7b8b!important;font-size:.58rem!important}
+.clean-price strong{display:block!important;margin-top:2px!important;font-size:.9rem!important;color:#102a47!important}
+.clean-price.reserve-met{background:#eaf7ef!important;border-color:#b9dfc7!important}
+.clean-price.reserve-met strong{color:#14723d!important}
+.clean-mini{text-align:center!important}
+.clean-mini strong{display:block!important;margin-top:2px!important;font-size:.78rem!important;color:#102a47!important}
+.clean-activity{
+  padding:6px!important;margin:5px 0 7px!important;border:1px solid #e2e7ed!important;
+  border-radius:9px!important;background:#fbfcfd!important
+}
+.clean-activity .activity-head{display:flex!important;justify-content:space-between!important;gap:6px!important;margin-bottom:4px!important}
+.clean-activity .activity-head b,.clean-activity .activity-head span{font-size:.6rem!important}
+.clean-activity .auction-activity{height:9px!important}
+.clean-activity .activity-marker{width:17px!important;height:17px!important;border-width:3px!important}
+.clean-bid-area{margin-top:5px!important}
+.bid-compact-row{gap:4px!important;margin-top:4px!important}
+.bid-mini{padding:5px!important;border-radius:8px!important}
+.bid-mini .mini-label{font-size:.58rem!important}
+.bid-mini .mini-value,.bid-mini input{font-size:.74rem!important}
+.swipe-bid{height:43px!important;border-radius:22px!important;margin:5px auto 2px!important;border-width:2px!important}
+.swipe-bid .swipe-text{font-size:.65rem!important;padding:0 53px 0 9px!important}
+.swipe-bid .swipe-handle{width:34px!important;height:34px!important;top:2px!important;right:2px!important;font-size:.95rem!important}
+.clean-actions{
+  display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:5px!important;
+  margin-top:8px!important;padding-top:7px!important;border-top:1px solid #e5e9ee!important
+}
+.clean-actions button{
+  min-width:0!important;padding:6px 5px!important;border-radius:8px!important;
+  background:#102a47!important;color:#fff!important;border:1px solid #25496c!important;
+  font-size:.65rem!important;line-height:1.1!important
+}
+.clean-actions button.on{background:#9a741f!important;border-color:#b58c32!important}
+.clean-actions button span{font-size:.63rem!important}
+.auction-extra-terms,.auction-notes,.auction-result{
+  font-size:.66rem!important;line-height:1.45!important;margin:5px 0!important
+}
+
+@media(max-width:1050px){
+  #publicAuctions{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:600px){
+  #publicAuctions{grid-template-columns:1fr!important}
+  .clean-auction-card{max-width:400px!important;margin:0 auto!important}
+  .clean-photo-wrap,.clean-photo-wrap .auction-cover,.clean-photo-wrap .auction-cover>img{
+    height:150px!important;min-height:150px!important
+  }
+}
+
 </style>
 </head>
 <body>
@@ -403,5 +519,5 @@
 <section class="panel auction-discovery"><div class="auction-search-row"><input id="auctionSearch" type="search" placeholder="🔎 ابحث بالدولة أو الفئة أو السنة أو الوصف"><button id="endingSoonBtn" type="button" class="ending-soon-btn">⏳ مزادات قاربت على الانتهاء</button><button id="allAuctionsBtn" type="button" class="all-auctions-btn">كل المزادات</button></div><div id="endingSoonStrip" class="ending-soon-strip" hidden></div></section>
 <div id="publicAuctions"></div>
 </main>
-<dialog id="auctionLightbox" class="auction-lightbox" aria-label="عارض صور المزاد"><button id="auctionLightboxClose" class="auction-lightbox-close" aria-label="إغلاق العارض">×</button><div class="auction-lightbox-toolbar"><button data-alb="prev">‹ السابق</button><button data-alb="zin">＋ تكبير</button><button data-alb="zout">− تصغير</button><button data-alb="rl">↺ تدوير</button><button data-alb="rr">↻ تدوير</button><button data-alb="center">◎ توسيط</button><button data-alb="reset">100%</button><button data-alb="full">⛶ ملء الشاشة</button><button data-alb="next">التالي ›</button></div><div id="auctionLightboxStage" class="auction-lightbox-stage"><img id="auctionLightboxImg" alt="صورة المقتنى في المزاد"></div><div id="auctionLightboxCount" class="auction-lightbox-count"></div></dialog><script src="/visitor.js?v=4.0.25.4"></script><script src="public_auction.js?v=4.4.0-premium-cards"></script>
+<dialog id="auctionLightbox" class="auction-lightbox" aria-label="عارض صور المزاد"><button id="auctionLightboxClose" class="auction-lightbox-close" aria-label="إغلاق العارض">×</button><div class="auction-lightbox-toolbar"><button data-alb="prev">‹ السابق</button><button data-alb="zin">＋ تكبير</button><button data-alb="zout">− تصغير</button><button data-alb="rl">↺ تدوير</button><button data-alb="rr">↻ تدوير</button><button data-alb="center">◎ توسيط</button><button data-alb="reset">100%</button><button data-alb="full">⛶ ملء الشاشة</button><button data-alb="next">التالي ›</button></div><div id="auctionLightboxStage" class="auction-lightbox-stage"><img id="auctionLightboxImg" alt="صورة المقتنى في المزاد"></div><div id="auctionLightboxCount" class="auction-lightbox-count"></div></dialog><script src="/visitor.js?v=4.0.25.4"></script><script src="public_auction.js?v=4.4.1-clean-balanced"></script>
 </body></html>
