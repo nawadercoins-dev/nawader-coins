@@ -1,4 +1,4 @@
-# V4.8.2 ARCHIVE — authenticated participant sessions, moderation, integrity and unified public classifications.
+# V4.9.0 LAUNCH CANDIDATE — durable customer sessions, market-first launch, grader filters and checkout recovery.
 # V4.8.0 — direct customer publishing across inventory, market, auction, special/rare, transitional; admin moderation only.
 # V4.7.0 — final collectible lifecycle reconciliation and owner controls.
 # V4.6.6 — platform-owner seller country: admin ownerCountry field, default Saudi Arabia, public flag fallback.
@@ -31,11 +31,13 @@ OPERATIONS_LOG=os.path.join(DATA_ROOT,'operations_log.json')
 ORDERS=os.path.join(DATA_ROOT,'orders_shipping.json')
 COLLECTIBLE_SUBMISSIONS=os.path.join(DATA_ROOT,'collectible_submissions.json')
 AUTH_FILE=os.path.join(DATA_ROOT,'admin_auth.json')
+PARTICIPANT_SESSION_SECRET_FILE=os.path.join(DATA_ROOT,'.participant_session_secret')
 ADMIN_CREDENTIALS=''
 ADMIN_SESSIONS={}
 PARTICIPANT_SESSIONS={}
 SESSION_TTL_SECONDS=12*60*60
 PARTICIPANT_SESSION_TTL_SECONDS=30*24*60*60
+MARKET_FIRST_LAUNCH=str(os.environ.get('NAWADER_LAUNCH_MARKET_ONLY','1')).strip().lower() not in ('0','false','no','off')
 LOCK=threading.Lock()
 BACKUP_DIR=os.path.join(DATA_ROOT,'backups')
 UPLOAD_DIR=os.path.join(DATA_ROOT,'uploads')
@@ -156,6 +158,49 @@ def verify_participant_pin(person,pin):
         return secrets.compare_digest(got,str(person.get('pinHash') or ''))
     except Exception:
         return False
+
+def _participant_session_secret():
+    env=str(os.environ.get('PARTICIPANT_SESSION_SECRET') or '').strip()
+    if env: return env.encode('utf-8')
+    try:
+        if os.path.isfile(PARTICIPANT_SESSION_SECRET_FILE):
+            with open(PARTICIPANT_SESSION_SECRET_FILE,'r',encoding='utf-8') as f:
+                val=f.read().strip()
+                if val: return val.encode('utf-8')
+        val=secrets.token_hex(32)
+        with open(PARTICIPANT_SESSION_SECRET_FILE,'w',encoding='utf-8') as f: f.write(val)
+        try: os.chmod(PARTICIPANT_SESSION_SECRET_FILE,0o600)
+        except Exception: pass
+        return val.encode('utf-8')
+    except Exception:
+        return hashlib.sha256((ROOT+'|nawader-session').encode('utf-8')).digest()
+
+def _participant_session_token(person):
+    pid=str((person or {}).get('id') or '')
+    issued=int(time.time()); nonce=secrets.token_hex(8)
+    payload=f'{pid}.{issued}.{nonce}'
+    sig=hmac.new(_participant_session_secret(),payload.encode('utf-8'),hashlib.sha256).hexdigest()
+    return payload+'.'+sig
+
+def _participant_from_signed_session(token):
+    try:
+        pid,issued_s,nonce,sig=str(token or '').rsplit('.',3)
+        payload=f'{pid}.{issued_s}.{nonce}'
+        expected=hmac.new(_participant_session_secret(),payload.encode('utf-8'),hashlib.sha256).hexdigest()
+        if not secrets.compare_digest(expected,sig): return None
+        issued=int(issued_s)
+        if issued<=0 or time.time()-issued>PARTICIPANT_SESSION_TTL_SECONDS: return None
+        person=next((x for x in load_people() if str(x.get('id'))==pid),None)
+        if not person: return None
+        updated=str(person.get('authUpdatedAt') or '')
+        if updated:
+            try:
+                auth_ts=datetime.datetime.fromisoformat(updated).timestamp()
+                if issued+1 < auth_ts: return None
+            except Exception: pass
+        return person
+    except Exception:
+        return None
 
 def clean_participant_sessions():
     now=time.time()
@@ -725,6 +770,17 @@ def load_settings():
         'transitionalIssues': bool(vis.get('transitionalIssues',True)),
     }
     return defaults
+
+def effective_visitor_sections(settings=None):
+    st=settings or load_settings(); vs=dict(st.get('visitorSections') or {})
+    if MARKET_FIRST_LAUNCH:
+        return {'market':True,'auction':False,'specialNumbers':False,'transitionalIssues':False}
+    return {
+        'market':vs.get('market',True) is not False,
+        'auction':vs.get('auction',True) is not False,
+        'specialNumbers':vs.get('specialNumbers',True) is not False,
+        'transitionalIssues':vs.get('transitionalIssues',True) is not False,
+    }
 
 BACKUP_FILES=[
     ('khazina_shared_data.json',DATA),('auction_participants.json',PEOPLE),
@@ -1368,12 +1424,16 @@ class H(SimpleHTTPRequestHandler):
         meta['last']=time.time(); return True
     def participant_person(self):
         clean_participant_sessions(); token=self.cookie_value('NawaderParticipant')
-        meta=PARTICIPANT_SESSIONS.get(token)
-        if not meta: return None
-        person=next((x for x in load_people() if str(x.get('id'))==str(meta.get('participantId'))),None)
+        if not token: return None
+        meta=PARTICIPANT_SESSIONS.get(token); person=None
+        if meta:
+            person=next((x for x in load_people() if str(x.get('id'))==str(meta.get('participantId'))),None); meta['last']=time.time()
+        else:
+            person=_participant_from_signed_session(token)
+            if person: PARTICIPANT_SESSIONS[token]={'participantId':str(person.get('id')),'created':time.time(),'last':time.time(),'persistent':True}
         if not person or person.get('blocked') or participant_approval_status(person) in ('stopped','cancelled'):
             PARTICIPANT_SESSIONS.pop(token,None); return None
-        meta['last']=time.time(); return person
+        return person
     def require_participant(self,requested_id='',api=True):
         person=self.participant_person()
         if not person:
@@ -1384,8 +1444,8 @@ class H(SimpleHTTPRequestHandler):
             return None
         return person
     def sendj_participant(self,obj,person,status=200):
-        token=secrets.token_urlsafe(32)
-        PARTICIPANT_SESSIONS[token]={'participantId':str(person.get('id')),'created':time.time(),'last':time.time()}
+        token=_participant_session_token(person)
+        PARTICIPANT_SESSIONS[token]={'participantId':str(person.get('id')),'created':time.time(),'last':time.time(),'persistent':True}
         secure='; Secure' if (self.headers.get('X-Forwarded-Proto') or '').lower()=='https' else ''
         b=json.dumps(obj,ensure_ascii=False).encode('utf-8')
         self.send_response(status); self.send_header('Content-Type','application/json; charset=utf-8')
@@ -1436,7 +1496,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'4.8.2','channel':'ARCHIVE'}); return
+            self.sendj({'version':'4.9.0','channel':'LAUNCH-CANDIDATE','marketFirstLaunch':MARKET_FIRST_LAUNCH}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1465,7 +1525,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/version':
             self.sendj({'version':'4.8.2','name':'Nawader Coins Archive','port':getattr(self.server,'server_port',None)}); return
         if p=='/api/settings/public':
-            st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'visitorSections':st['visitorSections']}); return
+            st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'visitorSections':effective_visitor_sections(st),'marketFirstLaunch':MARKET_FIRST_LAUNCH}); return
         if p=='/api/settings/admin':
             if not self.require_admin(api=True): return
             self.sendj({'settings':load_settings()}); return
@@ -1621,9 +1681,13 @@ class H(SimpleHTTPRequestHandler):
                     person=people.get(b.get('participantId'),{}); b['bidderName']=person.get('name','مشارك'); b['approvalStatus']=participant_approval_status(person); b['approvalLabel']=APPROVAL_LABELS[b['approvalStatus']]
                 self.sendj({'bids':bids}); return
         if p=='/api/public/special-numbers':
+            if not effective_visitor_sections()['specialNumbers']:
+                self.sendj({'items':[],'hidden':True,'launchMode':True}); return
             rows=[public_special_item(i) for i in load() if i.get('specialNumberEnabled') and item_is_public(i)]
             self.sendj({'items':rows}); return
         if p=='/api/public/transitional-issues':
+            if not effective_visitor_sections()['transitionalIssues']:
+                self.sendj({'items':[],'hidden':True,'launchMode':True}); return
             rows=[]
             for i in load():
                 if not i.get('transitionalIssueEnabled') or not item_is_public(i): continue
@@ -1638,6 +1702,8 @@ class H(SimpleHTTPRequestHandler):
             rows.sort(key=lambda x:str(x.get('updated') or ''), reverse=True)
             self.sendj({'items':rows}); return
         if p=='/api/public/auctions':
+            if not effective_visitor_sections()['auction']:
+                self.sendj({'items':[],'hidden':True,'launchMode':True}); return
             with LOCK:
                 ensure_auction_outcomes()
                 items=[]
@@ -1732,7 +1798,9 @@ class H(SimpleHTTPRequestHandler):
             if host.startswith('localhost') or host.startswith('127.0.0.1'): host=f'{local_ip()}:{getattr(self.server,"server_port",8080)}'
             self.sendj({'stable':True,'url':public_portal_url(host)}); return
         if p=='/daily-auction':
-            # توافق مع أي QR قديم مطبوع: لا تنتهي صلاحيته بعد الآن.
+            # أثناء إطلاق السوق فقط، أي QR قديم للمزاد يعاد إلى الواجهة الرئيسية بدل كشف القسم المؤجل.
+            if not effective_visitor_sections()['auction']:
+                self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'public_auction.html'),'text/html; charset=utf-8'); return
         # Robust public-auction aliases so the visitor page works even when the browser uses a clean URL.
         if p in ('/announcements','/announcements/','/announcements.html'):
@@ -1746,19 +1814,19 @@ class H(SimpleHTTPRequestHandler):
         if p in ('/seller','/seller/','/seller_portal.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'seller_portal.html'),'text/html; charset=utf-8'); return
         if p in ('/special-numbers','/special-numbers/','/special_numbers.html'):
-            if not load_settings()['visitorSections']['specialNumbers']:
+            if not effective_visitor_sections()['specialNumbers']:
                 self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'special_numbers.html'),'text/html; charset=utf-8'); return
         if p in ('/transitional-issues','/transitional-issues/','/transitional_issues.html'):
-            if not load_settings()['visitorSections']['transitionalIssues']:
+            if not effective_visitor_sections()['transitionalIssues']:
                 self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'transitional_issues.html'),'text/html; charset=utf-8'); return
         if p in ('/auction','/auction/','/public_auction.html','/public-auction'):
-            if not load_settings()['visitorSections']['auction']:
+            if not effective_visitor_sections()['auction']:
                 self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'public_auction.html'),'text/html; charset=utf-8'); return
         if p in ('/market','/market/','/public_market.html','/public-market'):
-            if not load_settings()['visitorSections']['market']:
+            if not effective_visitor_sections()['market']:
                 self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'public_market.html'),'text/html; charset=utf-8'); return
         # لا نسمح بعرض مجلد المشروع أو الملفات الإدارية مباشرة.
@@ -2951,7 +3019,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.8.2-ARCHIVE'
+VERSION='4.9.0-LAUNCH-CANDIDATE'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
