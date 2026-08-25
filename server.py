@@ -1,4 +1,4 @@
-# V4.8.1 STABILITY — authenticated participant sessions, moderation, integrity and unified public classifications.
+# V4.8.2 ARCHIVE — authenticated participant sessions, moderation, integrity and unified public classifications.
 # V4.8.0 — direct customer publishing across inventory, market, auction, special/rare, transitional; admin moderation only.
 # V4.7.0 — final collectible lifecycle reconciliation and owner controls.
 # V4.6.6 — platform-owner seller country: admin ownerCountry field, default Saudi Arabia, public flag fallback.
@@ -1238,6 +1238,62 @@ def is_public_upload_url(url):
     return False
 
 
+def archive_item_record(item,reason='',actor='الإدارة'):
+    if not item: return False
+    if moderation_status(item)=='archived': return True
+    now=datetime.datetime.now().isoformat()
+    item['archivePreviousState']={
+        'forMarket':bool(item.get('forMarket')),
+        'marketApproved':bool(item.get('marketApproved')),
+        'forAuction':bool(item.get('forAuction')),
+        'auctionApproved':bool(item.get('auctionApproved')),
+        'storageStatus':item.get('storageStatus','warehouse'),
+        'moderationStatus':moderation_status(item),
+    }
+    item['moderationStatus']='archived'
+    item['archiveReason']=str(reason or '').strip()
+    item['archivedAt']=now
+    item['archivedBy']=actor
+    # الإخفاء من جميع الواجهات فورًا مع إبقاء المعاملات والسجل محفوظين.
+    item['forMarket']=False; item['marketApproved']=False
+    if item.get('forAuction') and not item.get('auctionSold') and not item.get('auctionOutcome')=='sold':
+        item['auctionCancelled']=True
+        item['auctionCancelReason']='نقل المقتنى إلى الأرشيف بواسطة الإدارة'
+        item['auctionCancelledAt']=now
+    item['forAuction']=False; item['auctionApproved']=False
+    item['storageStatus']='archived'
+    item['updated']=int(time.time()*1000)
+    return True
+
+def restore_archived_item(item,actor='الإدارة'):
+    if not item: return {'ok':False,'warning':''}
+    prev=item.get('archivePreviousState') if isinstance(item.get('archivePreviousState'),dict) else {}
+    warning=''
+    item['moderationStatus']='active'
+    item['storageStatus']=prev.get('storageStatus') or 'warehouse'
+    item['ownerArchived']=False; item['ownerArchivedAt']=''
+    item['archiveRestoredAt']=datetime.datetime.now().isoformat(); item['archiveRestoredBy']=actor
+    # السوق يمكن استعادته إذا بقيت كمية متاحة.
+    available=max(0,int(item.get('quantity') or 0)-int(item.get('soldQuantity') or 0)-int(item.get('damagedQuantity') or 0))
+    market_restore=bool(prev.get('forMarket') and prev.get('marketApproved') and available>0)
+    item['forMarket']=market_restore; item['marketApproved']=market_restore
+    # المزاد يعاد فقط إذا كان ما زال صالحًا زمنيًا ولم يبع سابقًا.
+    auction_restore=False
+    if prev.get('forAuction') and prev.get('auctionApproved') and not item.get('auctionSold') and item.get('auctionOutcome')!='sold':
+        try:
+            end_dt=datetime.datetime.fromisoformat(str(item.get('auctionEnd') or '').replace('Z','+00:00'))
+            now_dt=datetime.datetime.now(end_dt.tzinfo) if end_dt.tzinfo else auction_local_now()
+            auction_restore=end_dt>now_dt
+        except Exception:
+            auction_restore=False
+    item['forAuction']=auction_restore; item['auctionApproved']=auction_restore
+    if auction_restore:
+        item['auctionCancelled']=False; item['auctionCancelReason']=''; item['auctionCancelledAt']=''
+    elif prev.get('forAuction'):
+        warning='تمت استعادة المقتنى، لكن المزاد السابق لم يُعد تلقائيًا لأنه منتهٍ أو غير صالح لإعادة التشغيل.'
+    item['updated']=int(time.time()*1000)
+    return {'ok':True,'warning':warning}
+
 def platform_integrity_report():
     items=load(); people=load_people(); submissions=load_collectible_submissions()
     duplicate_ids={}
@@ -1264,8 +1320,8 @@ def platform_integrity_report():
     duplicate_phones={k:v for k,v in phones.items() if len(v)>1}
 
     orphan_owners=[str(i.get('id') or '') for i in items if i.get('ownerParticipantId') and not any(str(p.get('id'))==str(i.get('ownerParticipantId')) for p in people)]
-    zero_price_market=[str(i.get('id') or '') for i in items if i.get('forMarket') and i.get('marketApproved') and float(i.get('marketSalePrice') or i.get('marketUnitPrice') or 0)<=0]
-    invalid_auctions=[str(i.get('id') or '') for i in items if i.get('forAuction') and i.get('auctionApproved') and (not i.get('auctionEnd') or float(i.get('auctionOpeningPrice') or i.get('auctionStartPrice') or 0)<=0)]
+    zero_price_market=[str(i.get('id') or '') for i in items if item_is_public(i) and i.get('forMarket') and i.get('marketApproved') and float(i.get('marketSalePrice') or i.get('marketUnitPrice') or 0)<=0]
+    invalid_auctions=[str(i.get('id') or '') for i in items if item_is_public(i) and i.get('forAuction') and i.get('auctionApproved') and (not i.get('auctionEnd') or float(i.get('auctionOpeningPrice') or i.get('auctionStartPrice') or 0)<=0)]
     item_ids={str(i.get('id') or '') for i in items}
     orphan_submissions=[str(x.get('id') or '') for x in submissions if x.get('itemId') and str(x.get('itemId')) not in item_ids]
     missing_images=[str(i.get('id') or '') for i in items if not i.get('frontImg') and not i.get('backImg')]
@@ -1292,7 +1348,7 @@ def platform_integrity_report():
 ADMIN_GET_API={
     '/api/negotiations','/api/backup/full','/api/items','/api/participants','/api/participants/summary',
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
-    '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity'
+    '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity','/api/archive/items'
 }
 PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel'}
 PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/invoice.html'}
@@ -1380,7 +1436,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'4.8.1','channel':'STABILITY'}); return
+            self.sendj({'version':'4.8.2','channel':'ARCHIVE'}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1407,7 +1463,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
         if p=='/api/version':
-            self.sendj({'version':'4.8.1','name':'Nawader Coins Stability','port':getattr(self.server,'server_port',None)}); return
+            self.sendj({'version':'4.8.2','name':'Nawader Coins Archive','port':getattr(self.server,'server_port',None)}); return
         if p=='/api/settings/public':
             st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'visitorSections':st['visitorSections']}); return
         if p=='/api/settings/admin':
@@ -1496,6 +1552,10 @@ class H(SimpleHTTPRequestHandler):
             self.sendj(inventory_summary()); return
         if p=='/api/integrity':
             self.sendj(platform_integrity_report()); return
+        if p=='/api/archive/items':
+            rows=[dict(i) for i in load() if moderation_status(i) in ('archived','removed') or i.get('ownerArchived')]
+            rows.sort(key=lambda x:str(x.get('archivedAt') or x.get('ownerArchivedAt') or x.get('updated') or ''),reverse=True)
+            self.sendj({'items':rows,'total':len(rows)}); return
         if p=='/api/operations':
             rows=load_operations_log(); rows.sort(key=lambda x:x.get('created',''),reverse=True); self.sendj({'events':rows[:500]}); return
         if p=='/api/permissions/me':
@@ -2070,9 +2130,10 @@ class H(SimpleHTTPRequestHandler):
                 has_orders=any(any(str(line.get('itemId'))==iid for line in (o.get('items') or [])) for o in load_orders())
                 if item.get('forMarket') or item.get('forAuction') or has_bids or has_market or has_orders or item.get('auctionSold'):
                     self.sendj({'error':'لا يمكن حذف مقتنى مرتبط بعرض أو مزاد أو طلب. اسحب العرض/ألغ المزاد وأغلق الالتزامات أولًا.'},409); return
-                item['ownerArchived']=True; item['ownerArchivedAt']=datetime.datetime.now().isoformat(); item['storageStatus']='owner_removed'
+                archive_item_record(item,'حذف بواسطة صاحب المقتنى','العميل')
+                item['ownerArchived']=True; item['ownerArchivedAt']=datetime.datetime.now().isoformat()
                 item['updated']=int(time.time()*1000); save(items)
-                append_operation('حذف/أرشفة مقتنى بواسطة المالك',{'itemId':iid,'participantId':pid},actor='العميل')
+                append_operation('نقل مقتنى إلى الأرشيف بواسطة المالك',{'itemId':iid,'participantId':pid},actor='العميل')
                 add_notification('participant',pid,'approval','تم حذف المقتنى من قائمتك',f"{item.get('country','')} — {item.get('denomination','')} حُفظ في الأرشيف الداخلي ولم يعد ظاهرًا في حسابك.",iid,'/account')
                 self.sendj({'ok':True}); return
 
@@ -2609,7 +2670,8 @@ class H(SimpleHTTPRequestHandler):
 
             if p=='/api/moderation/item':
                 iid=str(d.get('itemId') or ''); status=str(d.get('status') or '').strip().lower(); reason=str(d.get('reason') or '').strip()
-                if status not in ('active','hidden','suspended','archived','removed'):
+                if status=='removed': self.sendj({'error':'الإزالة النهائية تتم من الأرشيف فقط'},409); return
+                if status not in ('active','hidden','suspended','archived'):
                     self.sendj({'error':'حالة المراقبة غير صالحة'},400); return
                 if status!='active' and not reason:
                     self.sendj({'error':'سبب الإجراء إلزامي عند الإخفاء أو الإيقاف أو الأرشفة أو الإزالة'},400); return
@@ -2624,9 +2686,51 @@ class H(SimpleHTTPRequestHandler):
                 append_operation('تحديث مراقبة مقتنى',{'itemId':iid,'previous':previous,'status':status,'reason':reason},actor='الإدارة')
                 pid=str(item.get('ownerParticipantId') or '')
                 if pid:
-                    labels={'active':'إعادة تفعيل','hidden':'إخفاء','suspended':'إيقاف','archived':'أرشفة','removed':'إزالة'}
+                    labels={'active':'إعادة تفعيل','hidden':'إخفاء','suspended':'إيقاف','archived':'أرشفة'}
                     add_notification('participant',pid,'moderation',f"إجراء إداري: {labels.get(status,status)}",f"{item.get('country','')} — {item.get('denomination','')}. {reason}".strip(),iid,'/account')
                 self.sendj({'ok':True,'itemId':iid,'status':status,'previous':previous}); return
+
+            if p=='/api/archive/item':
+                iid=str(d.get('itemId') or ''); reason=str(d.get('reason') or '').strip()
+                if not reason: self.sendj({'error':'سبب الحذف/الأرشفة إلزامي'},400); return
+                items=load(); item=next((x for x in items if str(x.get('id'))==iid),None)
+                if not item: self.sendj({'error':'المقتنى غير موجود'},404); return
+                previous=moderation_status(item); archive_item_record(item,reason,'الإدارة'); save(items)
+                append_operation('نقل مقتنى إلى الأرشيف',{'itemId':iid,'previous':previous,'reason':reason},actor='الإدارة')
+                pid=str(item.get('ownerParticipantId') or '')
+                if pid: add_notification('participant',pid,'moderation','تم نقل المقتنى إلى الأرشيف',f"{item.get('country','')} — {item.get('denomination','')}. السبب: {reason}",iid,'/account')
+                self.sendj({'ok':True,'archived':True,'itemId':iid}); return
+
+            if p=='/api/archive/restore':
+                iid=str(d.get('itemId') or '')
+                items=load(); item=next((x for x in items if str(x.get('id'))==iid),None)
+                if not item: self.sendj({'error':'المقتنى غير موجود'},404); return
+                if moderation_status(item) not in ('archived','removed') and not item.get('ownerArchived'):
+                    self.sendj({'error':'المقتنى ليس في الأرشيف'},409); return
+                result=restore_archived_item(item,'الإدارة'); save(items)
+                append_operation('استعادة مقتنى من الأرشيف',{'itemId':iid,'warning':result.get('warning','')},actor='الإدارة')
+                self.sendj({'ok':True,'restored':True,'warning':result.get('warning','')}); return
+
+            if p=='/api/archive/purge':
+                iid=str(d.get('itemId') or ''); confirm_text=str(d.get('confirmText') or '').strip(); reason=str(d.get('reason') or '').strip()
+                if confirm_text!='إزالة نهائية': self.sendj({'error':'اكتب «إزالة نهائية» للتأكيد'},400); return
+                if not reason: self.sendj({'error':'سبب الإزالة النهائية إلزامي'},400); return
+                items=load(); item=next((x for x in items if str(x.get('id'))==iid),None)
+                if not item: self.sendj({'error':'المقتنى غير موجود'},404); return
+                if moderation_status(item) not in ('archived','removed') and not item.get('ownerArchived'):
+                    self.sendj({'error':'الإزالة النهائية مسموحة من الأرشيف فقط'},409); return
+                order_refs=sum(1 for o in load_orders() if any(str(line.get('itemId'))==iid for line in (o.get('items') or [])))
+                bid_refs=sum(1 for b in load_bids() if str(b.get('itemId'))==iid)
+                market_refs=sum(1 for r in load_market_requests() if str(r.get('itemId'))==iid)
+                tomb={'itemId':iid,'country':item.get('country',''),'denomination':item.get('denomination',''),'serial':item.get('serial',''),'ownerParticipantId':item.get('ownerParticipantId',''),'orderRefs':order_refs,'bidRefs':bid_refs,'marketRefs':market_refs,'reason':reason}
+                items=[x for x in items if str(x.get('id'))!=iid]; save(items)
+                rows=load_collectible_submissions(); changed=False
+                for row in rows:
+                    if str(row.get('itemId') or '')==iid:
+                        row['purgedItemId']=iid; row['itemId']=''; row['status']='purged'; row['warehouseVerified']=False; row['purgedAt']=datetime.datetime.now().isoformat(); row['adminNote']=((str(row.get('adminNote') or '')+' تمت إزالة المقتنى نهائيًا من الأرشيف.').strip()); changed=True
+                if changed: save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
+                append_operation('إزالة مقتنى نهائيًا من الأرشيف',tomb,actor='الإدارة')
+                self.sendj({'ok':True,'purged':True,'itemId':iid,'historyPreserved':{'orders':order_refs,'bids':bid_refs,'marketRequests':market_refs}}); return
 
             if p=='/api/participant/approval-status':
                 a=load_people(); iid=str(d.get('id') or ''); status=str(d.get('status') or '').strip().lower(); reason=str(d.get('reason') or '').strip()
@@ -2829,13 +2933,11 @@ class H(SimpleHTTPRequestHandler):
         if p.startswith('/api/item/'):
             iid=p.split('/')[-1]
             with LOCK:
-                if any(str(line.get('itemId'))==iid for order in load_orders() for line in (order.get('items') or [])):
-                    self.sendj({'error':'لا يمكن حذف مقتنى مرتبط بطلب. يمكن إبقاؤه في السجل أو أرشفته بعد اكتمال الدورة.'},409); return
-                if any(str(b.get('itemId'))==iid for b in load_bids()):
-                    self.sendj({'error':'لا يمكن حذف مقتنى مرتبط بسجل مزايدات محفوظ.'},409); return
-                items=[i for i in load() if str(i.get('id'))!=iid]; save(items)
-                append_operation('حذف مقتنى غير مرتبط',{'itemId':iid})
-            self.sendj({'ok':True}); return
+                items=load(); item=next((x for x in items if str(x.get('id'))==iid),None)
+                if not item: self.sendj({'error':'المقتنى غير موجود'},404); return
+                archive_item_record(item,'حذف من واجهة الإدارة','الإدارة'); save(items)
+                append_operation('نقل مقتنى إلى الأرشيف عبر زر الحذف',{'itemId':iid},actor='الإدارة')
+            self.sendj({'ok':True,'archived':True}); return
         self.sendj({'error':'not found'},404)
 
 os.chdir(ROOT); backup_data('startup')
@@ -2849,7 +2951,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.8.1-STABILITY'
+VERSION='4.8.2-ARCHIVE'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
