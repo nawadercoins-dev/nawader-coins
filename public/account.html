@@ -25,14 +25,44 @@
     <a class="account-card" href="#shippingPanel"><span class="ico">📦</span><b>الشحن والعناوين</b><span>متابعة شركة الشحن ورقم التتبع</span><strong id="shippingCount">0</strong></a>
     <a class="account-card" href="#favoritesPanel"><span class="ico">❤️</span><b>المفضلة</b><span>حفظ العملات للرجوع إليها لاحقًا</span><strong id="favoritesCount">0</strong></a>
     <a class="account-card" href="#activityPanel"><span class="ico">🕘</span><b>سجل النشاط</b><span>آخر الطلبات والتنبيهات المهمة</span><strong id="activityCount">0</strong></a>
-    <a class="account-card submit-card" href="#submissionPanel"><span class="ico">🪙</span><b>إضافة مقتنى للاعتماد</b><span>أرسل بيانات العملة وصورها للإدارة قبل إضافتها للسجل أو العرض</span><strong>إرسال جديد</strong></a>
+    <a class="account-card submit-card" href="#submissionPanel"><span class="ico">🪙</span><b>إضافة مقتنى مباشرة</b><span>أضف المقتنى مباشرة إلى المنصة مع بقاء الإدارة جهة رقابة</span><strong>إرسال جديد</strong></a>
     <a class="account-card" id="sellerCard" href="/seller" hidden><span class="ico">🏪</span><b>مبيعاتي وعروضي</b><span>بوابة البائع حسب الصلاحيات الممنوحة</span><strong>فتح</strong></a>
   </div>
-  <section class="panel" id="submissionPanel"><div class="section-title"><div><h2>🪙 إضافة مقتنى للاعتماد</h2><p>أرسل بيانات المقتنى للإدارة. لن يظهر في السوق أو المزاد قبل المراجعة والاعتماد.</p></div><button id="toggleSubmissionForm" style="border:0;border-radius:10px;padding:10px 14px;background:#c9861b;color:white;font-weight:900;cursor:pointer">＋ إضافة مقتنى</button></div>
-  <div id="submissionFormBox" hidden style="margin-top:14px"><div class="submission-form"><label>الدولة<input id="subCountry" placeholder="مثال: المملكة العربية السعودية"></label><label>الفئة<input id="subDenomination" placeholder="مثال: 5 ريال"></label><label>السنة<input id="subYear" placeholder="مثال: 1983"></label><label>الإصدار<input id="subEdition" placeholder="اختياري"></label><label>نوع المقتنى<select id="subType"><option>عملة ورقية</option><option>عملة معدنية</option><option>أخرى</option></select></label><label>تصنيف المقتنى<select id="subCollectionClass"><option value="single">قطعة مفردة</option><option value="set">طقم</option></select></label><label>التقييم<select id="subGraded"><option value="false">غير مُقيَّم</option><option value="true">مُقيَّم من جهة تقييم</option></select></label><label>الحالة<select id="subCondition"><option>UNC</option><option>AU</option><option>XF</option><option>VF</option><option>F</option><option>G</option></select></label><label>نوع الوحدة<select id="subUnitType"><option value="piece">ورقة / قطعة</option><option value="coin">عملة معدنية</option><option value="set">طقم</option><option value="bundle">حزمة</option><option value="strap">ربطة (100 ورقة)</option><option value="lot">بندل / مجموعة</option></select></label><label>عدد الوحدات<input id="subUnitCount" type="number" min="1" value="1"></label><label>عدد الأوراق/القطع داخل الوحدة<input id="subPiecesPerUnit" type="number" min="1" value="1"></label><label>الكمية الفعلية<input id="subQuantityPreview" value="1" readonly></label><label>الرقم التسلسلي الأول<input id="subSerial" placeholder="اختياري"></label><label>الرغبة بعد الاعتماد<select id="subDestination"><option value="vault">إيداعه في المستودع فقط</option><option value="market">أرغب بعرضه في السوق بعد الاعتماد</option><option value="auction">أرغب بإدخاله للمزاد بعد الاعتماد</option></select></label><label class="wide">وصف / ملاحظات<textarea id="subNotes" placeholder="معلومات مهمة عن العملة أو سبب تميزها"></textarea></label><label class="image-pick">صورة الوجه<input id="subFront" type="file" accept="image/*"><span class="image-preview" id="subFrontPreview"></span></label><label class="image-pick">صورة الخلف<input id="subBack" type="file" accept="image/*"><span class="image-preview" id="subBackPreview"></span></label><div class="wide submit-actions"><button class="send" id="sendSubmission">إرسال للإدارة للاعتماد</button><button class="cancel" id="cancelSubmission">إلغاء</button><span id="submissionMsg"></span></div></div></div>
-  <h3 style="margin-top:20px">مقتنياتي المرسلة للاعتماد</h3><div id="submissionList"><div class="empty">لا توجد طلبات اعتماد مقتنيات حتى الآن.</div></div></section>
+  <section class="panel" id="submissionPanel"><div class="section-title"><div><h2>🪙 إضافة مقتنى مباشرة</h2><p>أرسل بيانات المقتنى للإدارة. لن يظهر في السوق أو المزاد قبل المراجعة والاعتماد.</p></div><button id="toggleSubmissionForm" style="border:0;border-radius:10px;padding:10px 14px;background:#c9861b;color:white;font-weight:900;cursor:pointer">＋ إضافة مقتنى</button></div>
+  <div id="submissionFormBox" hidden style="margin-top:14px"><div class="submission-form"><label>الدولة<input id="subCountry" placeholder="مثال: المملكة العربية السعودية"></label><label>الفئة<input id="subDenomination" placeholder="مثال: 5 ريال"></label><label>السنة<input id="subYear" placeholder="مثال: 1983"></label><label>الإصدار<input id="subEdition" placeholder="اختياري"></label><label>نوع المقتنى<select id="subType"><option>عملة ورقية</option><option>عملة معدنية</option><option>أخرى</option></select></label><label>تصنيف المقتنى<select id="subCollectionClass"><option value="single">قطعة مفردة</option><option value="set">طقم</option></select></label><label>التقييم<select id="subGraded"><option value="false">غير مُقيَّم</option><option value="true">مُقيَّم من جهة تقييم</option></select></label><label>الحالة<select id="subCondition"><option>UNC</option><option>AU</option><option>XF</option><option>VF</option><option>F</option><option>G</option></select></label><label>نوع الوحدة<select id="subUnitType"><option value="piece">ورقة / قطعة</option><option value="coin">عملة معدنية</option><option value="set">طقم</option><option value="bundle">حزمة</option><option value="strap">ربطة (100 ورقة)</option><option value="lot">بندل / مجموعة</option></select></label><label>عدد الوحدات<input id="subUnitCount" type="number" min="1" value="1"></label><label>عدد الأوراق/القطع داخل الوحدة<input id="subPiecesPerUnit" type="number" min="1" value="1"></label><label>الكمية الفعلية<input id="subQuantityPreview" value="1" readonly></label><label>الرقم التسلسلي الأول<input id="subSerial" placeholder="اختياري"></label><label>مكان النشر<select id="subDestination"><option value="vault">إضافته إلى مقتنياتي فقط</option><option value="market">نشره مباشرة في السوق</option><option value="auction">نشره مباشرة في المزاد</option></select></label><div class="wide" id="subMarketFields" hidden style="border:1px solid #d8c07e;border-radius:12px;padding:12px;background:#fffaf0">
+<label>سعر البيع ر.س<input id="subMarketPrice" type="number" min="0.01" step="0.01"></label>
+<label>الكمية المعروضة<input id="subMarketQuantity" type="number" min="1" value="1"></label>
+<label>التفاوض<select id="subMarketNegotiation"><option value="false">غير مسموح</option><option value="true">مسموح</option></select></label>
+<label>أقصى نسبة تفاوض %<input id="subMarketNegotiationPercent" type="number" min="0" max="50" value="5"></label>
+</div>
+<div class="wide" id="subAuctionFields" hidden style="border:1px solid #d8c07e;border-radius:12px;padding:12px;background:#fffaf0">
+<label>موعد انتهاء المزاد<input id="subAuctionEnd" type="datetime-local"></label>
+<label>سعر الافتتاح<input id="subAuctionOpening" type="number" min="0.01" step="0.01"></label>
+<label>قيمة الزيادة<input id="subAuctionStep" type="number" min="0.01" step="0.01" value="1"></label>
+<label>حد البيع<input id="subAuctionTarget" type="number" min="0" step="0.01" value="0"></label>
+<label class="wide">الشروط الإضافية<textarea id="subAuctionTerms"></textarea></label>
+</div>
+<div class="wide" style="border:1px solid #d8c07e;border-radius:12px;padding:12px;background:#fff">
+<label><input id="subSpecialEnabled" type="checkbox"> رقم مميز / نادر</label>
+<div id="subSpecialFields" hidden>
+<label>التصنيف<select id="subSpecialType"><option value="repeated">متكرر</option><option value="sequential">متسلسل</option><option value="matching">متطابق</option><option value="palindrome">متناظر</option><option value="ascending">تصاعدي</option><option value="descending">تنازلي</option><option value="rare">نادر</option><option value="rare-error">خطأ نادر</option></select></label>
+<label>سبب التميز / الندرة<input id="subSpecialReason"></label>
+</div>
+</div>
+<div class="wide" style="border:1px solid #d8c07e;border-radius:12px;padding:12px;background:#fff">
+<label><input id="subTransitionalEnabled" type="checkbox"> حالة / إصدار انتقالي</label>
+<div id="subTransitionalFields" hidden>
+<label>نوع الحالة<select id="subTransitionalType"><option value="signature-change">تغيير توقيع</option><option value="design-change">تغيير تصميم</option><option value="currency-change">تغيير عملة/نظام</option><option value="authority-change">تغيير جهة الإصدار</option><option value="other">أخرى</option></select></label>
+<label>الإصدار السابق<input id="subTransitionalPrevious"></label>
+<label>الإصدار التالي<input id="subTransitionalNext"></label>
+<label>الندرة<select id="subTransitionalRarity"><option value="">غير محدد</option><option value="documented">موثق</option><option value="scarce">قليل</option><option value="rare">نادر</option><option value="very-rare">نادر جدًا</option></select></label>
+<label>سبب الحالة الانتقالية<input id="subTransitionalReason"></label>
+</div>
+</div>
+<label class="wide">وصف / ملاحظات<textarea id="subNotes" placeholder="معلومات مهمة عن العملة أو سبب تميزها"></textarea></label><label class="image-pick">صورة الوجه<input id="subFront" type="file" accept="image/*"><span class="image-preview" id="subFrontPreview"></span></label><label class="image-pick">صورة الخلف<input id="subBack" type="file" accept="image/*"><span class="image-preview" id="subBackPreview"></span></label><div class="wide submit-actions"><button class="send" id="sendSubmission">إضافة مباشرة</button><button class="cancel" id="cancelSubmission">إلغاء</button><span id="submissionMsg"></span></div></div></div>
+  <h3 style="margin-top:20px">سجل إضافات المقتنيات</h3><div id="submissionList"><div class="empty">لا توجد طلبات اعتماد مقتنيات حتى الآن.</div></div></section>
   <section class="panel" id="ownedItemsPanel">
-    <div class="section-title"><h2>🪙 مقتنياتي المعتمدة <small style="font-size:.55em;color:#9a6818">V4.7.0</small></h2><span class="status" id="ownedItemsCount">0</span></div>
+    <div class="section-title"><h2>🪙 مقتنياتي المعتمدة <small style="font-size:.55em;color:#9a6818">V4.8.0</small></h2><span class="status" id="ownedItemsCount">0</span></div>
     <p class="auth-help">إدارة المقتنيات التي تم اعتمادها وإيداعها في المستودع.</p>
     <div id="ownedItemsList"><div class="empty">لا توجد مقتنيات معتمدة حتى الآن.</div></div>
   </section>
@@ -80,6 +110,15 @@ function submissionStatusLabel(s){return s==='approved'?'معتمد':s==='needs_
 async function uploadSubmissionImage(file){let v=NawaderVisitor.get();if(!v)throw Error('سجل الدخول أولًا');if(!file||!String(file.type||'').startsWith('image/'))throw Error('اختر ملف صورة صحيح');let r=await fetch('/api/visitor/upload',{method:'POST',headers:{'Content-Type':file.type||'image/jpeg','X-Participant-Id':v.id},body:file}),d=await r.json();if(!r.ok)throw Error(d.error||'تعذر رفع الصورة');return d.url}
 function setSubmissionPreview(id,data){let el=$(id);el.innerHTML=data?`<img src="${esc(data)}" alt="معاينة"><small>محفوظة سحابيًا</small>`:''}
 $('subFront').onchange=async e=>{try{$('submissionMsg').textContent='جارٍ رفع صورة الوجه...';submissionFront=await uploadSubmissionImage(e.target.files?.[0]);setSubmissionPreview('subFrontPreview',submissionFront);$('submissionMsg').textContent='✅ حُفظت صورة الوجه'}catch(x){alert(x.message)}};$('subBack').onchange=async e=>{try{$('submissionMsg').textContent='جارٍ رفع صورة الخلف...';submissionBack=await uploadSubmissionImage(e.target.files?.[0]);setSubmissionPreview('subBackPreview',submissionBack);$('submissionMsg').textContent='✅ حُفظت صورة الخلف'}catch(x){alert(x.message)}};
+function updateDirectDestinationUI(){
+  let d=$('subDestination').value;
+  $('subMarketFields').hidden=d!=='market';
+  $('subAuctionFields').hidden=d!=='auction';
+}
+$('subDestination').onchange=updateDirectDestinationUI;
+$('subSpecialEnabled').onchange=()=>$('subSpecialFields').hidden=!$('subSpecialEnabled').checked;
+$('subTransitionalEnabled').onchange=()=>$('subTransitionalFields').hidden=!$('subTransitionalEnabled').checked;
+updateDirectDestinationUI();
 $('toggleSubmissionForm').onclick=()=>$('submissionFormBox').hidden=!$('submissionFormBox').hidden;$('cancelSubmission').onclick=e=>{e.preventDefault();$('submissionFormBox').hidden=true};
 async function loadSubmissions(v){
   try{
@@ -103,7 +142,21 @@ async function loadSubmissions(v){
 }
 window.editSubmission=id=>{let x=submissionRows.find(r=>r.id===id);if(!x)return;editingSubmissionId=id;$('subCountry').value=x.country||'';$('subDenomination').value=x.denomination||'';$('subYear').value=x.year||'';$('subEdition').value=x.issueEdition||'';$('subType').value=x.type||'عملة ورقية';$('subCollectionClass').value=x.collectionClass||'single';$('subGraded').value=String(!!x.isGraded);$('subCondition').value=x.condition||'UNC';$('subUnitType').value=x.inventoryUnitType||'piece';$('subUnitCount').value=x.inventoryUnitCount||1;$('subPiecesPerUnit').value=x.piecesPerUnit||1;$('subSerial').value=x.serial||'';$('subDestination').value=x.desiredDestination||'vault';$('subNotes').value=x.notes||'';submissionFront=x.frontImage||'';submissionBack=x.backImage||'';setSubmissionPreview('subFrontPreview',submissionFront);setSubmissionPreview('subBackPreview',submissionBack);updateSubmissionQuantity();$('sendSubmission').textContent='حفظ التعديلات';$('submissionFormBox').hidden=false};
 window.deleteSubmission=async id=>{if(!confirm('هل تريد حذف هذا الطلب؟'))return;let v=NawaderVisitor.get(),r=await fetch('/api/collectible-submissions/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,participantId:v.id})}),d=await r.json();if(!r.ok)return alert(d.error||'تعذر الحذف');loadSubmissions(v)};
-$('sendSubmission').onclick=async e=>{e.preventDefault();let v=NawaderVisitor.get();if(!v)return;let btn=$('sendSubmission');try{btn.disabled=true;$('submissionMsg').textContent='جارٍ الإرسال...';let payload={id:editingSubmissionId,participantId:v.id,country:$('subCountry').value.trim(),denomination:$('subDenomination').value.trim(),year:$('subYear').value.trim(),issueEdition:$('subEdition').value.trim(),type:$('subType').value,collectionClass:$('subCollectionClass').value,isGraded:$('subGraded').value==='true',condition:$('subCondition').value,inventoryUnitType:$('subUnitType').value,inventoryUnitCount:Math.max(1,Number($('subUnitCount').value)||1),piecesPerUnit:Math.max(1,Number($('subPiecesPerUnit').value)||1),serial:$('subSerial').value.trim(),desiredDestination:$('subDestination').value,notes:$('subNotes').value.trim(),frontImage:submissionFront,backImage:submissionBack};let r=await fetch('/api/collectible-submissions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),d=await r.json();if(!r.ok)throw Error(d.error||'تعذر إرسال المقتنى');$('submissionMsg').textContent='✅ تم الحفظ والإرسال للإدارة';['subCountry','subDenomination','subYear','subEdition','subSerial','subNotes'].forEach(id=>$(id).value='');editingSubmissionId='';submissionFront=submissionBack='';$('subFront').value='';$('subBack').value='';$('subCollectionClass').value='single';$('subGraded').value='false';$('subUnitType').value='piece';$('subUnitCount').value=1;$('subPiecesPerUnit').value=1;updateSubmissionQuantity();setSubmissionPreview('subFrontPreview','');setSubmissionPreview('subBackPreview','');$('sendSubmission').textContent='إرسال للإدارة للاعتماد';$('submissionFormBox').hidden=true;await loadSubmissions(v);loadOwnedItems(v)}catch(x){$('submissionMsg').textContent='⚠️ '+x.message}finally{btn.disabled=false}};
+$('sendSubmission').onclick=async e=>{e.preventDefault();let v=NawaderVisitor.get();if(!v)return;let btn=$('sendSubmission');try{btn.disabled=true;$('submissionMsg').textContent='جارٍ الإرسال...';let payload={id:editingSubmissionId,participantId:v.id,country:$('subCountry').value.trim(),denomination:$('subDenomination').value.trim(),year:$('subYear').value.trim(),issueEdition:$('subEdition').value.trim(),type:$('subType').value,collectionClass:$('subCollectionClass').value,isGraded:$('subGraded').value==='true',condition:$('subCondition').value,inventoryUnitType:$('subUnitType').value,inventoryUnitCount:Math.max(1,Number($('subUnitCount').value)||1),piecesPerUnit:Math.max(1,Number($('subPiecesPerUnit').value)||1),serial:$('subSerial').value.trim(),desiredDestination:$('subDestination').value,notes:$('subNotes').value.trim(),frontImage:submissionFront,backImage:submissionBack,
+marketSalePrice:Number($('subMarketPrice')?.value||0),marketQuantity:Number($('subMarketQuantity')?.value||1),
+marketNegotiationEnabled:$('subMarketNegotiation')?.value==='true',marketNegotiationPercent:Number($('subMarketNegotiationPercent')?.value||5),
+auctionEnd:$('subAuctionEnd')?.value||'',auctionOpeningPrice:Number($('subAuctionOpening')?.value||0),
+auctionBidStep:Number($('subAuctionStep')?.value||1),auctionTargetPrice:Number($('subAuctionTarget')?.value||0),
+auctionAdditionalTerms:$('subAuctionTerms')?.value.trim()||'',
+specialNumberEnabled:!!$('subSpecialEnabled')?.checked,
+specialNumberTypes:$('subSpecialEnabled')?.checked?[$('subSpecialType').value]:[],
+specialNumberReason:$('subSpecialReason')?.value.trim()||'',
+transitionalIssueEnabled:!!$('subTransitionalEnabled')?.checked,
+transitionalIssueType:$('subTransitionalType')?.value||'',
+transitionalPreviousIssue:$('subTransitionalPrevious')?.value.trim()||'',
+transitionalNextIssue:$('subTransitionalNext')?.value.trim()||'',
+transitionalRarity:$('subTransitionalRarity')?.value||'',
+transitionalReason:$('subTransitionalReason')?.value.trim()||''};let r=await fetch('/api/collectible-submissions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),d=await r.json();if(!r.ok)throw Error(d.error||'تعذر إرسال المقتنى');$('submissionMsg').textContent='✅ تمت الإضافة والنشر مباشرة';['subCountry','subDenomination','subYear','subEdition','subSerial','subNotes'].forEach(id=>$(id).value='');editingSubmissionId='';submissionFront=submissionBack='';$('subFront').value='';$('subBack').value='';$('subCollectionClass').value='single';$('subGraded').value='false';$('subUnitType').value='piece';$('subUnitCount').value=1;$('subPiecesPerUnit').value=1;updateSubmissionQuantity();setSubmissionPreview('subFrontPreview','');setSubmissionPreview('subBackPreview','');$('sendSubmission').textContent='إضافة مباشرة';$('submissionFormBox').hidden=true;await loadSubmissions(v);loadOwnedItems(v)}catch(x){$('submissionMsg').textContent='⚠️ '+x.message}finally{btn.disabled=false}};
 
 
 let ownedItems=[];
@@ -122,6 +175,8 @@ async function loadOwnedItems(v){
         <button class="market" onclick="manageOwnedMarket('${esc(i.id)}')">🛒 إدارة السوق</button>
         ${i.forMarket?`<button class="danger" onclick="withdrawOwnedMarket('${esc(i.id)}')">سحب من السوق</button>`:''}
         <button class="auction" onclick="manageOwnedAuction('${esc(i.id)}')">⚖ إدارة المزاد</button>
+        <button onclick="manageOwnedSpecial('${esc(i.id)}')">✨ مميز / نادر</button>
+        <button onclick="manageOwnedTransitional('${esc(i.id)}')">⇄ حالة انتقالية</button>
         ${i.forAuction?`<button class="danger" onclick="cancelOwnedAuction('${esc(i.id)}')">إلغاء المزاد</button>`:''}
         ${!i.forMarket&&!i.forAuction&&!i.bidCount&&!i.marketOpenRequests?`<button class="danger" onclick="deleteOwnedItem('${esc(i.id)}')">🗑 حذف المقتنى</button>`:''}
       </div></div>`).join('')||'<div class="empty">لا توجد مقتنيات معتمدة حتى الآن.</div>';
@@ -140,13 +195,33 @@ window.deleteOwnedItem=async id=>{
   let v=NawaderVisitor.get();if(!v||!confirm('هل تريد حذف هذا المقتنى من قائمتك؟ لا يمكن الحذف إذا كان مرتبطًا بسوق أو مزاد أو طلب.'))return;
   try{await ownerPost('/api/owner/item/delete',{participantId:v.id,itemId:id});alert('تم حذف المقتنى من قائمتك وحفظ العملية في الأرشيف');await loadOwnedItems(v);await loadSubmissions(v)}catch(e){alert(e.message)}
 };
+window.manageOwnedSpecial=async id=>{
+  let i=ownedItems.find(x=>String(x.id)===String(id)),v=NawaderVisitor.get();if(!i||!v)return;
+  let enabled=confirm('تفعيل تصنيف رقم مميز / نادر لهذا المقتنى؟');
+  let type='',reason='';
+  if(enabled){type=prompt('النوع: repeated / sequential / matching / palindrome / ascending / descending / rare / rare-error',i.specialNumberType||'rare');if(type===null)return;reason=prompt('سبب التميز / الندرة',i.specialNumberReason||'')||''}
+  try{await ownerPost('/api/owner/item/update',{participantId:v.id,itemId:id,specialNumberEnabled:enabled,specialNumberTypes:enabled?[type]:[],specialNumberReason:reason});alert('تم تحديث التصنيف مباشرة');loadOwnedItems(v)}catch(e){alert(e.message)}
+};
+window.manageOwnedTransitional=async id=>{
+  let i=ownedItems.find(x=>String(x.id)===String(id)),v=NawaderVisitor.get();if(!i||!v)return;
+  let enabled=confirm('تفعيل الحالة الانتقالية لهذا المقتنى؟');
+  let type='',prev='',next='',rarity='',reason='';
+  if(enabled){
+    type=prompt('النوع: signature-change / design-change / currency-change / authority-change / other',i.transitionalIssueType||'signature-change');if(type===null)return;
+    prev=prompt('الإصدار السابق',i.transitionalPreviousIssue||'')||'';
+    next=prompt('الإصدار التالي',i.transitionalNextIssue||'')||'';
+    rarity=prompt('الندرة: documented / scarce / rare / very-rare',i.transitionalRarity||'documented')||'';
+    reason=prompt('سبب الحالة الانتقالية',i.transitionalReason||'')||'';
+  }
+  try{await ownerPost('/api/owner/item/update',{participantId:v.id,itemId:id,transitionalIssueEnabled:enabled,transitionalIssueType:type,transitionalPreviousIssue:prev,transitionalNextIssue:next,transitionalRarity:rarity,transitionalReason:reason});alert('تم تحديث الحالة الانتقالية مباشرة');loadOwnedItems(v)}catch(e){alert(e.message)}
+};
 window.manageOwnedMarket=async id=>{
   let i=ownedItems.find(x=>String(x.id)===String(id)),v=NawaderVisitor.get();if(!i||!v)return;
   let price=prompt('سعر البيع في السوق',i.marketSalePrice||0);if(price===null)return;
   let qty=prompt('الكمية المعروضة',i.availableQuantity||1);if(qty===null)return;
   let neg=confirm('هل تسمح بالتفاوض على السعر؟');
   let pct=neg?prompt('أقصى نسبة تفاوض %',i.marketNegotiationPercent||5):0;if(neg&&pct===null)return;
-  try{let d=await ownerPost('/api/owner/market/update',{participantId:v.id,itemId:id,enable:true,marketSalePrice:Number(price),availableQuantity:Number(qty),marketNegotiationEnabled:neg,marketNegotiationPercent:Number(pct||0)});alert(d.pendingApproval?'تم إرسال العرض للإدارة للاعتماد':'تم تحديث عرض السوق');loadOwnedItems(v)}catch(e){alert(e.message)}
+  try{let d=await ownerPost('/api/owner/market/update',{participantId:v.id,itemId:id,enable:true,marketSalePrice:Number(price),availableQuantity:Number(qty),marketNegotiationEnabled:neg,marketNegotiationPercent:Number(pct||0)});alert('تم نشر/تحديث عرض السوق مباشرة');loadOwnedItems(v)}catch(e){alert(e.message)}
 };
 window.withdrawOwnedMarket=async id=>{let v=NawaderVisitor.get();if(!v||!confirm('سحب هذا المقتنى من السوق؟'))return;try{await ownerPost('/api/owner/market/update',{participantId:v.id,itemId:id,enable:false});alert('تم سحب العرض');loadOwnedItems(v)}catch(e){alert(e.message)}};
 window.manageOwnedAuction=async id=>{
@@ -156,7 +231,7 @@ window.manageOwnedAuction=async id=>{
   let step=prompt('قيمة الزيادة',i.auctionBidStep||1);if(step===null)return;
   let target=prompt('حد البيع',i.auctionTargetPrice||0);if(target===null)return;
   let terms=prompt('الشروط الإضافية',i.auctionAdditionalTerms||'');if(terms===null)return;
-  try{let d=await ownerPost('/api/owner/auction/update',{participantId:v.id,itemId:id,auctionEnd:end,auctionOpeningPrice:Number(opening),auctionBidStep:Number(step),auctionTargetPrice:Number(target),auctionAdditionalTerms:terms});alert(d.pendingApproval?'تم إرسال المزاد للإدارة للاعتماد':'تم تحديث المزاد');loadOwnedItems(v)}catch(e){alert(e.message)}
+  try{let d=await ownerPost('/api/owner/auction/update',{participantId:v.id,itemId:id,auctionEnd:end,auctionOpeningPrice:Number(opening),auctionBidStep:Number(step),auctionTargetPrice:Number(target),auctionAdditionalTerms:terms});alert('تم نشر/تحديث المزاد مباشرة');loadOwnedItems(v)}catch(e){alert(e.message)}
 };
 window.cancelOwnedAuction=async id=>{
   let i=ownedItems.find(x=>String(x.id)===String(id)),v=NawaderVisitor.get();if(!i||!v)return;
@@ -164,6 +239,6 @@ window.cancelOwnedAuction=async id=>{
   try{await ownerPost('/api/owner/auction/cancel',{participantId:v.id,itemId:id,reason});alert('تم إلغاء المزاد');loadOwnedItems(v)}catch(e){alert(e.message)}
 };
 
-$('register').onclick=async()=>{try{let r=await fetch('/api/participant/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('name').value.trim(),phone:$('phone').value.trim(),country:$('regCountry')?.value||''})}),d=await r.json();if(!r.ok)throw Error(d.error||'تعذر التسجيل');if(!d.verified)throw Error('لم يكتمل التفعيل الآلي؛ أعد المحاولة');NawaderVisitor.set({...d.participant,verified:true});$('msg').textContent='✅ '+(d.message||'تم منحك اعتمادًا مبدئيًا');sync()}catch(e){$('msg').textContent='⚠️ '+e.message}};
+$('register').onclick=async()=>{try{let r=await fetch('/api/participant/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('name').value.trim(),phone:$('phone').value.trim(),country:$('regCountry')?.value||''})}),d=await r.json();if(!r.ok)throw Error(d.error||'تعذر التسجيل');if(!d.verified)throw Error('لم يكتمل التفعيل الآلي؛ أعد المحاولة');NawaderVisitor.set({...d.participant,verified:true});$('msg').textContent='✅ '+(d.message||'تم تسجيل الدخول');sync()}catch(e){$('msg').textContent='⚠️ '+e.message}};
 sync();window.addEventListener('storage',sync);
 </script></body></html>
