@@ -1,0 +1,34 @@
+NAWADER V4.8.1 STABILITY
+========================
+server.py                         PASS
+admin/index.html                  PASS — duplicate HTML IDs: 0
+admin/app.js                      PASS
+public/account.html               PASS
+public/visitor.js                 PASS
+public/special_numbers.html       PASS
+public/transitional_issues.html   PASS
+public_market.js syntax           PASS (unchanged)
+public_auction.js syntax          PASS (unchanged)
+
+Runtime regression:
+- Version endpoint                         PASS
+- Admin password rotation/session          PASS
+- Participant PIN session                  PASS
+- Direct market + seller identity          PASS
+- Direct auction + seller identity         PASS
+- Special + independent transitional       PASS
+- Zero-price market rejection              PASS
+- Saudi-time past auction rejection        PASS
+- Cross-owner mutation protection          PASS
+- Moderation public hide                   PASS
+- Integrity report                         PASS
+- Legacy verify disabled                   PASS
+- Admin PIN reset invalidates session       PASS
+- Automatic auction settlement             PASS
+- Auction edit before bids                  PASS
+- Opening price lock after first bid        PASS
+- Cancellation reason with bids             PASS
+- Legacy account one-time PIN migration     PASS
+
+No runtime data JSON files are included in this patch.
+Plaintext admin credential file is not included.

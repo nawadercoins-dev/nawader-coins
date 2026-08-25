@@ -1,3 +1,4 @@
+# V4.8.1 STABILITY — authenticated participant sessions, moderation, integrity and unified public classifications.
 # V4.8.0 — direct customer publishing across inventory, market, auction, special/rare, transitional; admin moderation only.
 # V4.7.0 — final collectible lifecycle reconciliation and owner controls.
 # V4.6.6 — platform-owner seller country: admin ownerCountry field, default Saudi Arabia, public flag fallback.
@@ -30,9 +31,11 @@ OPERATIONS_LOG=os.path.join(DATA_ROOT,'operations_log.json')
 ORDERS=os.path.join(DATA_ROOT,'orders_shipping.json')
 COLLECTIBLE_SUBMISSIONS=os.path.join(DATA_ROOT,'collectible_submissions.json')
 AUTH_FILE=os.path.join(DATA_ROOT,'admin_auth.json')
-ADMIN_CREDENTIALS=os.path.join(DATA_ROOT,'بيانات_دخول_الإدارة.txt')
+ADMIN_CREDENTIALS=''
 ADMIN_SESSIONS={}
+PARTICIPANT_SESSIONS={}
 SESSION_TTL_SECONDS=12*60*60
+PARTICIPANT_SESSION_TTL_SECONDS=30*24*60*60
 LOCK=threading.Lock()
 BACKUP_DIR=os.path.join(DATA_ROOT,'backups')
 UPLOAD_DIR=os.path.join(DATA_ROOT,'uploads')
@@ -122,8 +125,52 @@ def apply_approval_status(person,status):
 def participant_can_access(person): return participant_approval_status(person) in ('preliminary','final','suspended','stopped')
 def participant_can_transact(person): return participant_approval_status(person)=='final'
 def participant_public(person):
-    safe={k:v for k,v in (person or {}).items() if k not in ('otp','otpExpires','otpAttempts')}; status=participant_approval_status(person)
-    safe['approvalStatus']=status; safe['approvalLabel']=APPROVAL_LABELS[status]; return safe
+    blocked={'otp','otpExpires','otpAttempts','pinHash','pinSalt','pinIterations','authUpdatedAt'}
+    safe={k:v for k,v in (person or {}).items() if k not in blocked}; status=participant_approval_status(person)
+    safe['approvalStatus']=status; safe['approvalLabel']=APPROVAL_LABELS[status]; safe['hasPin']=bool((person or {}).get('pinHash')); return safe
+
+def participant_public_safe(person):
+    # لا نرسل أسرار تسجيل الدخول أو بيانات المصادقة إلى المتصفح.
+    blocked={'otp','otpExpires','otpAttempts','pinHash','pinSalt','pinIterations','authUpdatedAt'}
+    safe={k:v for k,v in (person or {}).items() if k not in blocked}
+    status=participant_approval_status(person)
+    safe['approvalStatus']=status; safe['approvalLabel']=APPROVAL_LABELS[status]
+    safe['hasPin']=bool((person or {}).get('pinHash'))
+    return safe
+
+def _pin_hash(pin,salt,iterations=180000):
+    return hashlib.pbkdf2_hmac('sha256',str(pin).encode('utf-8'),bytes.fromhex(str(salt)),int(iterations)).hex()
+
+def set_participant_pin(person,pin):
+    pin=str(pin or '')
+    if len(pin)<4 or len(pin)>32:
+        raise ValueError('رمز الدخول يجب أن يكون بين 4 و32 خانة')
+    salt=secrets.token_hex(16); iterations=180000
+    person['pinSalt']=salt; person['pinIterations']=iterations; person['pinHash']=_pin_hash(pin,salt,iterations)
+    person['authUpdatedAt']=datetime.datetime.now().isoformat()
+
+def verify_participant_pin(person,pin):
+    if not person or not person.get('pinHash') or not person.get('pinSalt'): return False
+    try:
+        got=_pin_hash(str(pin or ''),person['pinSalt'],int(person.get('pinIterations') or 180000))
+        return secrets.compare_digest(got,str(person.get('pinHash') or ''))
+    except Exception:
+        return False
+
+def clean_participant_sessions():
+    now=time.time()
+    for token,meta in list(PARTICIPANT_SESSIONS.items()):
+        if now-float(meta.get('last',0))>PARTICIPANT_SESSION_TTL_SECONDS:
+            PARTICIPANT_SESSIONS.pop(token,None)
+
+def moderation_status(item):
+    status=str((item or {}).get('moderationStatus') or '').strip().lower()
+    if status in ('active','hidden','suspended','archived','removed'): return status
+    if (item or {}).get('ownerArchived'): return 'archived'
+    return 'active'
+
+def item_is_public(item):
+    return moderation_status(item)=='active'
 
 SELLER_COUNTRY_FLAGS={
     'السعودية':'🇸🇦','المملكة العربية السعودية':'🇸🇦',
@@ -824,7 +871,7 @@ def public_special_item(item):
     elif qty<=0: status="sold"
     else: status="available" if sale else "display"
     keys=("id","country","denomination","year","condition","serial","serials","frontImg","backImg","specialNumberType","specialNumberTypes","specialNumberReason","marketSalePrice","marketUnitPrice","marketNegotiationEnabled","marketNegotiationPercent","marketOfferType","marketTitle","quantity")
-    out={k:item.get(k) for k in keys}; out.update({"availableSerials":available,"availableQuantity":qty,"unitPrice":price,"saleEnabled":sale,"soldOut":status=="sold","availabilityStatus":status}); return out
+    out={k:item.get(k) for k in keys}; out.update(public_seller_identity(item)); out.update({"availableSerials":available,"availableQuantity":qty,"unitPrice":price,"saleEnabled":sale,"soldOut":status=="sold","availabilityStatus":status}); return out
 
 def public_portal_url(host):
     # V2.0: QR ثابت لا يعتمد على التاريخ أو رمز مؤقت.
@@ -1140,35 +1187,31 @@ def _pbkdf2(password, salt_hex, iterations=260000):
     return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), bytes.fromhex(salt_hex), iterations).hex()
 
 def _configured_admin_password():
-    # Render/production can override this with ADMIN_PASSWORD.
-    # The approved recovery default is 12345678 so local and Render logins stay in sync.
-    return str(os.environ.get('ADMIN_PASSWORD') or '12345678')
+    # لا توجد كلمة مرور افتراضية مضمنة. تستخدم فقط عند تهيئة auth لأول مرة.
+    return str(os.environ.get('ADMIN_PASSWORD') or '')
 
 def ensure_admin_auth():
-    password=_configured_admin_password()
     cfg=load_json(AUTH_FILE,{})
-    iterations=260000
-    valid=False
-    if isinstance(cfg,dict) and cfg.get('salt') and cfg.get('hash'):
-        try:
-            got=_pbkdf2(password,cfg['salt'],int(cfg.get('iterations') or iterations))
-            valid=secrets.compare_digest(got,str(cfg.get('hash') or '')) and str(cfg.get('username') or 'admin')=='admin'
-        except Exception:
-            valid=False
-    if valid:
+    password=_configured_admin_password()
+    if isinstance(cfg,dict) and cfg.get('salt') and cfg.get('hash') and cfg.get('username'):
+        # إذا وُضع ADMIN_PASSWORD في Render بقيمة جديدة، يُعتبر ذلك تدويرًا مقصودًا لكلمة المرور.
+        if password:
+            try:
+                current=_pbkdf2(password,cfg['salt'],int(cfg.get('iterations') or 260000))
+                if not secrets.compare_digest(current,str(cfg.get('hash') or '')):
+                    iterations=260000; salt=secrets.token_hex(16)
+                    cfg={'version':3,'username':'admin','salt':salt,'iterations':iterations,'hash':_pbkdf2(password,salt,iterations),'created':datetime.datetime.now().isoformat(),'source':'ADMIN_PASSWORD-ROTATED'}
+                    save_json(AUTH_FILE,cfg)
+            except Exception:
+                pass
         return cfg, None
+    if not password:
+        raise RuntimeError('لم يتم تهيئة دخول الإدارة. عيّن متغير ADMIN_PASSWORD في Render مرة واحدة ثم أعد التشغيل.')
+    iterations=260000
     salt=secrets.token_hex(16)
-    cfg={'version':2,'username':'admin','salt':salt,'iterations':iterations,'hash':_pbkdf2(password,salt,iterations),'created':datetime.datetime.now().isoformat(),'source':'ADMIN_PASSWORD/default-recovery'}
+    cfg={'version':3,'username':'admin','salt':salt,'iterations':iterations,'hash':_pbkdf2(password,salt,iterations),'created':datetime.datetime.now().isoformat(),'source':'ADMIN_PASSWORD'}
     save_json(AUTH_FILE,cfg)
-    try:
-        with open(ADMIN_CREDENTIALS,'w',encoding='utf-8') as f:
-            f.write('دخول إدارة نوادر العملات\n')
-            f.write('اسم المستخدم: admin\n')
-            f.write('كلمة المرور: '+password+'\n\n')
-            f.write('يمكن تغييرها لاحقًا عبر متغير ADMIN_PASSWORD في Render.\n')
-            f.write('احتفظ بهذا الملف في جهاز الإدارة ولا تشاركه مع العملاء.\n')
-    except Exception: pass
-    return cfg, password
+    return cfg, None
 
 def verify_admin_password(username,password):
     cfg,_=ensure_admin_auth()
@@ -1194,10 +1237,62 @@ def is_public_upload_url(url):
         if urlparse(str(row.get('frontImage') or '')).path==path or urlparse(str(row.get('backImage') or '')).path==path: return True
     return False
 
+
+def platform_integrity_report():
+    items=load(); people=load_people(); submissions=load_collectible_submissions()
+    duplicate_ids={}
+    seen={}
+    for i in items:
+        iid=str(i.get('id') or '')
+        if not iid: continue
+        seen.setdefault(iid,[]).append(i)
+    duplicate_ids={k:len(v) for k,v in seen.items() if len(v)>1}
+
+    serial_map={}
+    for i in items:
+        vals=i.get('serials') or [i.get('serial')]
+        if not isinstance(vals,list): vals=[vals]
+        for s in vals:
+            norm=re.sub(r'\s+','',str(s or '')).upper()
+            if norm: serial_map.setdefault(norm,[]).append(str(i.get('id') or ''))
+    duplicate_serials={k:v for k,v in serial_map.items() if len(set(v))>1}
+
+    phones={}
+    for p in people:
+        key=_norm_phone(p.get('phone'))
+        if key: phones.setdefault(key,[]).append(str(p.get('id') or ''))
+    duplicate_phones={k:v for k,v in phones.items() if len(v)>1}
+
+    orphan_owners=[str(i.get('id') or '') for i in items if i.get('ownerParticipantId') and not any(str(p.get('id'))==str(i.get('ownerParticipantId')) for p in people)]
+    zero_price_market=[str(i.get('id') or '') for i in items if i.get('forMarket') and i.get('marketApproved') and float(i.get('marketSalePrice') or i.get('marketUnitPrice') or 0)<=0]
+    invalid_auctions=[str(i.get('id') or '') for i in items if i.get('forAuction') and i.get('auctionApproved') and (not i.get('auctionEnd') or float(i.get('auctionOpeningPrice') or i.get('auctionStartPrice') or 0)<=0)]
+    item_ids={str(i.get('id') or '') for i in items}
+    orphan_submissions=[str(x.get('id') or '') for x in submissions if x.get('itemId') and str(x.get('itemId')) not in item_ids]
+    missing_images=[str(i.get('id') or '') for i in items if not i.get('frontImg') and not i.get('backImg')]
+
+    return {
+        'version':'4.8.1',
+        'counts':{'items':len(items),'participants':len(people),'submissions':len(submissions)},
+        'issues':{
+            'duplicateIds':duplicate_ids,
+            'duplicateSerials':duplicate_serials,
+            'duplicatePhones':duplicate_phones,
+            'orphanOwners':orphan_owners,
+            'zeroPriceMarket':zero_price_market,
+            'invalidAuctions':invalid_auctions,
+            'orphanSubmissions':orphan_submissions,
+            'missingImages':missing_images
+        },
+        'issueCount':sum([
+            len(duplicate_ids),len(duplicate_serials),len(duplicate_phones),len(orphan_owners),
+            len(zero_price_market),len(invalid_auctions),len(orphan_submissions),len(missing_images)
+        ])
+    }
+
 ADMIN_GET_API={
     '/api/negotiations','/api/backup/full','/api/items','/api/participants','/api/participants/summary',
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
-    '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary'
+    '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity'
 }
 PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel'}
 PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/invoice.html'}
@@ -1215,6 +1310,32 @@ class H(SimpleHTTPRequestHandler):
         meta=ADMIN_SESSIONS.get(token)
         if not meta: return False
         meta['last']=time.time(); return True
+    def participant_person(self):
+        clean_participant_sessions(); token=self.cookie_value('NawaderParticipant')
+        meta=PARTICIPANT_SESSIONS.get(token)
+        if not meta: return None
+        person=next((x for x in load_people() if str(x.get('id'))==str(meta.get('participantId'))),None)
+        if not person or person.get('blocked') or participant_approval_status(person) in ('stopped','cancelled'):
+            PARTICIPANT_SESSIONS.pop(token,None); return None
+        meta['last']=time.time(); return person
+    def require_participant(self,requested_id='',api=True):
+        person=self.participant_person()
+        if not person:
+            if api: self.sendj({'error':'انتهت جلسة الحساب أو لم يتم تسجيل الدخول. سجل الدخول من صفحة حسابي.'},401)
+            return None
+        if requested_id and str(person.get('id'))!=str(requested_id):
+            if api: self.sendj({'error':'لا تملك صلاحية تنفيذ هذه العملية باسم حساب آخر.'},403)
+            return None
+        return person
+    def sendj_participant(self,obj,person,status=200):
+        token=secrets.token_urlsafe(32)
+        PARTICIPANT_SESSIONS[token]={'participantId':str(person.get('id')),'created':time.time(),'last':time.time()}
+        secure='; Secure' if (self.headers.get('X-Forwarded-Proto') or '').lower()=='https' else ''
+        b=json.dumps(obj,ensure_ascii=False).encode('utf-8')
+        self.send_response(status); self.send_header('Content-Type','application/json; charset=utf-8')
+        self.send_header('Content-Length',str(len(b))); self.send_header('Cache-Control','no-store')
+        self.send_header('Set-Cookie',f'NawaderParticipant={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={PARTICIPANT_SESSION_TTL_SECONDS}{secure}')
+        self.end_headers(); self.wfile.write(b)
     def require_admin(self,api=False):
         if self.is_admin(): return True
         if api: self.sendj({'error':'هذه الصفحة أو العملية خاصة بالإدارة. سجل الدخول أولًا.'},401)
@@ -1258,6 +1379,11 @@ class H(SimpleHTTPRequestHandler):
             self.send_error(404,'File not found')
     def do_GET(self):
         p=urlparse(self.path).path
+        if p=='/api/version':
+            self.sendj({'version':'4.8.1','channel':'STABILITY'}); return
+        if p=='/account-logout':
+            token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
+            self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict'); self.send_header('Location','/account'); self.end_headers(); return
         if p=='/admin-login':
             if self.is_admin():
                 self.send_response(302); self.send_header('Location','/admin'); self.end_headers(); return
@@ -1281,7 +1407,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
         if p=='/api/version':
-            self.sendj({'version':'4.3.4','name':'Nawader Coins Visitor Sections Final Fix','port':getattr(self.server,'server_port',None)}); return
+            self.sendj({'version':'4.8.1','name':'Nawader Coins Stability','port':getattr(self.server,'server_port',None)}); return
         if p=='/api/settings/public':
             st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'visitorSections':st['visitorSections']}); return
         if p=='/api/settings/admin':
@@ -1293,9 +1419,9 @@ class H(SimpleHTTPRequestHandler):
             self.sendj({'ok':bool(exe),'path':exe,'version':version,'hasArabic':'ara' in langs,'hasEnglish':'eng' in langs,'languages':langs[:80],'diagnostics':diag[-5:]}); return
         if p=='/api/owner/items':
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
+            person=self.require_participant(pid)
+            if not person: return
             reconcile_collectible_lifecycle(pid)
-            person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
-            if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
             submissions={str(x.get('itemId') or ''):x for x in load_collectible_submissions() if str(x.get('participantId') or '')==pid and x.get('itemId')}
             owned=[]
             for i in load():
@@ -1307,7 +1433,7 @@ class H(SimpleHTTPRequestHandler):
                     'forAuction','auctionApproved','auctionEnd','auctionOpeningPrice','auctionStartPrice','auctionCurrentPrice',
                     'auctionBidStep','auctionTargetPrice','auctionAdditionalTerms','auctionRound','auctionOutcome','auctionSold',
                     'specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason',
-                    'transitionalIssueEnabled','transitionalIssueType','transitionalPreviousIssue','transitionalNextIssue','transitionalRarity','transitionalReason','transitionalNotes'
+                    'transitionalIssueEnabled','transitionalIssueType','transitionalPreviousIssue','transitionalNextIssue','transitionalRarity','transitionalReason','transitionalNotes','moderationStatus','moderationReason'
                 )}
                 sub=submissions.get(str(i.get('id') or '')) or {}
                 y['desiredDestination']=sub.get('desiredDestination') or 'vault'
@@ -1319,9 +1445,9 @@ class H(SimpleHTTPRequestHandler):
             self.sendj({'items':owned}); return
         if p=='/api/collectible-submissions':
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
+            person=self.require_participant(pid)
+            if not person: return
             reconcile_collectible_lifecycle(pid)
-            person=next((x for x in load_people() if str(x.get('id'))==pid),None)
-            if not participant_can_access(person): self.sendj({'error':'الحساب غير متاح'},403); return
             rows=[x for x in load_collectible_submissions() if str(x.get('participantId'))==pid]
             rows.sort(key=lambda x:x.get('created',''),reverse=True)
             safe=[]
@@ -1338,8 +1464,8 @@ class H(SimpleHTTPRequestHandler):
             self.sendj({'submissions':rows,'pending':sum(1 for x in rows if x.get('status')=='pending'),'needsChanges':sum(1 for x in rows if x.get('status')=='needs_changes')}); return
         if p=='/api/notifications':
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
-            person=next((x for x in load_people() if str(x.get('id'))==pid),None)
-            if not participant_can_access(person): self.sendj({'error':'الحساب غير متاح'},403); return
+            person=self.require_participant(pid)
+            if not person: return
             ensure_auction_outcomes(); rows=[x for x in load_notifications() if x.get('recipientType')=='participant' and str(x.get('recipientId'))==pid]
             rows.sort(key=lambda x:x.get('created',''),reverse=True); self.sendj({'notifications':rows[:200],'unread':sum(1 for x in rows if not x.get('read'))}); return
         if p=='/api/notifications/admin':
@@ -1368,15 +1494,17 @@ class H(SimpleHTTPRequestHandler):
             ensure_auction_outcomes(); rows=load_orders(); rows.sort(key=lambda x:x.get('created',''),reverse=True); self.sendj({'orders':rows,'active':sum(1 for x in rows if not x.get('archived')),'archived':sum(1 for x in rows if x.get('archived'))}); return
         if p=='/api/inventory/summary':
             self.sendj(inventory_summary()); return
+        if p=='/api/integrity':
+            self.sendj(platform_integrity_report()); return
         if p=='/api/operations':
             rows=load_operations_log(); rows.sort(key=lambda x:x.get('created',''),reverse=True); self.sendj({'events':rows[:500]}); return
         if p=='/api/permissions/me':
-            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
-            if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=self.require_participant(pid)
+            if not person: return
             self.sendj({'permissions':participant_permissions(pid)}); return
         if p=='/api/seller/ended':
-            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
-            if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=self.require_participant(pid)
+            if not person: return
             perm=participant_permissions(pid)
             if not perm.get('sellerEndedAuctions'): self.sendj({'error':'لا توجد صلاحية لعرض المزادات المنتهية'},403); return
             phone=str(person.get('phone') or '').replace(' ',''); now=datetime.datetime.now(); out=[]
@@ -1387,8 +1515,8 @@ class H(SimpleHTTPRequestHandler):
                 if ended: out.append(public_item(i))
             self.sendj({'items':out}); return
         if p=='/api/seller/market':
-            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
-            if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=self.require_participant(pid)
+            if not person: return
             perm=participant_permissions(pid)
             if not (perm.get('sellerMarket') or perm.get('marketSupervision')): self.sendj({'error':'لا توجد صلاحية لمتابعة السوق'},403); return
             phone=str(person.get('phone') or '').replace(' ',''); items=load(); ids={str(i.get('id')) for i in items if perm.get('marketSupervision') or str(i.get('ownerPhone') or '').replace(' ','')==phone}
@@ -1423,11 +1551,9 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/participant/status':
             q=urlparse(self.path).query
             pid=(parse_qs(q).get('id') or [''])[0]
-            with LOCK:
-                person=next((x for x in load_people() if x.get('id')==pid),None)
-                if not person: self.sendj({'found':False},404); return
-                safe=participant_public(person)
-                self.sendj({'found':True,'participant':safe}); return
+            person=self.require_participant(pid)
+            if not person: return
+            self.sendj({'found':True,'participant':participant_public(person)}); return
         if p=='/api/bids':
             with LOCK:
                 people={x.get('id'):x for x in load_people()}; bids=load_bids()
@@ -1435,16 +1561,15 @@ class H(SimpleHTTPRequestHandler):
                     person=people.get(b.get('participantId'),{}); b['bidderName']=person.get('name','مشارك'); b['approvalStatus']=participant_approval_status(person); b['approvalLabel']=APPROVAL_LABELS[b['approvalStatus']]
                 self.sendj({'bids':bids}); return
         if p=='/api/public/special-numbers':
-            rows=[public_special_item(i) for i in load() if i.get('specialNumberEnabled')]
+            rows=[public_special_item(i) for i in load() if i.get('specialNumberEnabled') and item_is_public(i)]
             self.sendj({'items':rows}); return
         if p=='/api/public/transitional-issues':
             rows=[]
             for i in load():
-                if not i.get('transitionalIssueEnabled'): continue
+                if not i.get('transitionalIssueEnabled') or not item_is_public(i): continue
                 market_public=bool(i.get('forMarket') and i.get('marketApproved'))
                 auction_public=bool(i.get('forAuction') and i.get('auctionApproved'))
                 special_public=bool(i.get('specialNumberEnabled'))
-                if not (market_public or auction_public or special_public): continue
                 row=public_market_item(i) if market_public else public_item(i)
                 for k in ('transitionalIssueType','transitionalPreviousIssue','transitionalNextIssue','transitionalRarity','transitionalEstimatedPopulation','transitionalReason','transitionalNotes'):
                     row[k]=i.get(k)
@@ -1458,7 +1583,7 @@ class H(SimpleHTTPRequestHandler):
                 items=[]
                 now=datetime.datetime.now()
                 for i in load():
-                    if not (i.get('forAuction') and i.get('auctionApproved')): continue
+                    if not (i.get('forAuction') and i.get('auctionApproved') and item_is_public(i)): continue
                     public=public_item(i)
                     # V4.0.20: المزادات المنتهية تُفصل عن صفحة المزادات النشطة العامة.
                     if public.get('auctionEnded'): continue
@@ -1467,8 +1592,8 @@ class H(SimpleHTTPRequestHandler):
                 self.sendj({'items':items}); return
         if p=='/api/visitor/orders':
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
-            person=next((x for x in load_people() if x.get('id')==pid),None)
-            if not participant_can_access(person): self.sendj({'error':'الحساب غير متاح'},403); return
+            person=self.require_participant(pid)
+            if not person: return
             ensure_auction_outcomes(); phone=str(person.get('phone') or '').replace(' ',''); labels={'new':'طلب جديد','awaiting_payment':'بانتظار السداد','paid':'تم السداد','preparing':'قيد التجهيز','ready_to_ship':'جاهز للشحن','shipped':'تم الشحن','received':'تم الاستلام','completed':'مكتمل','stalled':'متعثر','cancelled':'ملغي','returned':'مرتجع'}
             rows=[]
             for o in load_orders():
@@ -1480,9 +1605,8 @@ class H(SimpleHTTPRequestHandler):
             qs=parse_qs(urlparse(self.path).query)
             pid=str((qs.get('participantId') or [''])[0])
             oid=str((qs.get('orderId') or [''])[0])
-            person=next((x for x in load_people() if x.get('id')==pid),None)
-            if not participant_can_access(person):
-                self.sendj({'error':'الحساب غير متاح'},403); return
+            person=self.require_participant(pid)
+            if not person: return
             phone=str(person.get('phone') or '').replace(' ','')
             order=next((o for o in load_orders() if str(o.get('id') or '')==oid and (str(o.get('participantId') or '')==pid or str(o.get('customerPhone') or '').replace(' ','')==phone)),None)
             if not order:
@@ -1510,7 +1634,7 @@ class H(SimpleHTTPRequestHandler):
             }}); return
         if p=='/api/public/market':
             with LOCK:
-                items=[public_market_item(i) for i in load() if i.get('forMarket') and i.get('marketApproved')]
+                items=[public_market_item(i) for i in load() if i.get('forMarket') and i.get('marketApproved') and item_is_public(i)]
                 self.sendj({'items':items}); return
         if p=='/api/market/requests':
             with LOCK:
@@ -1606,9 +1730,10 @@ class H(SimpleHTTPRequestHandler):
             token=secrets.token_urlsafe(32); ADMIN_SESSIONS[token]={'created':time.time(),'last':time.time()}
             secure='; Secure' if (self.headers.get('X-Forwarded-Proto') or '').lower()=='https' else ''
             self.send_response(302); self.send_header('Set-Cookie',f'KhazinaAdmin={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={SESSION_TTL_SECONDS}{secure}'); self.send_header('Location','/admin'); self.end_headers(); return
+        if not self.same_origin_ok():
+            self.sendj({'error':'تم رفض الطلب لأسباب أمنية.'},403); return
         if p not in PUBLIC_POST_API:
             if not self.require_admin(api=True): return
-            if not self.same_origin_ok(): self.sendj({'error':'تم رفض الطلب لأسباب أمنية.'},403); return
         if p=='/api/backup/restore':
             try:
                 n=int(self.headers.get('Content-Length','0'))
@@ -1624,8 +1749,8 @@ class H(SimpleHTTPRequestHandler):
             try:
                 if p=='/api/visitor/upload':
                     pid=str(self.headers.get('X-Participant-Id') or '')
-                    person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
-                    if not person: self.sendj({'error':'يجب تسجيل الدخول بحساب موثق أولًا'},403); return
+                    person=self.require_participant(pid)
+                    if not person: return
                 n=int(self.headers.get('Content-Length','0'))
                 if n<=0 or n>50*1024*1024: self.sendj({'error':'حجم الصورة غير مناسب (الحد 50 ميجابايت)'},413); return
                 ctype=(self.headers.get('Content-Type') or '').lower(); ext='.jpg'
@@ -1664,9 +1789,8 @@ class H(SimpleHTTPRequestHandler):
         with LOCK:
             if p=='/api/collectible-submissions':
                 pid=str(d.get('participantId') or '')
-                person=next((x for x in load_people() if str(x.get('id'))==pid),None)
-                if not participant_can_access(person) or person.get('blocked'):
-                    self.sendj({'error':'يجب تسجيل الدخول بحساب فعال لإضافة المقتنى'},403); return
+                person=self.require_participant(pid)
+                if not person: return
 
                 country=str(d.get('country') or '').strip()
                 denomination=str(d.get('denomination') or '').strip()
@@ -1728,7 +1852,7 @@ class H(SimpleHTTPRequestHandler):
                         self.sendj({'error':'حدد موعد انتهاء المزاد'},400); return
                     try:
                         end_dt=datetime.datetime.fromisoformat(auction_end.replace('Z','+00:00'))
-                        now_dt=datetime.datetime.now(end_dt.tzinfo) if end_dt.tzinfo else datetime.datetime.now()
+                        now_dt=datetime.datetime.now(end_dt.tzinfo) if end_dt.tzinfo else auction_local_now()
                         if end_dt<=now_dt:
                             self.sendj({'error':'موعد انتهاء المزاد يجب أن يكون في المستقبل'},400); return
                     except ValueError:
@@ -1858,8 +1982,8 @@ class H(SimpleHTTPRequestHandler):
                 }); return
             if p=='/api/collectible-submissions/delete':
                 pid=str(d.get('participantId') or ''); sid=str(d.get('id') or '')
-                person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
-                if not person: self.sendj({'error':'يجب تسجيل الدخول بحساب موثق أولًا'},403); return
+                person=self.require_participant(pid)
+                if not person: return
                 rows=load_collectible_submissions(); row=next((x for x in rows if str(x.get('id'))==sid and str(x.get('participantId'))==pid),None)
                 if not row: self.sendj({'error':'السجل غير موجود أو لا تملك صلاحية حذفه'},404); return
                 if row.get('itemId'):
@@ -1873,58 +1997,8 @@ class H(SimpleHTTPRequestHandler):
                 append_operation('حذف طلب مقتنى',{'submissionId':sid,'participantId':pid},actor='العميل')
                 self.sendj({'ok':True}); return
             if p=='/api/collectible-submissions/status':
-                sid=str(d.get('id') or ''); action=str(d.get('status') or ''); note=str(d.get('note') or '').strip()
-                if action not in ('approved','needs_changes','rejected'): self.sendj({'error':'الإجراء غير صالح'},400); return
-                rows=load_collectible_submissions(); row=next((x for x in rows if str(x.get('id'))==sid),None)
-                if not row: self.sendj({'error':'طلب الاعتماد غير موجود'},404); return
-                now=datetime.datetime.now().isoformat()
-                if action=='approved' and not row.get('itemId'):
-                    items=load(); item_id='k-'+secrets.token_hex(8)
-                    serial=str(row.get('serial') or '').strip()
-                    normalized_serial=re.sub(r'\s+','',serial).upper()
-                    if normalized_serial:
-                        for other in items:
-                            other_serials=other.get('serials') or [other.get('serial')]
-                            if not isinstance(other_serials,list): other_serials=[other_serials]
-                            if normalized_serial in {re.sub(r'\s+','',str(s or '')).upper() for s in other_serials if str(s or '').strip()}:
-                                self.sendj({'error':'لا يمكن الاعتماد: الرقم التسلسلي مسجل مسبقًا في المستودع'},409); return
-                    inv=submission_inventory_values(row)
-                    item={'id':item_id,'country':row.get('country',''),'denomination':row.get('denomination',''),'issueEdition':row.get('issueEdition',''),'year':row.get('year',''),'type':row.get('type') or 'عملة ورقية','condition':row.get('condition','UNC'),'soldQuantity':0,'damagedQuantity':0,'serial':serial,'serials':[serial] if serial else [],'frontImg':row.get('frontImage',''),'backImg':row.get('backImage',''),'notes':row.get('notes',''),'ownerName':row.get('participantName',''),'ownerPhone':row.get('participantPhone',''),'ownerParticipantId':row.get('participantId',''),'sourceSubmissionId':sid,'storageStatus':'warehouse','warehouse':'المستودع الرئيسي','forMarket':False,'marketApproved':False,'forAuction':False,'auctionApproved':False,'created':now,'updated':int(time.time()*1000),**inv}
-                    items.append(item); save(items)
-                    saved=next((x for x in load() if str(x.get('id'))==item_id),None)
-                    snap=inventory_snapshot(saved) if saved else None
-                    preserved=bool(saved and saved.get('country')==row.get('country') and saved.get('denomination')==row.get('denomination') and saved.get('frontImg','')==row.get('frontImage','') and saved.get('backImg','')==row.get('backImage','') and saved.get('inventoryClassification')==inv['inventoryClassification'] and inventory_total(saved)==inv['quantity'] and snap and snap.get('warehouse')==inv['quantity'])
-                    if not preserved:
-                        save([x for x in load() if str(x.get('id'))!=item_id])
-                        append_save_audit({'id':item_id,'ok':False,'created':now,'reason':'submission_warehouse_verification_failed'})
-                        self.sendj({'error':'تعذر التحقق من حفظ التصنيف أو الصور أو الكمية داخل المستودع؛ لم يُعتمد الطلب'},500); return
-                    row['itemId']=item_id; row['warehouseVerified']=True; row['warehouseVerifiedAt']=now
-                    destination=str(row.get('desiredDestination') or 'vault')
-                    if destination=='market':
-                        item['forMarket']=True; item['marketApproved']=False
-                        # لا ينشر في السوق العام قبل تحديد سعر البيع واعتماد العرض.
-                        if not item.get('marketSalePrice'): item['marketSalePrice']=0
-                        save(items)
-                        add_notification('participant',row.get('participantId'),'market','🛒 المقتنى جاهز لإكمال عرض السوق',
-                                         f"{item.get('country','')} — {item.get('denomination','')} تم اعتماده. افتح «مقتنياتي المعتمدة» وحدد سعر البيع ليُرسل العرض للاعتماد.",item_id,'/account')
-                    elif destination=='auction':
-                        item['forAuction']=True; item['auctionApproved']=False; save(items)
-                        add_notification('participant',row.get('participantId'),'auction','⚖ المقتنى جاهز لإعداد المزاد',
-                                         f"{item.get('country','')} — {item.get('denomination','')} تم اعتماده. أكمل وقت المزاد وسعر الافتتاح والزيادة من حسابك.",item_id,'/account')
-                    append_save_audit({'id':item_id,'ok':True,'country':item.get('country'),'denomination':item.get('denomination'),'created':now,'source':'collectible_submission','warehouse':snap})
-                row['status']=action; row['adminNote']=note; row['updated']=now
-                save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
-                pid=row.get('participantId'); title=f"{row.get('country','')} — {row.get('denomination','')}".strip(' —')
-                if action=='approved':
-                    dest=str(row.get('desiredDestination') or 'vault')
-                    suffix=' وهو جاهز لإكمال بيانات السوق من «مقتنياتي المعتمدة».' if dest=='market' else (' وهو جاهز لإكمال إعداد المزاد من «مقتنياتي المعتمدة».' if dest=='auction' else '.')
-                    nt=('✅ تم اعتماد المقتنى وإيداعه في المستودع',f'تم اعتماد {title} وحفظ تصنيفه وصوره وكميته في المستودع'+suffix)
-                elif action=='needs_changes': nt=('✏️ يحتاج المقتنى إلى استكمال',f'طلب {title} يحتاج تعديل/استكمال بيانات.'+((' ملاحظة الإدارة: '+note) if note else ''))
-                else: nt=('تم رفض طلب اعتماد المقتنى',f'لم يتم اعتماد {title}.'+((' السبب: '+note) if note else ''))
-                add_notification('participant',pid,'approval',nt[0],nt[1],row.get('itemId',''),'/account')
-                append_operation('تحديث طلب اعتماد مقتنى',{'submissionId':sid,'status':action,'itemId':row.get('itemId',''),'warehouseVerified':bool(row.get('warehouseVerified')),'note':note})
-                saved_item=next((x for x in load() if str(x.get('id'))==str(row.get('itemId') or '')),None)
-                self.sendj({'ok':True,'submission':row,'inventory':inventory_snapshot(saved_item) if saved_item else None}); return
+                self.sendj({'error':'تم إلغاء الاعتماد المسبق في V4.8.1. استخدم مراقبة المقتنيات للإيقاف أو الإخفاء.'},410); return
+
             if p=='/api/permissions/update':
                 pid=str(d.get('participantId') or ''); people=load_people()
                 if not any(str(x.get('id'))==pid for x in people): self.sendj({'error':'المشارك غير موجود'},404); return
@@ -1943,8 +2017,8 @@ class H(SimpleHTTPRequestHandler):
                 save_json(AUCTION_DUES,{'dues':rows}); append_operation('تحديث حالة مستحق مزاد',{'dueId':did,'status':status}); self.sendj({'ok':True,'due':row}); return
             if p=='/api/owner/item/update':
                 pid=str(d.get('participantId') or ''); iid=str(d.get('itemId') or '')
-                person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
-                if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+                person=self.require_participant(pid)
+                if not person: return
                 items=load(); item=next((x for x in items if str(x.get('id'))==iid and str(x.get('ownerParticipantId') or '')==pid),None)
                 if not item: self.sendj({'error':'المقتنى غير موجود أو لا تملك صلاحية تعديله'},404); return
                 if item.get('auctionSold'): self.sendj({'error':'المقتنى مباع ولا يمكن تعديل بياناته الأساسية'},409); return
@@ -1981,13 +2055,13 @@ class H(SimpleHTTPRequestHandler):
                     item['inventoryUnitCount']=units; item['piecesPerUnit']=pieces; item['quantity']=units*pieces; item['availableQuantity']=units*pieces
                 item['updated']=int(time.time()*1000); save(items)
                 append_operation('تعديل المقتنى بواسطة المالك',{'itemId':iid,'participantId':pid},actor='العميل')
-                add_notification('admin','','approval','✏️ عدّل المالك بيانات مقتناه',f"{item.get('country','')} — {item.get('denomination','')}",iid,'/admin')
+                add_notification('admin','','moderation','✏️ عدّل المالك بيانات مقتناه',f"{item.get('country','')} — {item.get('denomination','')}",iid,'/admin')
                 self.sendj({'ok':True}); return
 
             if p=='/api/owner/item/delete':
                 pid=str(d.get('participantId') or ''); iid=str(d.get('itemId') or '')
-                person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
-                if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+                person=self.require_participant(pid)
+                if not person: return
                 items=load(); item=next((x for x in items if str(x.get('id'))==iid and str(x.get('ownerParticipantId') or '')==pid),None)
                 if not item: self.sendj({'error':'المقتنى غير موجود أو لا تملك صلاحية حذفه'},404); return
                 round_no=int(item.get('auctionRound') or 1)
@@ -2004,8 +2078,8 @@ class H(SimpleHTTPRequestHandler):
 
             if p=='/api/owner/market/update':
                 pid=str(d.get('participantId') or ''); iid=str(d.get('itemId') or '')
-                person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
-                if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+                person=self.require_participant(pid)
+                if not person: return
                 items=load(); item=next((x for x in items if str(x.get('id'))==iid and str(x.get('ownerParticipantId') or '')==pid),None)
                 if not item: self.sendj({'error':'المقتنى غير موجود أو لا تملك صلاحية إدارته'},404); return
                 active_requests=[r for r in load_market_requests() if str(r.get('itemId'))==iid and str(r.get('status') or 'new') not in ('completed','cancelled','rejected')]
@@ -2031,8 +2105,8 @@ class H(SimpleHTTPRequestHandler):
 
             if p=='/api/owner/auction/update':
                 pid=str(d.get('participantId') or ''); iid=str(d.get('itemId') or '')
-                person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
-                if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+                person=self.require_participant(pid)
+                if not person: return
                 items=load(); item=next((x for x in items if str(x.get('id'))==iid and str(x.get('ownerParticipantId') or '')==pid),None)
                 if not item: self.sendj({'error':'المقتنى غير موجود أو لا تملك صلاحية إدارته'},404); return
                 if item.get('auctionSold') or str(item.get('auctionOutcome') or '')=='sold':
@@ -2041,7 +2115,7 @@ class H(SimpleHTTPRequestHandler):
                 if requested_end:
                     try:
                         end_dt=datetime.datetime.fromisoformat(requested_end.replace('Z','+00:00'))
-                        now_dt=datetime.datetime.now(end_dt.tzinfo) if end_dt.tzinfo else datetime.datetime.now()
+                        now_dt=datetime.datetime.now(end_dt.tzinfo) if end_dt.tzinfo else auction_local_now()
                         if end_dt<=now_dt: self.sendj({'error':'موعد انتهاء المزاد يجب أن يكون في المستقبل'},400); return
                     except ValueError:
                         self.sendj({'error':'صيغة موعد انتهاء المزاد غير صحيحة'},400); return
@@ -2064,8 +2138,8 @@ class H(SimpleHTTPRequestHandler):
 
             if p=='/api/owner/auction/cancel':
                 pid=str(d.get('participantId') or ''); iid=str(d.get('itemId') or ''); reason=str(d.get('reason') or '').strip()
-                person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
-                if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+                person=self.require_participant(pid)
+                if not person: return
                 items=load(); item=next((x for x in items if str(x.get('id'))==iid and str(x.get('ownerParticipantId') or '')==pid),None)
                 if not item: self.sendj({'error':'المقتنى غير موجود أو لا تملك صلاحية إدارته'},404); return
                 if item.get('auctionSold') or str(item.get('auctionOutcome') or '')=='sold':
@@ -2086,6 +2160,8 @@ class H(SimpleHTTPRequestHandler):
 
             if p=='/api/notifications/read':
                 pid=str(d.get('participantId') or ''); nid=str(d.get('id') or ''); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+                person_session=self.require_participant(pid)
+                if not person_session: return
                 if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
                 rows=load_notifications(); changed=False
                 for x in rows:
@@ -2147,6 +2223,8 @@ class H(SimpleHTTPRequestHandler):
                 a=load_subscriptions(); a.append(row); save_json(SUBSCRIPTIONS,{'subscriptions':a}); self.sendj({'ok':True,'subscription':row}); return
             if p=='/api/special/request':
                 pid=str(d.get('participantId') or ''); person=next((x for x in load_people() if str(x.get('id'))==pid),None)
+                person_session=self.require_participant(pid)
+                if not person_session: return
                 if not participant_can_transact(person): self.sendj({'error':'الشراء والتفاوض يتطلبان الاعتماد النهائي من الإدارة'},403); return
                 item_id=str(d.get('itemId') or ''); action=str(d.get('action') or 'buy'); item=next((i for i in load() if str(i.get('id'))==item_id and i.get('specialNumberEnabled')),None)
                 if not item: self.sendj({'error':'المقتنى غير موجود أو لم يعد ضمن الأرقام المميزة'},404); return
@@ -2176,6 +2254,8 @@ class H(SimpleHTTPRequestHandler):
                 item_id=str(d.get('itemId','')); name=str(d.get('name','')).strip(); phone=''.join(ch for ch in str(d.get('phone','')) if ch.isdigit() or ch=='+')
                 action=str(d.get('action','buy')); qty=max(1,int(d.get('quantity') or 1)); offered=float(d.get('offeredAmount') or 0)
                 pid=str(d.get('participantId') or ''); people=load_people(); person=next((x for x in people if str(x.get('id'))==pid),None) if pid else next((x for x in people if str(x.get('phone') or '').replace(' ','')==phone.replace(' ','')),None)
+                person_session=self.require_participant(pid)
+                if not person_session: return
                 if not participant_can_transact(person): self.sendj({'error':'الشراء والتفاوض يتطلبان تسجيل الحساب ثم الاعتماد النهائي من الإدارة'},403); return
                 pid=str(person.get('id')); name=str(person.get('name') or name); phone=str(person.get('phone') or phone)
                 item=next((i for i in load() if str(i.get('id'))==item_id and i.get('forMarket') and i.get('marketApproved')),None)
@@ -2379,8 +2459,8 @@ class H(SimpleHTTPRequestHandler):
                     if key in d: item[key]=d[key]
                 save(items); append_operation('إعادة إدراج مزاد',{'itemId':iid,'newRound':item['auctionRound'],'auctionEnd':end}); self.sendj({'ok':True,'auctionRound':item['auctionRound'],'item':item}); return
             if p=='/api/visitor/receive':
-                rid=str(d.get('id','')); pid=str(d.get('participantId','')); person=next((x for x in load_people() if x.get('id')==pid and x.get('verified') and not x.get('blocked')),None)
-                if not person: self.sendj({'error':'الحساب غير موثق'},403); return
+                rid=str(d.get('id','')); pid=str(d.get('participantId','')); person=self.require_participant(pid)
+                if not person: return
                 rows=load_orders(); row=next((x for x in rows if str(x.get('id'))==rid),None); phone=str(person.get('phone') or '').replace(' ','')
                 if not row or (str(row.get('participantId') or '')!=pid and str(row.get('customerPhone') or '').replace(' ','')!=phone): self.sendj({'error':'الطلب غير موجود'},404); return
                 if row.get('status')!='shipped': self.sendj({'error':'لا يمكن تأكيد الاستلام قبل تسجيل الشحن'},409); return
@@ -2401,7 +2481,8 @@ class H(SimpleHTTPRequestHandler):
                 self.sendj({'ok':True,'settings':saved}); return
             if p=='/api/negotiate':
                 item_id=str(d.get('itemId','')); pid=str(d.get('participantId','')); amount=float(d.get('amount') or 0)
-                person=next((x for x in load_people() if x.get('id')==pid),None)
+                person=self.require_participant(pid)
+                if not person: return
                 item=next((i for i in load() if i.get('id')==item_id and i.get('forAuction') and i.get('auctionApproved')),None)
                 if not participant_can_transact(person): self.sendj({'error':'تقديم عرض تفاوض يتطلب الاعتماد النهائي من الإدارة'},403); return
                 if not item: self.sendj({'error':'المقتنى غير متاح للتفاوض'},404); return
@@ -2427,30 +2508,65 @@ class H(SimpleHTTPRequestHandler):
             if p=='/api/analyze':
                 ok,data,note=analyze_image(d.get('url','')); self.sendj({'ok':ok,'data':data,'note':note}); return
             if p=='/api/participant/register':
-                name=str(d.get('name','')).strip(); reg_country=str(d.get('country','')).strip()[:80]; raw_phone=str(d.get('phone','')).strip(); phone=''.join(ch for ch in raw_phone if ch.isdigit() or ch=='+')
-                if not name or not phone: self.sendj({'error':'الاسم والجوال مطلوبان'},400); return
-                if len(''.join(ch for ch in phone if ch.isdigit())) < 7: self.sendj({'error':'رقم الجوال غير مكتمل'},400); return
-                a=load_people(); existing=next((x for x in a if str(x.get('phone','')).replace(' ','')==phone.replace(' ','')),None)
+                name=str(d.get('name','')).strip()
+                reg_country=str(d.get('country','')).strip()[:80]
+                raw_phone=str(d.get('phone','')).strip()
+                phone=''.join(ch for ch in raw_phone if ch.isdigit() or ch=='+')
+                pin=str(d.get('pin') or '')
+                claim_id=str(d.get('claimId') or '').strip()
+                if not name or not phone or not pin:
+                    self.sendj({'error':'الاسم والجوال ورمز الدخول مطلوبة'},400); return
+                if len(''.join(ch for ch in phone if ch.isdigit())) < 7:
+                    self.sendj({'error':'رقم الجوال غير مكتمل'},400); return
+                if len(pin)<4 or len(pin)>32:
+                    self.sendj({'error':'رمز الدخول يجب أن يكون بين 4 و32 خانة'},400); return
+
+                a=load_people()
+                phone_key=_norm_phone(phone)
+                matches=[x for x in a if _norm_phone(x.get('phone'))==phone_key]
+                # عند وجود حسابات قديمة مكررة نختار الحساب الذي يطابق claimId أولًا، وإلا الأحدث/الأغنى.
+                existing=next((x for x in matches if claim_id and str(x.get('id'))==claim_id),None)
+                if not existing and matches:
+                    with_pin=[x for x in matches if x.get('pinHash')]
+                    pool=with_pin or matches
+                    existing=max(pool,key=lambda x:str(x.get('lastSeen') or x.get('created') or ''))
+
                 now=datetime.datetime.now(); nowiso=now.isoformat()
                 existing_status=participant_approval_status(existing) if existing else ''
                 if existing_status in ('stopped','cancelled'):
-                    self.sendj({'error':'هذا الرقم موقوف أو ملغى ولا يمكن إنشاء حساب جديد به. تواصل مع الإدارة.'},403); return
+                    self.sendj({'error':'هذا الحساب موقوف أو ملغى. تواصل مع الإدارة.'},403); return
+
                 if existing:
-                    existing.update({'name':name or existing.get('name',''),'country':reg_country or existing.get('country',''),'lastSeen':nowiso,'verifiedAt':existing.get('verifiedAt') or nowiso,'otp':'','otpExpires':'','otpAttempts':0}); apply_approval_status(existing,existing_status or 'preliminary')
+                    if existing.get('pinHash'):
+                        if not verify_participant_pin(existing,pin):
+                            self.sendj({'error':'رمز الدخول غير صحيح'},403); return
+                    else:
+                        # ترحيل آمن للحساب القديم: يجب أن يكون claimId محفوظًا في متصفح الحساب نفسه.
+                        if not claim_id or str(existing.get('id'))!=claim_id:
+                            self.sendj({'error':'هذا حساب قديم يحتاج تفعيل رمز دخول من الجهاز الذي سبق استخدامه، أو مراجعة الإدارة.'},409); return
+                        set_participant_pin(existing,pin)
+                    existing.update({'name':name or existing.get('name',''),'country':reg_country or existing.get('country',''),'lastSeen':nowiso,'verifiedAt':existing.get('verifiedAt') or nowiso,'otp':'','otpExpires':'','otpAttempts':0})
+                    apply_approval_status(existing,existing_status or 'preliminary')
                     x=existing
                 else:
-                    x={'id':'p-'+secrets.token_hex(6),'name':name,'phone':phone,'country':reg_country,'approved':False,'verified':True,'blocked':False,'archived':False,'approvalStatus':'preliminary','created':nowiso,'lastSeen':nowiso,'verifiedAt':nowiso,'preliminaryApprovedAt':nowiso,'verificationMode':'automatic','otp':'','otpExpires':'','otpAttempts':0,'approvalHistory':[{'status':'preliminary','previousStatus':'new','reason':'تحقق آلي من رقم الجوال دون رمز','actor':'النظام','at':nowiso}]}; a.append(x)
+                    x={'id':'p-'+secrets.token_hex(6),'name':name,'phone':phone,'country':reg_country,'approved':False,'verified':True,'blocked':False,'archived':False,'approvalStatus':'preliminary','created':nowiso,'lastSeen':nowiso,'verifiedAt':nowiso,'preliminaryApprovedAt':nowiso,'verificationMode':'pin-session','otp':'','otpExpires':'','otpAttempts':0,'approvalHistory':[{'status':'preliminary','previousStatus':'new','reason':'إنشاء حساب مع رمز دخول محمي','actor':'النظام','at':nowiso}]}
+                    set_participant_pin(x,pin); a.append(x)
+
+                # منع استمرار نسخ هوية متفرقة لنفس الجوال: نزامن بيانات الهوية فقط، ولا ندمج السجلات تلقائيًا.
+                for other in a:
+                    if other is x: continue
+                    if _norm_phone(other.get('phone'))==phone_key:
+                        if reg_country: other['country']=reg_country
+                        if x.get('alias') and not other.get('alias'): other['alias']=x.get('alias')
                 save_json(PEOPLE,{'participants':a})
-                saved=next((z for z in load_people() if z.get('id')==x['id']),None)
-                if not saved: self.sendj({'error':'تعذر تثبيت التسجيل على الخادم'},500); return
-                add_notification('admin','','approval','طلب مراجعة اعتماد نهائي',f"تم التحقق آليًا ومنح {saved.get('name','مشارك')} — {saved.get('phone','')} اعتمادًا مبدئيًا.",saved.get('id',''), '/admin')
-                append_operation('اعتماد مبدئي تلقائي',{'participantId':saved.get('id'),'phone':saved.get('phone','')},actor='النظام'); safe=participant_public(saved)
-                self.sendj({'ok':True,'participant':safe,'verified':True,'approved':False,'approvalStatus':safe['approvalStatus'],'otpRequired':False,'message':'تم التحقق ومنحك اعتمادًا مبدئيًا. تنتظر الاعتماد النهائي للمزايدة والشراء والبيع.'}); return
+                safe=participant_public(x)
+                self.sendj_participant({'ok':True,'participant':safe,'verified':True,'approved':bool(x.get('approved')),'approvalStatus':safe['approvalStatus'],'otpRequired':False,'message':'تم تسجيل الدخول بأمان.'},x); return
 
             if p=='/api/participant/profile':
                 pid=str(d.get('id') or '').strip()
-                a=load_people(); person=next((x for x in a if str(x.get('id') or '')==pid),None)
-                if not person: self.sendj({'error':'الحساب غير موجود'},404); return
+                person=self.require_participant(pid)
+                if not person: return
+                a=load_people(); person=next((x for x in a if str(x.get('id') or '')==str(person.get('id'))),None)
                 alias=str(d.get('alias') or '').strip()[:60]
                 country=str(d.get('country') or '').strip()[:80]
                 avatar=str(d.get('avatarUrl') or '').strip()[:500]
@@ -2477,21 +2593,41 @@ class H(SimpleHTTPRequestHandler):
                 self.sendj({'ok':True,'participant':participant_public(person),'syncedDuplicateAccounts':synced}); return
 
             if p=='/api/participant/verify':
-                pid=str(d.get('id','')); code=str(d.get('code','')).strip(); a=load_people(); person=next((x for x in a if x.get('id')==pid),None)
-                if not person: self.sendj({'error':'المشارك غير موجود'},404); return
-                if person.get('blocked'): self.sendj({'error':'هذا الحساب موقوف من الإدارة'},403); return
-                if person.get('verified'):
-                    self.sendj({'ok':True,'participant':person,'message':'الحساب موثق مسبقًا'}); return
-                try: expired=datetime.datetime.fromisoformat(person.get('otpExpires','')) < datetime.datetime.now()
-                except Exception: expired=True
-                if expired: self.sendj({'error':'انتهت صلاحية الرمز. اطلب رمزًا جديدًا.'},409); return
-                attempts=int(person.get('otpAttempts') or 0)
-                if attempts>=5: self.sendj({'error':'تم تجاوز عدد المحاولات. اطلب رمزًا جديدًا.'},429); return
-                if not secrets.compare_digest(str(person.get('otp','')),code):
-                    person['otpAttempts']=attempts+1; save_json(PEOPLE,{'participants':a}); self.sendj({'error':'رمز التحقق غير صحيح'},403); return
-                nowiso=datetime.datetime.now().isoformat(); person.update({'verifiedAt':nowiso,'otp':'','otpExpires':'','otpAttempts':0,'lastSeen':nowiso}); apply_approval_status(person,'preliminary'); save_json(PEOPLE,{'participants':a})
-                add_notification('participant',pid,'approval','تم التحقق من حسابك','مُنحت اعتمادًا مبدئيًا، وتنتظر مراجعة الإدارة للاعتماد النهائي.','','/account'); append_operation('اعتماد مبدئي بعد التحقق',{'participantId':pid,'name':person.get('name','')},actor='النظام')
-                self.sendj({'ok':True,'participant':participant_public(person),'message':'تم التحقق ومنحك اعتمادًا مبدئيًا.'}); return
+                self.sendj({'error':'تم إلغاء مسار التحقق القديم. استخدم رقم الجوال ورمز الدخول من صفحة حسابي.'},410); return
+
+            if p=='/api/participant/reset-pin':
+                pid=str(d.get('id') or '').strip(); new_pin=str(d.get('pin') or '')
+                if len(new_pin)<4 or len(new_pin)>32:
+                    self.sendj({'error':'رمز الدخول يجب أن يكون بين 4 و32 خانة'},400); return
+                people=load_people(); person=next((x for x in people if str(x.get('id'))==pid),None)
+                if not person: self.sendj({'error':'الحساب غير موجود'},404); return
+                set_participant_pin(person,new_pin); save_json(PEOPLE,{'participants':people})
+                for token,meta in list(PARTICIPANT_SESSIONS.items()):
+                    if str(meta.get('participantId'))==pid: PARTICIPANT_SESSIONS.pop(token,None)
+                append_operation('إعادة ضبط رمز دخول عميل',{'participantId':pid},actor='الإدارة')
+                self.sendj({'ok':True}); return
+
+            if p=='/api/moderation/item':
+                iid=str(d.get('itemId') or ''); status=str(d.get('status') or '').strip().lower(); reason=str(d.get('reason') or '').strip()
+                if status not in ('active','hidden','suspended','archived','removed'):
+                    self.sendj({'error':'حالة المراقبة غير صالحة'},400); return
+                if status!='active' and not reason:
+                    self.sendj({'error':'سبب الإجراء إلزامي عند الإخفاء أو الإيقاف أو الأرشفة أو الإزالة'},400); return
+                items=load(); item=next((x for x in items if str(x.get('id'))==iid),None)
+                if not item: self.sendj({'error':'المقتنى غير موجود'},404); return
+                previous=moderation_status(item)
+                item['moderationStatus']=status
+                item['moderationReason']=reason
+                item['moderationUpdatedAt']=datetime.datetime.now().isoformat()
+                item['updated']=int(time.time()*1000)
+                save(items)
+                append_operation('تحديث مراقبة مقتنى',{'itemId':iid,'previous':previous,'status':status,'reason':reason},actor='الإدارة')
+                pid=str(item.get('ownerParticipantId') or '')
+                if pid:
+                    labels={'active':'إعادة تفعيل','hidden':'إخفاء','suspended':'إيقاف','archived':'أرشفة','removed':'إزالة'}
+                    add_notification('participant',pid,'moderation',f"إجراء إداري: {labels.get(status,status)}",f"{item.get('country','')} — {item.get('denomination','')}. {reason}".strip(),iid,'/account')
+                self.sendj({'ok':True,'itemId':iid,'status':status,'previous':previous}); return
+
             if p=='/api/participant/approval-status':
                 a=load_people(); iid=str(d.get('id') or ''); status=str(d.get('status') or '').strip().lower(); reason=str(d.get('reason') or '').strip()
                 if status not in APPROVAL_STATUSES or status=='new': self.sendj({'error':'حالة الاعتماد غير صالحة'},400); return
@@ -2539,8 +2675,9 @@ class H(SimpleHTTPRequestHandler):
             if p=='/api/participant/delete':
                 self.sendj({'error':'الحذف النهائي معطّل لحماية سجل المستخدم والمزايدات والطلبات والمستحقات'},409); return
             if p=='/api/bid':
-                itemId=d.get('itemId'); pid=d.get('participantId'); amount=float(d.get('amount') or 0)
-                person=next((x for x in load_people() if x.get('id')==pid),None)
+                itemId=d.get('itemId'); pid=str(d.get('participantId') or ''); amount=float(d.get('amount') or 0)
+                person=self.require_participant(pid)
+                if not person: return
                 item=next((i for i in load() if i.get('id')==itemId and i.get('forAuction') and i.get('auctionApproved')),None)
                 if not participant_can_transact(person): self.sendj({'error':'المزايدة تتطلب الاعتماد النهائي من الإدارة'},403); return
                 if not item: self.sendj({'error':'المزاد غير متاح'},404); return
@@ -2607,13 +2744,13 @@ class H(SimpleHTTPRequestHandler):
                 if x.get('forAuction') and x.get('auctionApproved'):
                     end=str(x.get('auctionEnd') or '').strip()
                     if not end:
-                        self.sendj({'ok':False,'error':'اعتماد المزاد للنشر يتطلب تاريخ ووقت انتهاء'},400); return
+                        self.sendj({'ok':False,'error':'نشر المزاد يتطلب تاريخ ووقت انتهاء'},400); return
                     try:
                         end_dt=datetime.datetime.fromisoformat(end)
                         old_was_approved=bool(old_item and old_item.get('forAuction') and old_item.get('auctionApproved'))
                         end_changed=str((old_item or {}).get('auctionEnd') or '').strip()!=end
                         needs_fresh_schedule=not old_was_approved or end_changed
-                        if needs_fresh_schedule and end_dt <= datetime.datetime.now():
+                        if needs_fresh_schedule and end_dt <= auction_local_now():
                             self.sendj({'ok':False,'error':'موعد انتهاء المزاد يجب أن يكون في المستقبل'},400); return
                     except ValueError:
                         self.sendj({'ok':False,'error':'صيغة تاريخ انتهاء المزاد غير صحيحة'},400); return
@@ -2712,7 +2849,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.3.4-VISITOR-SECTIONS-FINAL-FIX'
+VERSION='4.8.1-STABILITY'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
@@ -2737,8 +2874,6 @@ except Exception: pass
 print(f'خزينة المقتنيات V{VERSION} - الخادم يعمل على المنفذ {PORT}')
 if PORT!=8080: print('تنبيه: المنفذ 8080 مستخدم من نسخة أخرى، لذلك تم تشغيل هذه النسخة على منفذ بديل.')
 print('الإدارة:',admin_url)
-print('بيانات دخول الإدارة محفوظة في:',ADMIN_CREDENTIALS)
-if _new_admin_password: print('تم إنشاء كلمة مرور إدارة جديدة. افتح ملف بيانات_دخول_الإدارة.txt داخل مجلد البرنامج.')
 print('واجهة الزوار:',f'http://{IP}:{PORT}/home')
 print('المزاد للزوار:',public_url)
 print('السوق العام:',market_url)

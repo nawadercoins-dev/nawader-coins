@@ -1,0 +1,5 @@
+بيانات_دخول_الإدارة.txt
+admin_auth.json
+backups/
+__pycache__/
+*.pyc
