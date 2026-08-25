@@ -1,125 +1,1770 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071b35"><link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles.css?v=4.0.24-market-image-final"><title>نوادر العملات — الإدارة V4.0.24</title></head><body><header><div class="admin-brand"><div class="brand-mark">◆</div><div><h1>نوادر العملات</h1><p>إدارة المقتنيات والمزادات والدفتر المالي</p></div></div><button id="installBtn" hidden>تثبيت التطبيق</button></header><nav><a class="site-home-link" href="/home" target="_blank">⌂ واجهة الموقع</a><button data-v="home" class="active">لوحة التحكم</button><button data-v="add">إضافة</button><button data-v="list">السجل</button><button data-v="auction">المزاد</button><button data-v="ended-auctions">المزادات المنتهية <span id="endedAuctionsBadge" class="nav-badge" hidden>0</span></button><button data-v="market">السوق العام</button><button data-v="orders">الطلبات والشحن <span id="ordersBadge" class="nav-badge" hidden>0</span></button><button data-v="finance">المالية</button><button data-v="participants">المشاركون <span id="pendingParticipantsBadge" class="nav-badge" hidden>0</span></button><button data-v="collectible-approvals">اعتماد المقتنيات <span id="collectibleApprovalsBadge" class="nav-badge" hidden>0</span></button><button data-v="notifications">الإشعارات <span id="adminNotificationsBadge" class="nav-badge" hidden>0</span></button><button data-v="permissions">الصلاحيات</button><button data-v="dues">المستحقات</button><button data-v="settings">الإعدادات</button><button data-v="backup">النسخ الاحتياطي</button><a class="admin-logout-link" href="/admin-logout">🔒 خروج الإدارة</a></nav><main>
-<section id="home" class="view active dashboard-view">
-<div class="dashboard-hero">
-  <div>
-    <span class="dashboard-kicker">مركز الإدارة</span>
-    <h2>لوحة التحكم الرئيسية</h2>
-    <p>مركز قيادة موحد للمقتنيات والمزادات والسوق والعملاء والمالية، مع إبقاء النسخ الاحتياطي والاستعادة كما ثبت نجاحهما.</p>
-  </div>
-  <div class="dashboard-hero-actions">
-    <button type="button" class="gold-action dashboard-go" data-go="add">＋ إضافة مقتنى</button>
-    <button type="button" class="ghost dashboard-go" data-go="ended-auctions">♻ المزادات المنتهية</button>
-  </div>
-</div>
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#071b35" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="/admin/styles.css?v=4.3.5-final" />
+    <title>نوادر العملات — الإدارة V4.8.2</title>
+  </head>
+  <body>
+    <header>
+      <div class="admin-brand">
+        <div class="brand-mark">◆</div>
+        <div>
+          <h1>نوادر العملات</h1>
+          <p>إدارة المقتنيات والمزادات والدفتر المالي</p>
+        </div>
+      </div>
+      <button id="installBtn" hidden>تثبيت التطبيق</button>
+    </header>
+    <nav>
+      <a class="site-home-link" href="/home" target="_blank">⌂ واجهة الموقع</a
+      ><button data-v="home" class="active">لوحة التحكم</button
+      ><button data-v="add">إضافة</button><button data-v="warehouse">المستودع</button><button data-v="special">المميزة والنادرة</button><button data-v="transitional">الإصدارات الانتقالية</button><button data-v="list">السجل</button
+      ><button data-v="auction">المزاد</button
+      ><button data-v="ended-auctions">
+        المزادات المنتهية
+        <span id="endedAuctionsBadge" class="nav-badge" hidden>0</span></button
+      ><button data-v="market">السوق العام</button
+      ><button data-v="orders">
+        الطلبات والشحن
+        <span id="ordersBadge" class="nav-badge" hidden>0</span></button
+      ><button data-v="finance">المالية</button
+      ><button data-v="participants">
+        المشاركون
+        <span id="pendingParticipantsBadge" class="nav-badge" hidden
+          >0</span
+        ></button
+      ><button data-v="collectible-approvals">
+        مراقبة المقتنيات
+        <span id="collectibleApprovalsBadge" class="nav-badge" hidden
+          >0</span
+        ></button
+      ><button data-v="notifications">
+        الإشعارات
+        <span id="adminNotificationsBadge" class="nav-badge" hidden
+          >0</span
+        ></button
+      ><button data-v="dues">المستحقات</button
+      ><button data-v="archive">الأرشيف <span id="archiveBadge" class="nav-badge" hidden>0</span></button
+      ><button data-v="integrity">سلامة المنصة</button
+      ><button data-v="settings">الإعدادات</button
+      ><button data-v="backup">النسخ الاحتياطي</button
+      ><a class="admin-logout-link" href="/admin-logout">🔒 خروج الإدارة</a>
+    </nav>
+    <main>
+      <section id="home" class="view active dashboard-view">
+        <div class="dashboard-hero">
+          <div>
+            <span class="dashboard-kicker">مركز الإدارة</span>
+            <h2>لوحة التحكم الرئيسية</h2>
+            <p>
+              مركز قيادة موحد للمقتنيات والمزادات والسوق والعملاء والمالية، مع
+              إبقاء النسخ الاحتياطي والاستعادة كما ثبت نجاحهما.
+            </p>
+          </div>
+          <div class="dashboard-hero-actions">
+            <button
+              type="button"
+              class="gold-action dashboard-go"
+              data-go="add"
+            >
+              ＋ إضافة مقتنى
+            </button>
+            <button
+              type="button"
+              class="ghost dashboard-go"
+              data-go="ended-auctions"
+            >
+              ♻ المزادات المنتهية
+            </button>
+          </div>
+        </div>
 
-<div class="dashboard-metrics">
-  <article class="metric-tile"><span>إجمالي المقتنيات</span><b id="records">0</b><small>السجلات المسجلة</small></article>
-  <article class="metric-tile"><span>إجمالي القطع</span><b id="qty">0</b><small>جميع الوحدات</small></article>
-  <article class="metric-tile"><span>المخزون الحالي</span><b id="remainingQty">0</b><small>الوحدات المتبقية</small></article>
-  <article class="metric-tile"><span>المباعة</span><b id="soldQty">0</b><small>الوحدات المباعة</small></article>
-  <article class="metric-tile"><span>مزادات نشطة</span><b id="activeAuctions">0</b><small>قيد المزايدة الآن</small></article>
-  <article class="metric-tile alert"><span>مزادات منتهية</span><b id="endedAuctions">0</b><small>للمراجعة وإعادة الإدراج</small></article>
-  <article class="metric-tile"><span>طلبات السوق</span><b id="dashboardMarketPending">0</b><small>طلبات جديدة تحتاج متابعة</small></article>
-  <article class="metric-tile"><span>اعتمادات معلقة</span><b id="dashboardParticipantsPending">0</b><small>بانتظار إجراء الإدارة</small></article>
-</div>
+        <div class="dashboard-metrics">
+          <article class="metric-tile">
+            <span>إجمالي المقتنيات</span><b id="records">0</b
+            ><small>السجلات المسجلة</small>
+          </article>
+          <article class="metric-tile">
+            <span>إجمالي القطع</span><b id="qty">0</b
+            ><small>جميع الوحدات</small>
+          </article>
+          <article class="metric-tile">
+            <span>المخزون الحالي</span><b id="remainingQty">0</b
+            ><small>الوحدات المتبقية</small>
+          </article>
+          <article class="metric-tile">
+            <span>المباعة</span><b id="soldQty">0</b
+            ><small>الوحدات المباعة</small>
+          </article>
+          <article class="metric-tile">
+            <span>مزادات نشطة</span><b id="activeAuctions">0</b
+            ><small>قيد المزايدة الآن</small>
+          </article>
+          <article class="metric-tile alert">
+            <span>مزادات منتهية</span><b id="endedAuctions">0</b
+            ><small>للمراجعة وإعادة الإدراج</small>
+          </article>
+          <article class="metric-tile">
+            <span>طلبات السوق</span><b id="dashboardMarketPending">0</b
+            ><small>طلبات جديدة تحتاج متابعة</small>
+          </article>
+          <article class="metric-tile">
+            <span>تنبيهات رقابية</span><b id="dashboardParticipantsPending">0</b
+            ><small>بانتظار إجراء الإدارة</small>
+          </article>
+        </div>
 
-<div class="dashboard-group">
-  <div class="dashboard-section-title"><div><h2>المقتنيات والمخزون</h2><p class="muted">الإضافة والسجل وإدارة بيانات المقتنيات.</p></div></div>
-  <div class="dashboard-modules dashboard-modules-spaced">
-    <button type="button" class="module-card dashboard-go" data-go="add"><span class="module-icon">＋</span><b>إضافة مقتنى</b><small>تسجيل مقتنى جديد بالصور والبيانات</small></button>
-    <button type="button" class="module-card dashboard-go" data-go="list"><span class="module-icon">◫</span><b>سجل المقتنيات</b><small>بحث وعرض وتعديل السجلات</small></button>
-    <div class="module-card module-pending"><span class="module-icon">▧</span><b>إدارة الصور</b><small>تنظيم الصور — قيد التطوير</small><span class="pending-badge">قيد التطوير</span></div>
-    <div class="module-card module-pending"><span class="module-icon">⌂</span><b>المستودعات</b><small>تنظيم مواقع الحفظ — قيد التطوير</small><span class="pending-badge">قيد التطوير</span></div>
-  </div>
-</div>
+        <div class="dashboard-group">
+          <div class="dashboard-section-title">
+            <div>
+              <h2>المقتنيات والمخزون</h2>
+              <p class="muted">الإضافة والسجل وإدارة بيانات المقتنيات.</p>
+            </div>
+          </div>
+          <div class="dashboard-modules dashboard-modules-spaced">
+            <button
+              type="button"
+              class="module-card dashboard-go"
+              data-go="add"
+            >
+              <span class="module-icon">＋</span><b>إضافة مقتنى</b
+              ><small>تسجيل مقتنى جديد بالصور والبيانات</small>
+            </button>
+            <button
+              type="button"
+              class="module-card dashboard-go"
+              data-go="list"
+            >
+              <span class="module-icon">◫</span><b>سجل المقتنيات</b
+              ><small>بحث وعرض وتعديل السجلات</small>
+            </button>
+            <div class="module-card module-pending">
+              <span class="module-icon">▧</span><b>إدارة الصور</b
+              ><small>تنظيم الصور — قيد التطوير</small
+              ><span class="pending-badge">قيد التطوير</span>
+            </div>
+            <button type="button" class="module-card dashboard-go" data-go="warehouse">
+              <span class="module-icon">⌂</span><b>المستودع</b
+              ><small>الكميات والمواقع والحجز والسوق والمزاد</small>
+            </button>
+            <button type="button" class="module-card dashboard-go" data-go="transitional">
+              <span class="module-icon">⇄</span><b>الإصدارات الانتقالية</b
+              ><small>انتقال توقيع وآخر إصدار قبل التغيير وأول إصدار بعده</small>
+            </button>
+          </div>
+        </div>
 
-<div class="dashboard-group">
-  <div class="dashboard-section-title"><div><h2>المزادات</h2><p class="muted">إدارة المزادات الحالية والمنتهية وإعادة الإدراج مع حفظ السجل.</p></div></div>
-  <div class="dashboard-modules dashboard-modules-spaced">
-    <button type="button" class="module-card dashboard-go" data-go="auction"><span class="module-icon">⚖</span><b>المزادات النشطة</b><small>العروض والمزايدات والمتابعة</small></button>
-    <button type="button" class="module-card dashboard-go" data-go="ended-auctions"><span class="module-icon">♻</span><b>المزادات المنتهية</b><small>تعديل السعر والحد والزيادة وإعادة الإدراج</small></button>
-    <a class="module-card public-module" href="/auction" target="_blank"><span class="module-icon">↗</span><b>واجهة المزاد العامة</b><small>معاينة ما يراه الزائر والمزايد</small></a>
-  </div>
-</div>
+        <div class="dashboard-group">
+          <div class="dashboard-section-title">
+            <div>
+              <h2>المزادات</h2>
+              <p class="muted">
+                إدارة المزادات الحالية والمنتهية وإعادة الإدراج مع حفظ السجل.
+              </p>
+            </div>
+          </div>
+          <div class="dashboard-modules dashboard-modules-spaced">
+            <button
+              type="button"
+              class="module-card dashboard-go"
+              data-go="auction"
+            >
+              <span class="module-icon">⚖</span><b>المزادات النشطة</b
+              ><small>العروض والمزايدات والمتابعة</small>
+            </button>
+            <button
+              type="button"
+              class="module-card dashboard-go"
+              data-go="ended-auctions"
+            >
+              <span class="module-icon">♻</span><b>المزادات المنتهية</b
+              ><small>تعديل السعر والحد والزيادة وإعادة الإدراج</small>
+            </button>
+            <a class="module-card public-module" href="/auction" target="_blank"
+              ><span class="module-icon">↗</span><b>واجهة المزاد العامة</b
+              ><small>معاينة ما يراه الزائر والمزايد</small></a
+            >
+          </div>
+        </div>
 
-<div class="dashboard-group">
-  <div class="dashboard-section-title"><div><h2>السوق والطلبات</h2><p class="muted">إدارة العروض وطلبات الشراء والتفاوض.</p></div></div>
-  <div class="dashboard-modules dashboard-modules-spaced">
-    <button type="button" class="module-card dashboard-go" data-go="market"><span class="module-icon">▣</span><b>السوق العام</b><small>العروض والشراء والتفاوض</small></button>
-    <a class="module-card public-module" href="/market" target="_blank"><span class="module-icon">↗</span><b>واجهة السوق العامة</b><small>معاينة السوق كما يظهر للزوار</small></a>
-    <button type="button" class="module-card dashboard-go" data-go="orders"><span class="module-icon">☷</span><b>الطلبات والشحن</b><small>السوق + المزادات، السداد والتجهيز والشحن والأرشيف</small></button>
-  </div>
-</div>
+        <div class="dashboard-group">
+          <div class="dashboard-section-title">
+            <div>
+              <h2>السوق والطلبات</h2>
+              <p class="muted">إدارة العروض وطلبات الشراء والتفاوض.</p>
+            </div>
+          </div>
+          <div class="dashboard-modules dashboard-modules-spaced">
+            <button
+              type="button"
+              class="module-card dashboard-go"
+              data-go="market"
+            >
+              <span class="module-icon">▣</span><b>السوق العام</b
+              ><small>العروض والشراء والتفاوض</small>
+            </button>
+            <a class="module-card public-module" href="/market" target="_blank"
+              ><span class="module-icon">↗</span><b>واجهة السوق العامة</b
+              ><small>معاينة السوق كما يظهر للزوار</small></a
+            >
+            <button
+              type="button"
+              class="module-card dashboard-go"
+              data-go="orders"
+            >
+              <span class="module-icon">☷</span><b>الطلبات والشحن</b
+              ><small>السوق + المزادات، السداد والتجهيز والشحن والأرشيف</small>
+            </button>
+          </div>
+        </div>
 
-<div class="dashboard-group">
-  <div class="dashboard-section-title"><div><h2>العملاء والاعتمادات</h2><p class="muted">إدارة المشاركين والمزايدين والاعتمادات.</p></div></div>
-  <div class="dashboard-modules dashboard-modules-spaced">
-    <button type="button" class="module-card dashboard-go" data-go="participants"><span class="module-icon">◎</span><b>المشاركون والاعتمادات</b><small>توثيق واعتماد وإدارة المشاركين</small></button>
-    <button type="button" class="module-card dashboard-go" data-go="permissions"><span class="module-icon">♙</span><b>الصلاحيات المرنة</b><small>منح البائع والمشرف صلاحيات الصفحات والمهام</small></button>
-    <button type="button" class="module-card dashboard-go" data-go="notifications"><span class="module-icon">🔔</span><b>مركز الإشعارات</b><small>الاعتمادات والمزادات والسوق والتنبيهات</small></button>
-  </div>
-</div>
+        <div class="dashboard-group">
+          <div class="dashboard-section-title">
+            <div>
+              <h2>العملاء والاعتمادات</h2>
+              <p class="muted">إدارة المشاركين والمزايدين والاعتمادات.</p>
+            </div>
+          </div>
+          <div class="dashboard-modules dashboard-modules-spaced">
+            <button
+              type="button"
+              class="module-card dashboard-go"
+              data-go="participants"
+            >
+              <span class="module-icon">◎</span><b>المشاركون والاعتمادات</b
+              ><small>توثيق واعتماد وإدارة المشاركين</small>
+            </button>
+            <button
+              type="button"
+              class="module-card dashboard-go"
+              data-go="notifications"
+            >
+              <span class="module-icon">🔔</span><b>مركز الإشعارات</b
+              ><small>الاعتمادات والمزادات والسوق والتنبيهات</small>
+            </button>
+          </div>
+        </div>
 
-<div class="dashboard-group">
-  <div class="dashboard-section-title"><div><h2>المالية والتقارير</h2><p class="muted">المؤشرات المالية الحالية، مع تطوير التقارير التفصيلية لاحقًا دون تعطيل النسخة المستقرة.</p></div></div>
-  <div class="dashboard-financial-row dashboard-financial-spaced">
-    <article><span>رأس المال</span><b id="capital">0 ر.س</b></article>
-    <article><span>القيمة المتوقعة</span><b id="expected">0 ر.س</b></article>
-  </div>
-  <div class="dashboard-modules dashboard-modules-spaced compact-module-row">
-    <button type="button" class="module-card dashboard-go" data-go="finance"><span class="module-icon">◈</span><b>المالية</b><small>البيانات المالية الحالية</small></button>
-    <div class="module-card module-pending"><span class="module-icon">▥</span><b>تقارير الفترات</b><small>يومي / أسبوعي / شهري / سنوي — قيد التطوير</small><span class="pending-badge">قيد التطوير</span></div>
-    <button type="button" class="module-card dashboard-go" data-go="dues"><span class="module-icon">%</span><b>المستحقات</b><small>متابعة مستحقات المزادات والسداد وإيقاف المزايدة بعد 24 ساعة</small></button>
-  </div>
-</div>
+        <div class="dashboard-group">
+          <div class="dashboard-section-title">
+            <div>
+              <h2>المالية والتقارير</h2>
+              <p class="muted">
+                المؤشرات المالية الحالية، مع تطوير التقارير التفصيلية لاحقًا دون
+                تعطيل النسخة المستقرة.
+              </p>
+            </div>
+          </div>
+          <div class="dashboard-financial-row dashboard-financial-spaced">
+            <article><span>رأس المال</span><b id="capital">0 ر.س</b></article>
+            <article>
+              <span>القيمة المتوقعة</span><b id="expected">0 ر.س</b>
+            </article>
+          </div>
+          <div
+            class="dashboard-modules dashboard-modules-spaced compact-module-row"
+          >
+            <button
+              type="button"
+              class="module-card dashboard-go"
+              data-go="finance"
+            >
+              <span class="module-icon">◈</span><b>المالية</b
+              ><small>البيانات المالية الحالية</small>
+            </button>
+            <div class="module-card module-pending">
+              <span class="module-icon">▥</span><b>تقارير الفترات</b
+              ><small>يومي / أسبوعي / شهري / سنوي — قيد التطوير</small
+              ><span class="pending-badge">قيد التطوير</span>
+            </div>
+            <button
+              type="button"
+              class="module-card dashboard-go"
+              data-go="dues"
+            >
+              <span class="module-icon">%</span><b>المستحقات</b
+              ><small
+                >متابعة مستحقات المزادات والسداد وإيقاف المزايدة بعد 24
+                ساعة</small
+              >
+            </button>
+          </div>
+        </div>
 
-<div class="dashboard-group">
-  <div class="dashboard-section-title"><div><h2>الأمان والأدوات</h2><p class="muted">النسخ الاحتياطي المستقر محفوظ كما هو من النسخة التي ثبت نجاحه فيها.</p></div></div>
-  <div class="dashboard-modules dashboard-modules-spaced">
-    <button type="button" class="module-card dashboard-go backup-stable" data-go="backup"><span class="module-icon">⬡</span><b>النسخ الاحتياطي والاستعادة</b><small>الوظيفة المستقرة الأصلية بدون تغيير</small><span class="stable-badge">مستقر</span></button>
-    <div class="module-card module-pending"><span class="module-icon">▤</span><b>أرشيف العناصر</b><small>الحذف الآمن والاستعادة — قيد التطوير</small><span class="pending-badge">قيد التطوير</span></div>
-    <button type="button" class="module-card dashboard-go" data-go="operations"><span class="module-icon">≣</span><b>سجل العمليات</b><small>تتبع الاعتمادات والصلاحيات والمستحقات وإعادة الإدراج</small></button>
-    <button type="button" class="module-card dashboard-go" data-go="settings"><span class="module-icon">⚙</span><b>الإعدادات وبيانات الدخول</b><small>بيانات المنصة والإعدادات المالية الأساسية</small></button>
-  </div>
-</div>
-</section>
-<section id="add" class="view"><form id="form" class="panel form"><input type="hidden" id="id"><input type="hidden" id="year"><h2>إضافة أو تعديل مقتنى</h2><div class="wide form-section-title"><h3>بيانات المقتنى الأساسية</h3><p class="muted">تم فصل الدولة والفئة والإصدار والسنة لسهولة البحث والتصنيف.</p></div><div class="wide owner-top-box"><h3>بيانات المالك / البائع</h3><div class="owner-top-grid"><label>اسم صاحب المقتنى / البائع<input id="ownerName" placeholder="اسم المالك أو البائع"></label><label>رقم جوال البائع<input id="ownerPhone" inputmode="tel" placeholder="05xxxxxxxx"></label></div></div><label>الدولة<input id="country" list="countryList" required placeholder="مثال: المملكة العربية السعودية"><datalist id="countryList"><option value="المملكة العربية السعودية"><option value="الإمارات العربية المتحدة"><option value="الكويت"><option value="قطر"><option value="البحرين"><option value="سلطنة عمان"><option value="اليمن"><option value="العراق"><option value="سوريا"><option value="الأردن"><option value="لبنان"><option value="فلسطين"><option value="مصر"><option value="السودان"><option value="ليبيا"><option value="تونس"><option value="الجزائر"><option value="المغرب"><option value="موريتانيا"><option value="الصومال"><option value="جيبوتي"><option value="جزر القمر"><option value="تركيا"><option value="إيران"><option value="الهند"><option value="باكستان"><option value="الولايات المتحدة"><option value="المملكة المتحدة"><option value="فرنسا"><option value="ألمانيا"><option value="إيطاليا"><option value="إسبانيا"><option value="روسيا"><option value="الصين"><option value="اليابان"></datalist></label><label>الفئة / القيمة<input id="denomination" required placeholder="مثال: 1 ريال أو 500 ليرة"></label><label>الإصدار<select id="issueEdition"><option value="">غير محدد</option><option>الإصدار الأول</option><option>الإصدار الثاني</option><option>الإصدار الثالث</option><option>الإصدار الرابع</option><option>الإصدار الخامس</option><option>الإصدار السادس</option><option>الإصدار السابع</option><option>الإصدار الثامن</option><option>الإصدار التاسع</option><option>الإصدار العاشر</option><option>الإصدار الحادي عشر</option><option>الإصدار الثاني عشر</option><option>الإصدار الثالث عشر</option><option>الإصدار الرابع عشر</option><option>الإصدار الخامس عشر</option><option value="أخرى">أخرى</option></select></label><label id="issueEditionOtherWrap" hidden>اسم الإصدار الآخر<input id="issueEditionOther" placeholder="اكتب اسم الإصدار"></label><label>طريقة السنة<select id="yearMode"><option value="single">سنة واحدة</option><option value="range">من سنة إلى سنة</option></select></label><label>السنة / من<input id="yearFrom" inputmode="numeric" placeholder="مثال: 1348 أو 1448"></label><label id="yearToWrap" hidden>إلى سنة<input id="yearTo" inputmode="numeric" placeholder="مثال: 1449"></label><label>النوع<select id="type"><option>عملة ورقية</option><option>عملة معدنية</option><option>أخرى</option></select></label><label>الحالة<select id="condition"><option>UNC</option><option>AU</option><option>XF</option><option>VF</option><option>F</option></select></label><label>الكمية<input id="quantity" type="number" min="1" value="1"></label><label>الكمية المباعة<input id="soldQuantity" type="number" min="0" value="0"></label><div class="wide grading-box"><h3>التقييم والتغليف الاحترافي</h3><label class="check"><input id="isGraded" type="checkbox"> المقتنى مُقيَّم / مغلف من جهة تقييم</label><div id="gradingFields" class="grading-fields" hidden><label>جهة التقييم<select id="gradingCompany"><option value="">اختر الجهة</option><option>PMG</option><option>PCGS</option><option>NGC</option><option>ANACS</option><option>ICG</option><option value="أخرى">أخرى</option></select></label><label>درجة / رقم التقييم<input id="gradeValue" placeholder="مثال: 67 أو MS 65"></label><label>نسبة التقييم % <input id="gradePercent" type="number" min="0" max="100" step="0.01" placeholder="اختياري"></label><label>رقم الشهادة / الاعتماد<input id="gradingCertNumber" placeholder="رقم الشهادة على الغلاف"></label><label>حالة التحقق من الشهادة<select id="gradingVerificationStatus"><option value="unverified">غير متحقق</option><option value="verified">تم التحقق</option></select></label><label class="wide">ملاحظات التقييم<input id="gradingNotes" placeholder="مثال: EPQ، NET، Details، ترميم، بقعة، خطأ طباعة..."></label></div></div><div class="wide"><h3>الأرقام التسلسلية</h3><p class="muted">يظهر حقل مستقل لكل قطعة حسب الكمية.</p><div id="serialFields" class="serial-grid"></div></div>
-<div class="wide form-section-title"><h3>✦ الأرقام المميزة والأخطاء النادرة</h3><p class="muted">فعّل هذا الخيار إذا كان المقتنى يحمل رقمًا متكررًا أو متسلسلًا أو متطابقًا أو نادرًا، أو خطأً طباعيًا نادرًا. يظهر بعدها تلقائيًا في الصفحة المخصصة.</p></div><label class="wide special-number-toggle"><input id="specialNumberEnabled" type="checkbox"> إضافة هذا المقتنى إلى صفحة الأرقام المميزة والأخطاء النادرة</label><div id="specialNumberFields" class="wide special-number-fields" hidden><div class="special-type-grid"><label class="check"><input class="special-number-type" type="checkbox" value="repeated"> أرقام متكررة</label><label class="check"><input class="special-number-type" type="checkbox" value="sequential"> أرقام متسلسلة</label><label class="check"><input class="special-number-type" type="checkbox" value="matching"> أرقام متطابقة</label><label class="check"><input class="special-number-type" type="checkbox" value="rare"> أرقام نادرة / مميزة</label><label class="check special-error-type"><input class="special-number-type" type="checkbox" value="errors"> عملات بأخطاء نادرة</label></div><label>سبب التميز / وصف مختصر<input id="specialNumberReason" placeholder="مثال: رقم منخفض جدًا أو نمط متكرر لافت"></label></div><div class="wide mobile-photo-section"><h3>صور المقتنى</h3><p class="muted">رفع الصور وحفظ المقتنى يعملان بصورة مستقلة عن OCR. اختر الصورة من الجوال أو الكاميرا، ثم عدّلها وثبّتها قبل الحفظ. قراءة البيانات اختيارية فقط.</p><div class="actions"><button type="button" id="analyzeImage" class="ghost">✨ تحليل صور المقتنى (اختياري)</button><span id="analysisStatus" class="muted"></span></div><div class="photo-grid"><div><b>صورة الوجه</b><div class="photo-actions"><label class="file">📷 تصوير<input id="frontCamera" type="file" accept="image/*" capture="environment"></label><label class="file ghost">📱 اختيار صورة<input id="frontGallery" type="file" accept="image/*"></label><button type="button" id="editFrontImage" class="ghost" hidden>✏️ تدوير وقص</button><button type="button" id="clearFrontImage" class="ghost" hidden>🗑 إزالة الصورة</button></div><img id="frontPreview" class="preview" hidden></div><div><b>صورة الخلف</b><div class="photo-actions"><label class="file">📷 تصوير<input id="backCamera" type="file" accept="image/*" capture="environment"></label><label class="file ghost">📱 اختيار صورة<input id="backGallery" type="file" accept="image/*"></label><button type="button" id="editBackImage" class="ghost" hidden>✏️ تدوير وقص</button><button type="button" id="clearBackImage" class="ghost" hidden>🗑 إزالة الصورة</button></div><img id="backPreview" class="preview" hidden></div></div></div>
-<div class="wide market-box"><h3>السوق العام / البيع المباشر</h3><label class="check"><input id="forMarket" type="checkbox"> عرض هذا المقتنى في السوق العام</label><div id="marketFields" hidden><label>نوع العرض<select id="marketOfferType"><option value="single">قطعة واحدة</option><option value="bundle">حزمة / بندل</option><option value="set">طقم</option></select></label><label>عنوان العرض<input id="marketTitle" placeholder="مثال: بندل 100 ورقة أو طقم فئات سعودي"></label><label><span id="marketSalePriceLabel">سعر الوحدة المعروضة</span><input id="marketSalePrice" type="number" min="0" step="0.01" placeholder="السعر الظاهر للمشتري"></label><label>وحدة التسعير<select id="marketPriceUnit"><option value="piece">القطعة</option><option value="sheet">الورقة</option><option value="bundle">الحزمة / البندل</option><option value="set">الطقم</option></select></label><label>سعر الوحدة المحسوب<input id="marketUnitPrice" type="number" min="0" step="0.01" readonly></label><label><span id="marketQuantityLabel">الكمية المعروضة</span><input id="marketQuantity" type="number" min="1" value="1"></label><label id="marketSetPiecesWrap" hidden><span id="marketPiecesLabel">عدد أوراق / قطع الطقم</span><input id="marketSetPieces" type="number" min="1" value="1"></label><label id="marketSetSizeWrap" hidden>حجم الطقم<select id="marketSetSize"><option value="mini">ميني / صغير</option><option value="medium">متوسط</option><option value="large">كبير</option><option value="full">كامل</option><option value="other">أخرى</option></select></label><label id="marketSetCurrencyModeWrap" hidden>تكوين الطقم<select id="marketSetCurrencyMode"><option value="single">عملة واحدة / فئات متعددة</option><option value="multiple">أكثر من عملة أو دولة</option></select></label><p id="marketExample" class="muted wide"></p><label class="check" id="marketPartialWrap"><input id="marketPartialAllowed" type="checkbox"> السماح بشراء جزء من الحزمة / كمية محددة</label><label class="check"><input id="marketNegotiationEnabled" type="checkbox"> السماح بالتفاوض</label><label>نسبة التفاوض المسموحة<select id="marketNegotiationPercent"><option value="5">5%</option><option value="10">10%</option><option value="15">15%</option><option value="20">20%</option></select></label><label class="check"><input id="marketApproved" type="checkbox"> اعتماد العرض ونشره في السوق العام</label><p class="muted wide">سعر الشراء يبقى في الدفتر المالي السري ولا يظهر للمشتري. السوق العام مستقل في طريقة البيع، ويمكن تخصيص المقتنى للسوق والمزاد معًا إذا رغبت الإدارة؛ لا يتم النشر إلا عند تفعيل اعتماد كل قسم.</p></div></div><div class="wide auction-box"><h3>المزاد</h3><label class="check"><input id="forAuction" type="checkbox"> مخصص للمزاد</label><div id="auctionFields" hidden><label>تاريخ ووقت انتهاء المزاد<input id="auctionEnd" type="datetime-local"></label><label>سعر فتح المزايدة (السومة الأولى)<input id="auctionOpeningPrice" type="number" min="0" step="0.01" placeholder="مثال: 50 أو 70 أو 80"><small class="muted">هذا هو المبلغ الذي يظهر في شريط السحب لأول مزايدة.</small></label><label>قيمة الزيادة لكل سومة<input id="auctionBidStep" type="number" min="0.01" step="0.01" value="5" placeholder="1 أو 2 أو 5 أو 10"><small class="muted">بعد أول سومة يصبح الحد الأدنى للسومة التالية = آخر سوم + هذه الزيادة.</small></label><label>حد تحقق البيع (الباند الأخضر)<input id="auctionTargetPrice" type="number" min="0" step="0.01" placeholder="مثال: 71"><small class="muted">لا يمنع السومات الأقل منه؛ يبقى المؤشر أحمر حتى يتحقق ثم يتحول أخضر.</small></label><input id="auctionStartPrice" type="hidden"><label>السعر الحالي / آخر مزايدة<input id="auctionCurrentPrice" type="number" min="0" step="0.01" readonly></label><label class="check"><input id="auctionApproved" type="checkbox"> اعتماد المزاد للنشر</label><div class="negotiation-admin"><h4>التفاوض</h4><label class="check"><input id="negotiationEnabled" type="checkbox"> السماح بالتفاوض على هذا المقتنى</label><label>نسبة التفاوض المسموحة<select id="negotiationPercent"><option value="5">5%</option><option value="10">10%</option><option value="15">15%</option><option value="20">20%</option></select></label><small class="muted">يمنع النظام العرض الأقل من الحد الناتج عن النسبة المختارة.</small></div><p id="auctionCountdown" class="auction-countdown"></p></div></div>
-<div class="wide storage-section"><h3>موقع التخزين</h3><p class="muted">مسار واحد منظم: المستودع ← الخزانة ← الرف ← الصندوق/الألبوم ← الصفحة/الجيب.</p></div><label>المستودع<input id="warehouse"></label><label>الخزانة<input id="cabinet"></label><label>الرف<input id="shelf"></label><label>الصندوق<input id="box"></label><label>الألبوم<input id="album"></label><label>الصفحة أو الجيب<input id="pocket"></label><h3>الدفتر المالي السري</h3><label>سعر الشراء<input id="purchase" type="number" step="0.01"></label><label>الشحن<input id="shipping" type="number" step="0.01"></label><label>تكاليف أخرى<input id="other" type="number" step="0.01"></label><label>سعر البيع المتوقع<input id="expectedPrice" type="number" step="0.01"></label><label class="wide">ملاحظات<textarea id="notes"></textarea></label><div class="wide actions"><button type="submit">حفظ</button><button type="button" id="reset" class="ghost">تفريغ</button></div></form></section>
-<section id="ended-auctions" class="view"><div class="panel"><div class="auction-title-row"><div><h2>♻️ المزادات المنتهية</h2><p class="muted">تجتمع هنا جميع المزادات التي انتهى وقتها. يمكنك تعديل أسعار الجولة الجديدة ثم إعادة إدراجها مع بقاء سجل الجولة السابقة محفوظًا.</p></div><button type="button" id="refreshEndedAuctions" class="ghost">↻ تحديث</button></div><div class="auction-summary"><article><span>إجمالي المنتهية</span><b id="endedPageCount">0</b></article><article><span>بلغت حد البيع</span><b id="endedReachedTarget">0</b></article><article><span>دون حد البيع</span><b id="endedBelowTarget">0</b></article></div><div class="ended-toolbar"><input id="endedAuctionSearch" placeholder="بحث بالدولة أو الفئة أو الرقم..."><select id="endedAuctionFilter"><option value="all">جميع المزادات</option><option value="reached">بلغت حد البيع</option><option value="below">دون حد البيع</option></select></div><div id="endedAuctionItems" class="grid ended-auction-grid"></div></div></section>
-<section id="auction" class="view"><div class="panel"><div class="auction-title-row"><h2>عروض المزادات</h2></div><div class="platform-policy compact-policy"><b>السياسات المالية:</b><span>عمولة المشتري 2.5%</span><span>رسم الدخول الافتراضي 10 ر.س</span><span>5% من صافي أرباح المنصة للأعمال الخيرية</span></div><div class="auction-summary"><article><span>النشطة</span><b id="auctionActiveCount">0</b></article><article><span>المنتهية</span><b id="auctionEndedCount">0</b></article><article><span>المعتمدة</span><b id="auctionApprovedCount">0</b></article></div><div id="auctionItems" class="grid"></div></div></section><section id="market" class="view"><div class="panel"><div class="auction-title-row"><h2>عروض السوق العام</h2></div><p class="muted">البيع المباشر مستقل عن المزاد. يمكن عرض قطعة واحدة أو حزمة/بندل أو طقم، مع التفاوض والشراء الجزئي حسب إعداد العرض.</p><div class="auction-summary"><article><span>العروض النشطة</span><b id="marketPublishedCount">0</b></article><article><span>طلبات جديدة</span><b id="marketPendingCount">0</b></article><article><span>إجمالي الطلبات</span><b id="marketRequestsCount">0</b></article></div><div class="record-filter-bar" id="marketFilters"><button class="market-filter active" data-market-filter="all">الكل</button><button class="market-filter" data-market-filter="graded">المقيمة</button><button class="market-filter" data-market-filter="ungraded">غير المقيمة</button><button class="market-filter" data-market-filter="sets">الأطقم</button></div><div class="set-filter-bar" id="marketSetFilters" hidden><button class="market-set-filter active" data-market-set-filter="all">كل الأطقم</button><button class="market-set-filter" data-market-set-filter="mini">ميني 2–3</button><button class="market-set-filter" data-market-set-filter="small">صغيرة 4–5</button><button class="market-set-filter" data-market-set-filter="medium">متوسطة 6–10</button><button class="market-set-filter" data-market-set-filter="large">كبيرة +10</button></div><div id="marketAdminItems" class="grid"></div></div><div class="panel"><h2>طلبات الشراء والتفاوض</h2><div id="marketRequests" class="participants-list"></div></div></section>
-<section id="orders" class="view"><div class="panel"><div class="auction-title-row"><div><h2>📦 الطلبات والشحن</h2><p class="muted">دورة موحدة لطلبات السوق العام وفائزي المزادات من السداد حتى الأرشيف.</p></div><button type="button" id="refreshOrders" class="ghost">↻ تحديث</button></div><div class="order-filters" aria-label="فرز الطلبات">
-<button class="order-filter active" data-ofilter="active">نشط <b id="ofActive">0</b></button>
-<button class="order-filter" data-ofilter="awaiting_payment">بانتظار السداد <b id="ofAwaiting">0</b></button>
-<button class="order-filter" data-ofilter="paid">تم السداد <b id="ofPaid">0</b></button>
-<button class="order-filter" data-ofilter="preparing">قيد التجهيز <b id="ofPreparing">0</b></button>
-<button class="order-filter" data-ofilter="ready_to_ship">جاهز للشحن <b id="ofReady">0</b></button>
-<button class="order-filter" data-ofilter="shipped">تم الشحن <b id="ofShipped">0</b></button>
-<button class="order-filter" data-ofilter="received">تم الاستلام <b id="ofReceived">0</b></button>
-<button class="order-filter" data-ofilter="completed">مكتمل <b id="ofCompleted">0</b></button>
-<button class="order-filter" data-ofilter="stalled">متعثر <b id="ofStalled">0</b></button>
-<button class="order-filter" data-ofilter="cancelled">ملغي <b id="ofCancelled">0</b></button>
-<button class="order-filter" data-ofilter="returned">مرتجع <b id="ofReturned">0</b></button>
-<button class="order-filter" data-ofilter="archived">الأرشيف <b id="ofArchived">0</b></button>
-<button class="order-filter" data-ofilter="all">الكل <b id="ofAll">0</b></button>
-</div><div class="auction-summary"><article><span>نشطة</span><b id="ordersActiveCount">0</b></article><article><span>بانتظار السداد</span><b id="ordersAwaitingCount">0</b></article><article><span>جاهزة/قيد الشحن</span><b id="ordersShippingCount">0</b></article><article><span>الأرشيف</span><b id="ordersArchivedCount">0</b></article></div><div id="ordersList" class="orders-list"></div></div></section>
-<section id="finance" class="view"><div class="panel"><div class="auction-title-row"><div><h2>اللوحة المالية والتشغيلية</h2><p class="muted finance-refresh-state" id="financeRefreshState">آخر الأرقام المحسوبة من البيانات الحالية</p></div><button type="button" id="refreshFinance" class="ghost">↻ تحديث المالية</button></div><p class="muted">ملخص داخلي للإدارة والبائع. لا تظهر هذه البيانات للزوار.</p><div class="finance-mini-grid finance-primary-grid">
-<article><span>إجمالي رأس المال</span><b id="finCapital">0 ر.س</b></article>
-<article><span>رأس المال المتبقي</span><b id="finRemainingCapital">0 ر.س</b></article>
-<article><span>المبيعات المكتملة</span><b id="finCompletedSales">0 ر.س</b></article>
-<article><span>الوحدات المباعة</span><b id="finSoldUnits">0</b></article>
-<article><span>دخل المنصة 2.5%</span><b id="finPlatformIncome">0 ر.س</b></article>
-<article><span>إجمالي الاشتراكات</span><b id="finSubsTotal">0 ر.س</b></article>
-<article class="estimated-profit-card"><span>الربح التقديري</span><b id="finEstimatedProfit">0 ر.س</b><small>مؤشر تقديري منفصل عن الصافي المحقق</small></article>
-<article class="gross-profit-card"><span>الأرباح قبل التبرع</span><b id="finGrossProfit">0 ر.س</b></article>
-<article class="charity-card"><span>مخصص الأعمال الخيرية <em id="finCharityPct">5%</em></span><b id="finCharityAmount">0 ر.س</b></article>
-</div>
-<div id="finNetProfitStrip" class="net-profit-strip net-profit-final"><span>صافي الربح النهائي</span><b id="finNetProfit">0 ر.س</b><small id="finNetProfitNote">بعد خصم مخصص الأعمال الخيرية</small></div>
-<details class="finance-sub-details"><summary>تفصيل الاشتراكات</summary><div class="finance-mini-grid finance-sub-grid"><article><span>اشتراكات يومية</span><b id="finDailySubs">0 ر.س</b></article><article><span>اشتراكات موسمية</span><b id="finSeasonSubs">0 ر.س</b></article><article><span>الباقات</span><b id="finPackageSubs">0 ر.س</b></article></div></details>
-</div><div class="panel"><h2>تسجيل إيراد اشتراك</h2><div class="subscription-form"><label>نوع الاشتراك<select id="subType"><option value="daily">يومي</option><option value="seasonal">موسمي</option><option value="package">باقة</option></select></label><label>اسم العميل<input id="subCustomer"></label><label>المبلغ<input id="subAmount" type="number" min="0" step="0.01"></label><label>ملاحظة<input id="subNote" placeholder="اختياري"></label><button type="button" id="addSubscription">حفظ الاشتراك</button></div><div id="subscriptionList" class="subscription-list"></div></div></section><section id="collectible-approvals" class="view"><div class="panel"><div class="auction-title-row"><div><h2>🪙 طلبات اعتماد المقتنيات</h2><p class="muted">المقتنيات التي يرسلها العملاء من صفحة حسابي. الاعتماد يضيف المقتنى إلى السجل فقط ولا ينشره تلقائيًا في السوق أو المزاد.</p></div><button type="button" id="refreshCollectibleApprovals" class="ghost">↻ تحديث</button></div><div class="auction-summary"><article><span>قيد المراجعة</span><b id="collectiblePendingCount">0</b></article><article><span>تحتاج استكمال</span><b id="collectibleNeedsCount">0</b></article><article><span>الإجمالي</span><b id="collectibleTotalCount">0</b></article></div><div id="collectibleApprovalsList" class="collectible-approvals-list"></div></div></section>
-<section id="participants" class="view"><div class="panel"><h2>اعتماد المشاركين في المزاد</h2><div class="participant-summary"><span>بانتظار الاعتماد: <b id="pendingParticipantsCount">0</b></span><span>إجمالي المشاركين: <b id="participantsTotalCount">0</b></span></div><p class="muted">التحقق بالرمز يعمل تلقائيًا. وللحالات المستثناة يمكنك استخدام «اعتماد مباشر بدون رمز» من هنا، ويبقى الاعتماد دائمًا ما لم تلغه يدويًا.</p><div id="participantsList" class="participants-list"></div></div></section><section id="list" class="view"><div class="panel"><h2>سجل المقتنيات</h2><div class="record-filter-bar" id="recordFilters"><button class="record-filter active" data-record-filter="all">الكل <b id="rfAll">0</b></button><button class="record-filter" data-record-filter="graded">المقيمة <b id="rfGraded">0</b></button><button class="record-filter" data-record-filter="ungraded">غير المقيمة <b id="rfUngraded">0</b></button><button class="record-filter" data-record-filter="sets">الأطقم <b id="rfSets">0</b></button></div><div class="set-filter-bar" id="recordSetFilters" hidden><button class="set-filter active" data-set-filter="all">كل الأطقم</button><button class="set-filter" data-set-filter="mini">ميني 2–3</button><button class="set-filter" data-set-filter="small">صغيرة 4–5</button><button class="set-filter" data-set-filter="medium">متوسطة 6–10</button><button class="set-filter" data-set-filter="large">كبيرة +10</button></div><input id="search" placeholder="بحث في جميع الحقول"><div id="items" class="grid"></div></div></section><section id="notifications" class="view"><div class="panel"><div class="auction-title-row"><div><h2>🔔 مركز الإشعارات</h2><p class="muted">تنبيهات الإدارة للمزادات والاعتمادات والسوق والمستحقات. إشعارات المستخدمين تظهر في حساباتهم.</p></div><button type="button" id="markAdminNotificationsRead" class="ghost">تحديد الكل كمقروء</button></div><div class="notification-tabs"><button class="notification-filter active" data-filter="all">الكل</button><button class="notification-filter" data-filter="auction">المزادات</button><button class="notification-filter" data-filter="approval">الاعتمادات</button><button class="notification-filter" data-filter="market">السوق</button><button class="notification-filter" data-filter="finance">المالية</button></div><div id="adminNotificationsList" class="notifications-list"></div></div></section>
-<section id="permissions" class="view"><div class="panel"><div class="auction-title-row"><div><h2>🔐 الصلاحيات المرنة</h2><p class="muted">تُمنح الصلاحيات لكل مستخدم بصورة مستقلة. البائع يرى بياناته المصرح بها فقط، ولا يحصل على صلاحيات الإدارة العامة.</p></div><button type="button" id="refreshPermissions" class="ghost">↻ تحديث</button></div><div class="permission-legend"><span>المزادات المنتهية الخاصة به</span><span>متابعة سوقه وطلباته</span><span>الإشراف على السوق</span><span>الإشراف على المزادات</span></div><div id="permissionsList" class="permissions-list"></div></div></section>
-<section id="dues" class="view"><div class="panel"><div class="auction-title-row"><div><h2>💳 مستحقات المزادات</h2><p class="muted">يُمنع المشارك تلقائيًا من مزايدة جديدة إذا بقي مستحق فوز سابق غير مسدد بعد 24 ساعة من نهاية المزاد.</p></div><button type="button" id="refreshDues" class="ghost">↻ تحديث</button></div><div class="auction-summary"><article><span>غير مسدد</span><b id="duesUnpaidCount">0</b></article><article><span>متأخر +24 ساعة</span><b id="duesOverdueCount">0</b></article><article><span>مسدد</span><b id="duesPaidCount">0</b></article></div><div id="duesList" class="dues-list"></div></div></section>
-<section id="operations" class="view"><div class="panel"><div class="auction-title-row"><div><h2>≣ سجل العمليات</h2><p class="muted">سجل إداري للأحداث الحساسة التي تنفذ في النسخة الحالية.</p></div><button type="button" id="refreshOperations" class="ghost">↻ تحديث</button></div><div id="operationsList" class="operations-list"></div></div></section>
-<section id="settings" class="view"><div class="panel"><div class="auction-title-row"><div><h2>⚙ الإعدادات وبيانات الدخول</h2><p class="muted">إعدادات المنصة الأساسية. لا يتم عرض كلمة المرور الحالية هنا.</p></div></div><div class="settings-grid"><label>البريد الإلكتروني الإداري<input id="adminEmail" type="email" placeholder="admin@example.com"></label><label>اسم المنصة<input id="platformName" value="نوادر العملات"></label><label>مسار Tesseract OCR على ويندوز<input id="ocrTesseractPath" dir="ltr" placeholder="مثال: C:\Program Files\Tesseract-OCR\tesseract.exe"></label><label>عمولة المشتري %<input id="settingsBuyerFee" type="number" min="0" step="0.1"></label><label>نسبة الأعمال الخيرية من أرباح المنصة %<input id="settingsCharity" type="number" min="0" step="0.1"></label><label>رسم دخول المزاد<input id="settingsEntryFee" type="number" min="0" step="0.01"></label><label class="check"><input id="settingsEntryEnabled" type="checkbox"> تفعيل رسم دخول المزاد</label></div><div class="actions"><button type="button" id="saveSettings">حفظ الإعدادات</button><button type="button" id="testOcr" class="ghost">اختبار محرك OCR</button><a class="ghost button-link" href="/admin-logout">تسجيل الخروج لتغيير جلسة الإدارة</a></div><p id="settingsStatus" class="muted"></p><div class="settings-note"><b>الصلاحيات التفصيلية</b><p>تم تفعيل إدارة الصلاحيات في هذا الإصدار بصورة مستقلة عن منطق النسخ الاحتياطي والاستعادة.</p></div></div></section><section id="backup" class="view"><div class="panel"><h2>النسخ الاحتياطي</h2><p class="warn"><b>النسخة الكاملة هي النسخة المعتمدة للنقل والاستعادة.</b> تشمل البيانات والصور والمشاركين والمزايدات والتفاوض والإعدادات.</p><div class="actions"><button id="exportFull">📦 تصدير نسخة كاملة مع الصور</button><label class="file">♻️ استعادة نسخة كاملة<input id="importFull" type="file" accept=".khzbackup,.zip,application/zip"></label></div><p class="muted">ملف JSON القديم يحفظ السجلات فقط ولا يُعتمد لنقل الصور.</p><div class="actions"><button id="export" class="ghost">تصدير JSON (بيانات فقط)</button><label class="file ghost">استيراد JSON<input id="import" type="file" accept=".json"></label><button id="csv" class="ghost">تصدير CSV</button></div><button id="clear" class="danger">حذف جميع البيانات</button></div></section></main><dialog id="dlg"><button id="close">×</button><div id="details"></div></dialog><dialog id="relaunchDlg"><button type="button" id="closeRelaunch">×</button><h2>♻️ إعادة طرح المقتنى في المزاد</h2><p class="muted">يبدأ النظام جولة مزاد جديدة مع الاحتفاظ بسجل الجولة السابقة ومزايداتها.</p><input id="relaunchItemId" type="hidden"><label>موعد انتهاء المزاد الجديد<input id="relaunchEnd" type="datetime-local"></label><div class="grid2"><label>سعر فتح المزايدة<input id="relaunchOpening" type="number" step="0.01" min="0"></label><label>قيمة الزيادة<input id="relaunchStep" type="number" step="0.01" min="0.01"></label><label>حد البيع المستهدف<input id="relaunchTarget" type="number" step="0.01" min="0"></label></div><div class="actions"><button type="button" id="relaunchToday" class="ghost">اليوم</button><button type="button" id="confirmRelaunch">✅ اعتماد إعادة المزاد</button></div><p id="relaunchStatus" class="muted"></p></dialog><dialog id="imageEditorDlg" class="image-editor-dialog"><button type="button" id="closeImageEditor" class="editor-close">×</button><h2>تعديل الصورة قبل الاعتماد</h2><p class="muted">دوّر الصورة ثم حرّك إطار القص أو مقابضه لإزالة الأطراف غير المطلوبة. اضغط «تثبيت الصورة» عند الانتهاء.</p><div class="image-editor-stage"><canvas id="imageEditorCanvas" width="900" height="560"></canvas></div><div class="editor-actions"><button type="button" id="rotateImageLeft" class="ghost">↺ تدوير يسار</button><button type="button" id="rotateImageRight" class="ghost">↻ تدوير يمين</button><button type="button" id="resetImageCrop" class="ghost">إعادة الإطار</button><button type="button" id="saveEditedImage">✅ تثبيت الصورة</button></div><p id="imageEditorStatus" class="muted"></p></dialog><dialog id="coinLightbox" class="coin-lightbox"><button type="button" id="coinLightboxClose" class="lightbox-close">×</button><div class="lightbox-toolbar"><button type="button" data-lb="prev">‹ السابق</button><button type="button" data-lb="zin">＋ تكبير</button><button type="button" data-lb="zout">− تصغير</button><button type="button" data-lb="rl">↺ تدوير</button><button type="button" data-lb="rr">↻ تدوير</button><button type="button" data-lb="center">◎ توسيط</button><button type="button" data-lb="reset">100%</button><button type="button" data-lb="full">⛶ ملء الشاشة</button><button type="button" data-lb="next">التالي ›</button></div><div id="coinLightboxStage" class="lightbox-stage"><img id="coinLightboxImg" alt="صورة العملة"></div><div id="coinLightboxCaption" class="lightbox-caption"></div></dialog><div id="toast" hidden></div><div id="legacyCompat" hidden aria-hidden="true"><input id="quick"><div id="quickResults"></div><div id="recent"></div></div><script src="app.js?v=4.0.24"></script></body></html>
+        <div class="dashboard-group">
+          <div class="dashboard-section-title">
+            <div>
+              <h2>الأمان والأدوات</h2>
+              <p class="muted">
+                النسخ الاحتياطي المستقر محفوظ كما هو من النسخة التي ثبت نجاحه
+                فيها.
+              </p>
+            </div>
+          </div>
+          <div class="dashboard-modules dashboard-modules-spaced">
+            <button
+              type="button"
+              class="module-card dashboard-go backup-stable"
+              data-go="backup"
+            >
+              <span class="module-icon">⬡</span><b>النسخ الاحتياطي والاستعادة</b
+              ><small>الوظيفة المستقرة الأصلية بدون تغيير</small
+              ><span class="stable-badge">مستقر</span>
+            </button>
+            <button type="button" class="module-card dashboard-go" data-go="archive">
+              <span class="module-icon">▤</span><b>أرشيف العناصر</b
+              ><small>الحذف الآمن، الاستعادة، والإزالة النهائية</small
+              ><span class="stable-badge">فعال</span>
+            </button>
+            <button
+              type="button"
+              class="module-card dashboard-go"
+              data-go="operations"
+            >
+              <span class="module-icon">≣</span><b>سجل العمليات</b
+              ><small
+                >تتبع الاعتمادات والصلاحيات والمستحقات وإعادة الإدراج</small
+              >
+            </button>
+            <button
+              type="button"
+              class="module-card dashboard-go"
+              data-go="settings"
+            >
+              <span class="module-icon">⚙</span><b>الإعدادات وبيانات الدخول</b
+              ><small>بيانات المنصة والإعدادات المالية الأساسية</small>
+            </button>
+          </div>
+        </div>
+      </section>
+      <section id="add" class="view">
+<form id="form" class="panel form" novalidate>
+          <input type="hidden" id="id" /><input type="hidden" id="year" />
+          <h2>إضافة أو تعديل مقتنى</h2>
+          <div class="wide form-section-title">
+            <h3>بيانات المقتنى الأساسية</h3>
+            <p class="muted">
+              تم فصل الدولة والفئة والإصدار والسنة لسهولة البحث والتصنيف.
+            </p>
+          </div>
+          <div class="wide owner-top-box">
+            <h3>بيانات المالك / البائع</h3>
+            <div class="owner-top-grid">
+              <label
+                >اسم صاحب المقتنى / البائع<input
+                  id="ownerName"
+                  placeholder="اسم المالك أو البائع" /></label
+              ><label
+                >رقم جوال البائع<input
+                  id="ownerPhone"
+                  inputmode="tel"
+                  placeholder="05xxxxxxxx"
+              /></label>
+              <label
+                >دولة صاحب المقتنى / الشحن
+                <select id="ownerCountry">
+                  <option value="المملكة العربية السعودية" selected>🇸🇦 المملكة العربية السعودية</option>
+                  <option value="الإمارات العربية المتحدة">🇦🇪 الإمارات العربية المتحدة</option>
+                  <option value="الكويت">🇰🇼 الكويت</option>
+                  <option value="قطر">🇶🇦 قطر</option>
+                  <option value="البحرين">🇧🇭 البحرين</option>
+                  <option value="سلطنة عمان">🇴🇲 سلطنة عمان</option>
+                  <option value="مصر">🇪🇬 مصر</option>
+                  <option value="الأردن">🇯🇴 الأردن</option>
+                  <option value="لبنان">🇱🇧 لبنان</option>
+                  <option value="العراق">🇮🇶 العراق</option>
+                  <option value="اليمن">🇾🇪 اليمن</option>
+                  <option value="سوريا">🇸🇾 سوريا</option>
+                  <option value="ألمانيا">🇩🇪 ألمانيا</option>
+                  <option value="بريطانيا">🇬🇧 بريطانيا</option>
+                  <option value="الولايات المتحدة">🇺🇸 الولايات المتحدة</option>
+                </select>
+              </label>
+            </div>
+            <small class="muted">هذه هي دولة صاحب المقتنى/مكان الشحن، وليست دولة العملة. لمقتنيات صاحب المنصة الافتراضي: المملكة العربية السعودية 🇸🇦.</small>
+          </div>
+          <label
+            >الدولة<select id="country" required>
+              <option value="">اختر الدولة</option>
+              <optgroup label="الدول العربية">
+                <option>المملكة العربية السعودية</option>
+                <option>الإمارات العربية المتحدة</option>
+                <option>الكويت</option>
+                <option>قطر</option>
+                <option>البحرين</option>
+                <option>سلطنة عمان</option>
+                <option>اليمن</option>
+                <option>العراق</option>
+                <option>سوريا</option>
+                <option>الأردن</option>
+                <option>لبنان</option>
+                <option>فلسطين</option>
+                <option>مصر</option>
+                <option>السودان</option>
+                <option>ليبيا</option>
+                <option>تونس</option>
+                <option>الجزائر</option>
+                <option>المغرب</option>
+                <option>موريتانيا</option>
+                <option>الصومال</option>
+                <option>جيبوتي</option>
+                <option>جزر القمر</option>
+              </optgroup>
+              <optgroup label="آسيا">
+                <option>أفغانستان</option><option>أذربيجان</option><option>أرمينيا</option><option>أوزبكستان</option>
+                <option>إندونيسيا</option><option>إيران</option><option>باكستان</option><option>بنغلاديش</option>
+                <option>بوتان</option><option>بروناي</option><option>تايلاند</option><option>تركمانستان</option>
+                <option>تركيا</option><option>تيمور الشرقية</option><option>جورجيا</option><option>الصين</option>
+                <option>الفلبين</option><option>فيتنام</option><option>قبرص</option><option>قرغيزستان</option>
+                <option>كازاخستان</option><option>كمبوديا</option><option>كوريا الجنوبية</option><option>كوريا الشمالية</option>
+                <option>لاوس</option><option>ماليزيا</option><option>المالديف</option><option>منغوليا</option>
+                <option>ميانمار</option><option>نيبال</option><option>الهند</option><option>اليابان</option>
+                <option>سنغافورة</option><option>سريلانكا</option><option>طاجيكستان</option>
+              </optgroup>
+              <optgroup label="أفريقيا">
+                <option>إثيوبيا</option><option>إريتريا</option><option>إسواتيني</option><option>أوغندا</option>
+                <option>أنغولا</option><option>بنين</option><option>بوتسوانا</option><option>بوركينا فاسو</option>
+                <option>بوروندي</option><option>تشاد</option><option>تنزانيا</option><option>توغو</option>
+                <option>جنوب أفريقيا</option><option>جنوب السودان</option><option>جمهورية أفريقيا الوسطى</option><option>جمهورية الكونغو</option>
+                <option>جمهورية الكونغو الديمقراطية</option><option>رواندا</option><option>زامبيا</option><option>زيمبابوي</option>
+                <option>ساحل العاج</option><option>ساو تومي وبرينسيب</option><option>السنغال</option><option>سيراليون</option>
+                <option>سيشل</option><option>الغابون</option><option>غامبيا</option><option>غانا</option>
+                <option>غينيا</option><option>غينيا الاستوائية</option><option>غينيا بيساو</option><option>الكاميرون</option>
+                <option>كينيا</option><option>ليسوتو</option><option>ليبيريا</option><option>مدغشقر</option>
+                <option>مالاوي</option><option>مالي</option><option>موريشيوس</option><option>موزمبيق</option>
+                <option>ناميبيا</option><option>النيجر</option><option>نيجيريا</option><option>الرأس الأخضر</option>
+              </optgroup>
+              <optgroup label="أوروبا">
+                <option>ألبانيا</option><option>ألمانيا</option><option>أندورا</option><option>أوكرانيا</option>
+                <option>أيرلندا</option><option>آيسلندا</option><option>إسبانيا</option><option>إستونيا</option>
+                <option>إيطاليا</option><option>البرتغال</option><option>بلجيكا</option><option>بلغاريا</option>
+                <option>البوسنة والهرسك</option><option>بيلاروس</option><option>بولندا</option><option>التشيك</option>
+                <option>الدنمارك</option><option>روسيا</option><option>رومانيا</option><option>سان مارينو</option>
+                <option>سلوفاكيا</option><option>سلوفينيا</option><option>السويد</option><option>سويسرا</option>
+                <option>صربيا</option><option>فرنسا</option><option>فنلندا</option><option>الفاتيكان</option>
+                <option>كرواتيا</option><option>لاتفيا</option><option>لوكسمبورغ</option><option>ليتوانيا</option>
+                <option>ليختنشتاين</option><option>مالطا</option><option>المجر</option><option>مقدونيا الشمالية</option>
+                <option>مولدوفا</option><option>موناكو</option><option>مونتينيغرو</option><option>النرويج</option>
+                <option>النمسا</option><option>هولندا</option><option>اليونان</option><option>المملكة المتحدة</option>
+              </optgroup>
+              <optgroup label="الأمريكتان">
+                <option>الأرجنتين</option><option>الإكوادور</option><option>أوروغواي</option><option>باراغواي</option>
+                <option>الباهاما</option><option>بربادوس</option><option>البرازيل</option><option>بليز</option>
+                <option>بنما</option><option>بوليفيا</option><option>بيرو</option><option>ترينيداد وتوباغو</option>
+                <option>جامايكا</option><option>جمهورية الدومينيكان</option><option>دومينيكا</option><option>سانت فنسنت والغرينادين</option>
+                <option>سانت كيتس ونيفيس</option><option>سانت لوسيا</option><option>السلفادور</option><option>سورينام</option>
+                <option>غرينادا</option><option>غواتيمالا</option><option>غيانا</option><option>فنزويلا</option>
+                <option>كندا</option><option>كوبا</option><option>كوستاريكا</option><option>كولومبيا</option>
+                <option>المكسيك</option><option>نيكاراغوا</option><option>هايتي</option><option>هندوراس</option>
+                <option>الولايات المتحدة</option><option>أنتيغوا وباربودا</option><option>تشيلي</option>
+              </optgroup>
+              <optgroup label="أوقيانوسيا">
+                <option>أستراليا</option><option>بابوا غينيا الجديدة</option><option>بالاو</option><option>توفالو</option>
+                <option>تونغا</option><option>جزر سليمان</option><option>جزر مارشال</option><option>ساموا</option>
+                <option>فانواتو</option><option>فيجي</option><option>كيريباتي</option><option>ميكرونيزيا</option>
+                <option>ناورو</option><option>نيوزيلندا</option>
+              </optgroup>
+              <option value="__other__">دولة / جهة إصدار أخرى أو تاريخية…</option>
+            </select></label
+          ><label id="countryOtherWrap" hidden
+            >اسم الدولة / جهة الإصدار<input id="countryOther" placeholder="اكتب الاسم كما تريد ظهوره في التصنيف" /></label
+          ><label
+            >الفئة / القيمة<input
+              id="denomination"
+              required
+              placeholder="مثال: 1 ريال أو 500 ليرة" /></label
+          ><label
+            >الإصدار<select id="issueEdition">
+              <option value="">غير محدد</option>
+              <option>الإصدار الأول</option>
+              <option>الإصدار الثاني</option>
+              <option>الإصدار الثالث</option>
+              <option>الإصدار الرابع</option>
+              <option>الإصدار الخامس</option>
+              <option>الإصدار السادس</option>
+              <option>الإصدار السابع</option>
+              <option>الإصدار الثامن</option>
+              <option>الإصدار التاسع</option>
+              <option>الإصدار العاشر</option>
+              <option>الإصدار الحادي عشر</option>
+              <option>الإصدار الثاني عشر</option>
+              <option>الإصدار الثالث عشر</option>
+              <option>الإصدار الرابع عشر</option>
+              <option>الإصدار الخامس عشر</option>
+              <option value="أخرى">أخرى</option>
+            </select></label
+          ><label id="issueEditionOtherWrap" hidden
+            >اسم الإصدار الآخر<input
+              id="issueEditionOther"
+              placeholder="اكتب اسم الإصدار" /></label
+          ><label
+            >طريقة السنة<select id="yearMode">
+              <option value="single">سنة واحدة</option>
+              <option value="range">من سنة إلى سنة</option>
+            </select></label
+          ><label
+            >السنة / من<input
+              id="yearFrom"
+              inputmode="numeric"
+              placeholder="مثال: 1348 أو 1448" /></label
+          ><label id="yearToWrap" hidden
+            >إلى سنة<input
+              id="yearTo"
+              inputmode="numeric"
+              placeholder="مثال: 1449" /></label
+          ><label
+            >النوع<select id="type">
+              <option>عملة ورقية</option>
+              <option>عملة معدنية</option>
+              <option>أخرى</option>
+            </select></label
+          ><label
+            >الحالة<select id="condition">
+              <option>UNC</option>
+              <option>AU</option>
+              <option>XF</option>
+              <option>VF</option>
+              <option>F</option>
+            </select></label
+          ><div class="wide inventory-entry-box">
+            <h3>الوحدة والكمية الفعلية</h3>
+            <p class="muted">حدد الوحدة والعدد؛ ويحسب النظام إجمالي القطع تلقائيًا.</p>
+            <div class="inventory-entry-grid">
+              <label>نوع الوحدة<select id="inventoryUnitType">
+                <option value="piece">ورقة / قطعة</option>
+                <option value="coin">عملة معدنية</option>
+                <option value="set">طقم</option>
+                <option value="bundle">حزمة</option>
+                <option value="strap">ربطة</option>
+                <option value="lot">بندل / مجموعة</option>
+              </select></label>
+              <label>عدد الوحدات<input id="inventoryUnitCount" type="number" min="1" value="1" /></label>
+              <label>عدد الأوراق/القطع في الوحدة<input id="piecesPerUnit" type="number" min="1" value="1" /></label>
+              <label>إجمالي الأوراق/القطع<input id="quantity" type="number" min="1" value="1" readonly /></label>
+            </div>
+            <p id="inventoryQuantityPreview" class="inventory-quantity-preview">1 وحدة — 1 قطعة</p>
+          </div>
+          <label
+            >الكمية المباعة<input
+              id="soldQuantity"
+              type="number"
+              min="0"
+              value="0"
+          /></label>
+          <label>الكمية التالفة أو المفقودة<input id="damagedQuantity" type="number" min="0" value="0" /></label>
+          <div class="wide grading-box">
+            <h3>التقييم والتغليف الاحترافي <button type="button" class="mini-help" data-help="فعّل التقييم فقط إذا كانت العملة مغلفة أو معتمدة من جهة تقييم، ثم أدخل بيانات الشهادة.">؟</button></h3>
+            <label class="check"
+              ><input id="isGraded" type="checkbox" /> المقتنى مُقيَّم / مغلف من
+              جهة تقييم</label
+            >
+            <div id="gradingFields" class="grading-fields" hidden>
+              <div class="wide" style="display:grid;gap:8px">
+                <label>جهة التقييم
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <select id="gradingCompany" style="flex:1">
+                      <option value="">اختر الجهة</option>
+                      <option>PMG</option>
+                      <option>PCGS</option>
+                      <option>NGC</option>
+                      <option>ANACS</option>
+                      <option>ICG</option>
+                    </select>
+                    <button type="button" id="addGradingCompanyBtn" title="إضافة جهة تقييم جديدة" style="min-width:46px;font-size:24px">+</button>
+                  </div>
+                </label>
+                <div id="addGradingCompanyWrap" hidden style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+                  <label style="flex:1;min-width:220px">اسم جهة التقييم الجديدة
+                    <input id="newGradingCompany" placeholder="مثال: LCGS أو جهة محلية" />
+                  </label>
+                  <button type="button" id="saveGradingCompanyBtn">إضافة</button>
+                  <button type="button" id="cancelGradingCompanyBtn" class="secondary">إلغاء</button>
+                </div>
+              </div>
+              <label
+                >درجة / رقم التقييم<input
+                  id="gradeValue"
+                  placeholder="مثال: 67 أو MS 65" /></label
+              ><label
+                >نسبة التقييم %
+                <input
+                  id="gradePercent"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  placeholder="اختياري" /></label
+              ><label
+                >رقم الشهادة / الاعتماد<input
+                  id="gradingCertNumber"
+                  placeholder="رقم الشهادة على الغلاف" /></label
+              ><label
+                >حالة التحقق من الشهادة<select id="gradingVerificationStatus">
+                  <option value="unverified">غير متحقق</option>
+                  <option value="verified">تم التحقق</option>
+                </select></label
+              ><label class="wide"
+                >ملاحظات التقييم<input
+                  id="gradingNotes"
+                  placeholder="مثال: EPQ، NET، Details، ترميم، بقعة، خطأ طباعة..."
+              /></label>
+            </div>
+          </div>
+          <details id="advancedSerialSection" class="wide compact-details serial-entry-box">
+            <summary>الأرقام التسلسلية <button type="button" class="mini-help" data-help="افتح هذا القسم عند الحاجة لإدخال الأرقام يدويًا أو توليد تسلسل كامل تلقائيًا.">؟</button></summary>
+            <p class="muted">إدخال يدوي أو توليد تلقائي للتسلسل.</p>
+            <label class="check"><input id="autoSerialEnabled" type="checkbox" /> توليد تسلسل آلي</label>
+            <div id="autoSerialFields" class="serial-auto-grid" hidden>
+              <label>الرقم الأول<input id="serialStart" dir="ltr" placeholder="مثال: 120/001278654" /></label>
+              <label>عدد الأرقام<input id="serialCount" type="number" min="1" max="5000" value="1" /></label>
+              <button type="button" id="generateSerials" class="ghost">توليد ومعاينة</button>
+              <p id="serialRangePreview" class="muted wide"></p>
+            </div>
+            <div id="serialFields" class="serial-grid"></div>
+          </details>
+          <div class="wide form-section-title">
+            <h3>✦ الأرقام المميزة والأخطاء النادرة <button type="button" class="mini-help" data-help="مفتاح واحد يفتح جميع أنواع الأرقام المميزة والأخطاء النادرة، ولا يحذف أي بيانات عند إغلاقه.">؟</button></h3>
+            <p class="muted">فعّل المفتاح لتظهر التفاصيل عند الحاجة.</p>
+          </div>
+          <label class="wide special-number-toggle"
+            ><input id="specialNumberEnabled" type="checkbox" /> إضافة هذا
+            المقتنى إلى صفحة الأرقام المميزة والأخطاء النادرة</label
+          >
+          <div
+            id="specialNumberFields"
+            class="wide special-number-fields"
+            hidden
+          >
+            <div class="special-type-grid">
+              <label class="check"
+                ><input
+                  class="special-number-type"
+                  type="checkbox"
+                  value="repeated"
+                />
+                أرقام متكررة</label
+              ><label class="check"
+                ><input
+                  class="special-number-type"
+                  type="checkbox"
+                  value="sequential"
+                />
+                أرقام متسلسلة</label
+              ><label class="check"
+                ><input
+                  class="special-number-type"
+                  type="checkbox"
+                  value="matching"
+                />
+                أرقام متطابقة</label
+              ><label class="check"
+                ><input
+                  class="special-number-type"
+                  type="checkbox"
+                  value="radar"
+                />
+                أرقام متناظرة / رادار</label
+              ><label class="check"
+                ><input
+                  class="special-number-type"
+                  type="checkbox"
+                  value="ascending"
+                />
+                أرقام تصاعدية</label
+              ><label class="check"
+                ><input
+                  class="special-number-type"
+                  type="checkbox"
+                  value="descending"
+                />
+                أرقام تنازلية</label
+              ><label class="check"
+                ><input
+                  class="special-number-type"
+                  type="checkbox"
+                  value="rare"
+                />
+                أرقام نادرة / مميزة</label
+              ><label class="check special-error-type"
+                ><input
+                  class="special-number-type"
+                  type="checkbox"
+                  value="errors"
+                />
+                عملات بأخطاء نادرة</label
+              >
+            </div>
+            <label
+              >سبب التميز / وصف مختصر<input
+                id="specialNumberReason"
+                placeholder="مثال: رقم منخفض جدًا أو نمط متكرر لافت"
+            /></label>
+          </div>
+          <div class="wide form-section-title transitional-section-title">
+            <h3>⇄ الإصدارات الانتقالية <button type="button" class="mini-help" data-help="تصنيف بحثي اختياري للمقتنيات التي تمثل مرحلة انتقال بين إصدارين أو توقيعين. لا ينشئ مخزونًا جديدًا ولا يغيّر الكميات.">؟</button></h3>
+            <p class="muted">فعّل التصنيف فقط عندما يكون للمقتنى سبب انتقالي واضح وموثق.</p>
+          </div>
+          <label class="wide transitional-toggle"><input id="transitionalIssueEnabled" type="checkbox" /> تصنيف هذا المقتنى كـ «إصدار انتقالي»</label>
+          <div id="transitionalIssueFields" class="wide transitional-fields" hidden>
+            <div class="transitional-grid">
+              <label>نوع الانتقال<select id="transitionalIssueType">
+                <option value="signature-change">انتقال توقيع</option>
+                <option value="last-before-change">آخر إصدار قبل تغيير</option>
+                <option value="first-after-change">أول إصدار بعد تغيير</option>
+                <option value="design-change">انتقال تصميم / مواصفات</option>
+                <option value="authority-change">انتقال جهة / سلطة إصدار</option>
+                <option value="other">حالة انتقالية أخرى</option>
+              </select></label>
+              <label>الإصدار السابق<input id="transitionalPreviousIssue" placeholder="مثال: توقيع المسؤول السابق أو الإصدار السابق" /></label>
+              <label>الإصدار اللاحق<input id="transitionalNextIssue" placeholder="مثال: توقيع المسؤول الجديد أو الإصدار اللاحق" /></label>
+              <label>درجة الندرة الانتقالية<select id="transitionalRarity">
+                <option value="documented">موثق / معروف</option>
+                <option value="scarce">قليل الظهور</option>
+                <option value="rare">نادر</option>
+                <option value="very-rare">نادر جدًا</option>
+              </select></label>
+              <label>الكمية التقديرية / مدى التوفر<input id="transitionalEstimatedPopulation" placeholder="اختياري — مثال: محدود أو غير معروف" /></label>
+              <label>قيمة مرجعية بحثية<input id="transitionalReferenceValue" type="number" min="0" step="0.01" placeholder="اختياري" /></label>
+              <label class="wide">سبب التصنيف / التوثيق<input id="transitionalReason" placeholder="اشرح لماذا يعد هذا المقتنى إصدارًا انتقاليًا" /></label>
+              <label class="wide">ملاحظات التقييم الانتقالي<input id="transitionalNotes" placeholder="مصدر المعلومة، مقارنة التوقيع، ملاحظات الباحث أو الخبير" /></label>
+            </div>
+          </div>
+          <div class="wide mobile-photo-section">
+            <h3>صور المقتنى</h3>
+            <p class="muted">
+              اختر الصور من الكاميرا أو الجهاز؛ تحليل الصور اختياري.
+            </p>
+            <div class="actions">
+              <button type="button" id="analyzeImage" class="ghost">
+                ✨ تحليل صور المقتنى (اختياري)</button
+              ><span id="analysisStatus" class="muted"></span>
+            </div>
+            <div class="photo-grid">
+              <div>
+                <b>صورة الوجه</b>
+                <div class="photo-actions">
+                  <label class="file"
+                    >📷 تصوير<input
+                      id="frontCamera"
+                      type="file"
+                      accept="image/*"
+                      capture="environment" /></label
+                  ><label class="file ghost"
+                    >📱 اختيار صورة<input
+                      id="frontGallery"
+                      type="file"
+                      accept="image/*" /></label
+                  ><button
+                    type="button"
+                    id="editFrontImage"
+                    class="ghost"
+                    hidden
+                  >
+                    ✏️ تدوير وقص</button
+                  ><button
+                    type="button"
+                    id="clearFrontImage"
+                    class="ghost"
+                    hidden
+                  >
+                    🗑 إزالة الصورة
+                  </button>
+                </div>
+                <img id="frontPreview" class="preview" hidden />
+              </div>
+              <div>
+                <b>صورة الخلف</b>
+                <div class="photo-actions">
+                  <label class="file"
+                    >📷 تصوير<input
+                      id="backCamera"
+                      type="file"
+                      accept="image/*"
+                      capture="environment" /></label
+                  ><label class="file ghost"
+                    >📱 اختيار صورة<input
+                      id="backGallery"
+                      type="file"
+                      accept="image/*" /></label
+                  ><button
+                    type="button"
+                    id="editBackImage"
+                    class="ghost"
+                    hidden
+                  >
+                    ✏️ تدوير وقص</button
+                  ><button
+                    type="button"
+                    id="clearBackImage"
+                    class="ghost"
+                    hidden
+                  >
+                    🗑 إزالة الصورة
+                  </button>
+                </div>
+                <img id="backPreview" class="preview" hidden />
+              </div>
+            </div>
+          </div>
+          <div class="wide market-box">
+            <h3>السوق العام / البيع المباشر</h3>
+            <label class="check"
+              ><input id="forMarket" type="checkbox" /> عرض هذا المقتنى في السوق
+              العام</label
+            >
+            <div id="marketFields" hidden>
+              <label
+                >نوع العرض<select id="marketOfferType">
+                  <option value="single">قطعة واحدة</option>
+                  <option value="bundle">حزمة / بندل</option>
+                  <option value="set">طقم</option>
+                </select></label
+              ><label
+                >عنوان العرض<input
+                  id="marketTitle"
+                  placeholder="مثال: بندل 100 ورقة أو طقم فئات سعودي" /></label
+              ><label
+                ><span id="marketSalePriceLabel">سعر الوحدة المعروضة</span
+                ><input
+                  id="marketSalePrice"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="السعر الظاهر للمشتري" /></label
+              ><label
+                >وحدة التسعير<select id="marketPriceUnit">
+                  <option value="piece">القطعة</option>
+                  <option value="sheet">الورقة</option>
+                  <option value="bundle">الحزمة / البندل</option>
+                  <option value="set">الطقم</option>
+                </select></label
+              ><label
+                >سعر الوحدة المحسوب<input
+                  id="marketUnitPrice"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  readonly /></label
+              ><label
+                ><span id="marketQuantityLabel">الكمية المعروضة</span
+                ><input
+                  id="marketQuantity"
+                  type="number"
+                  min="1"
+                  value="1" /></label
+              ><label id="marketSetPiecesWrap" hidden
+                ><span id="marketPiecesLabel">عدد أوراق / قطع الطقم</span
+                ><input
+                  id="marketSetPieces"
+                  type="number"
+                  min="1"
+                  value="1" /></label
+              ><label id="marketSetSizeWrap" hidden
+                >حجم الطقم<select id="marketSetSize">
+                  <option value="mini">ميني / صغير</option>
+                  <option value="medium">متوسط</option>
+                  <option value="large">كبير</option>
+                  <option value="full">كامل</option>
+                  <option value="other">أخرى</option>
+                </select></label
+              ><label id="marketSetCurrencyModeWrap" hidden
+                >تكوين الطقم<select id="marketSetCurrencyMode">
+                  <option value="single">عملة واحدة / فئات متعددة</option>
+                  <option value="multiple">أكثر من عملة أو دولة</option>
+                </select></label
+              >
+              <p id="marketExample" class="muted wide"></p>
+              <label class="check" id="marketPartialWrap"
+                ><input id="marketPartialAllowed" type="checkbox" /> السماح
+                بشراء جزء من الحزمة / كمية محددة</label
+              ><label class="check"
+                ><input id="marketNegotiationEnabled" type="checkbox" /> السماح
+                بالتفاوض</label
+              ><label
+                >نسبة التفاوض المسموحة<select id="marketNegotiationPercent">
+                  <option value="5">5%</option>
+                  <option value="10">10%</option>
+                  <option value="15">15%</option>
+                  <option value="20">20%</option>
+                </select></label
+              ><label class="check"
+                ><input id="marketApproved" type="checkbox" /> نشر العرض في السوق العام</label
+              >
+              <p class="muted wide">
+                سعر الشراء يبقى في الدفتر المالي السري ولا يظهر للمشتري. يمكن
+                توزيع الرصيد بين السوق والمزاد، ويمنع النظام تجاوز الكمية الفعلية.
+              </p>
+            </div>
+          </div>
+          <div class="wide auction-box">
+            <h3>المزاد</h3>
+            <label class="check"
+              ><input id="forAuction" type="checkbox" /> مخصص للمزاد</label
+            >
+            <div id="auctionFields" hidden>
+              <label>الكمية الفعلية المخصصة للمزاد<input id="auctionQuantity" type="number" min="1" value="1" /></label>
+              <label
+                >تاريخ ووقت انتهاء المزاد<input
+                  id="auctionEnd"
+                  type="datetime-local" /></label
+              ><label
+                >سعر فتح المزايدة (السومة الأولى)<input
+                  id="auctionOpeningPrice"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="مثال: 50 أو 70 أو 80"
+                /><small class="muted"
+                  >هذا هو المبلغ الذي يظهر في شريط السحب لأول مزايدة.</small
+                ></label
+              ><label
+                >قيمة الزيادة لكل سومة<input
+                  id="auctionBidStep"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value="5"
+                  placeholder="1 أو 2 أو 5 أو 10"
+                /><small class="muted"
+                  >بعد أول سومة يصبح الحد الأدنى للسومة التالية = آخر سوم + هذه
+                  الزيادة.</small
+                ></label
+              ><label
+                >حد تحقق البيع (الباند الأخضر)<input
+                  id="auctionTargetPrice"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="مثال: 71"
+                /><small class="muted"
+                  >لا يمنع السومات الأقل منه؛ يبقى المؤشر أحمر حتى يتحقق ثم
+                  يتحول أخضر.</small
+                ></label
+              ><input id="auctionStartPrice" type="hidden" /><label
+                >السعر الحالي / آخر مزايدة<input
+                  id="auctionCurrentPrice"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  readonly /></label
+              ><label class="check"
+                ><input id="auctionApproved" type="checkbox" /> نشر المزاد
+                للنشر</label
+              >
+              <div class="negotiation-admin">
+                <h4>التفاوض</h4>
+                <label class="check"
+                  ><input id="negotiationEnabled" type="checkbox" /> السماح
+                  بالتفاوض على هذا المقتنى</label
+                ><label
+                  >نسبة التفاوض المسموحة<select id="negotiationPercent">
+                    <option value="5">5%</option>
+                    <option value="10">10%</option>
+                    <option value="15">15%</option>
+                    <option value="20">20%</option>
+                  </select></label
+                ><small class="muted"
+                  >يمنع النظام العرض الأقل من الحد الناتج عن النسبة
+                  المختارة.</small
+                >
+              </div>
+              <p id="auctionCountdown" class="auction-countdown"></p>
+            </div>
+          </div>
+          <details id="storageDetails" class="wide compact-details storage-details">
+            <summary>موقع التخزين <button type="button" class="mini-help" data-help="افتح القسم لتحديد المستودع والخزانة والرف وبقية موقع الحفظ. القيم المحفوظة لا تُحذف عند إغلاق القسم.">؟</button></summary>
+            <div class="compact-details-grid storage-details-grid">
+              <p class="muted wide storage-intro">حدد مكان الحفظ الفعلي للمقتنى. يمكن إغلاق هذا القسم بعد الاختيار.</p>
+              <label>المستودع<select id="warehouse" class="storage-select"><option value="">اختر المستودع...</option></select></label>
+              <label>الخزانة<select id="cabinet" class="storage-select"><option value="">اختر الخزانة...</option></select></label>
+              <label>الرف<select id="shelf" class="storage-select"><option value="">اختر الرف...</option></select></label>
+              <label>الصندوق<select id="box" class="storage-select"><option value="">اختر الصندوق...</option></select></label>
+              <label>الألبوم<select id="album" class="storage-select"><option value="">اختر الألبوم...</option></select></label>
+              <label>الصفحة أو الجيب<select id="pocket" class="storage-select"><option value="">اختر الصفحة أو الجيب...</option></select></label>
+              <div class="wide storage-hint"><span>القوائم مترابطة حسب مواقع الحفظ المسجلة سابقًا.</span><span>لإضافة موقع جديد اختر «＋ إضافة جديد...» من القائمة المطلوبة.</span></div>
+            </div>
+          </details>
+          <details id="financialDetails" class="wide compact-details">
+            <summary>الدفتر المالي السري <button type="button" class="mini-help" data-help="هذه البيانات داخلية للإدارة ولا تظهر للزائر أو المشتري.">؟</button></summary>
+            <div class="compact-details-grid">
+              <label>سعر الشراء<input id="purchase" type="number" step="0.01" /></label>
+              <label>الشحن<input id="shipping" type="number" step="0.01" /></label>
+              <label>تكاليف أخرى<input id="other" type="number" step="0.01" /></label>
+              <label>سعر البيع المتوقع<input id="expectedPrice" type="number" step="0.01" /></label>
+              <label class="wide">ملاحظات<textarea id="notes"></textarea></label>
+            </div>
+          </details>
+          <div class="wide actions">
+            <button type="submit">حفظ</button
+            ><button type="button" id="reset" class="ghost">تفريغ</button>
+          </div>
+        </form>
+      </section>
+      <section id="ended-auctions" class="view">
+        <div class="panel">
+          <div class="auction-title-row">
+            <div>
+              <h2>♻️ المزادات المنتهية</h2>
+              <p class="muted">
+                المزاد الناجح يُغلق نهائيًا ولا يعود للمستودع أو المزايدة.
+                لا يُفتح إلا باستثناء موثق قبل اكتمال البيع، مثل عدم الدفع أو انسحاب الفائز.
+                أما المزاد الذي انتهى دون بيع فيمكن إعادة إدراجه مع بقاء سجل الجولة السابقة محفوظًا.
+              </p>
+            </div>
+            <button type="button" id="refreshEndedAuctions" class="ghost">
+              ↻ تحديث
+            </button>
+          </div>
+          <div class="auction-summary">
+            <article>
+              <span>إجمالي المنتهية</span><b id="endedPageCount">0</b>
+            </article>
+            <article>
+              <span>مزادات ناجحة مغلقة</span><b id="endedReachedTarget">0</b>
+            </article>
+            <article>
+              <span>انتهت دون بيع</span><b id="endedBelowTarget">0</b>
+            </article>
+            <article>
+              <span>استثناءات</span><b id="endedExceptionCount">0</b>
+            </article>
+          </div>
+          <div class="ended-toolbar">
+            <input
+              id="endedAuctionSearch"
+              placeholder="بحث بالدولة أو الفئة أو الرقم..."
+            /><select id="endedAuctionFilter">
+              <option value="all">جميع المزادات</option>
+              <option value="successful">المزادات الناجحة المغلقة</option>
+              <option value="unsuccessful">انتهت دون بيع</option>
+              <option value="exceptions">الاستثناءات</option>
+            </select>
+          </div>
+          <div id="endedAuctionItems" class="grid ended-auction-grid"></div>
+        </div>
+      </section>
+      <section id="auction" class="view">
+        <div class="panel">
+          <div class="auction-title-row"><h2>عروض المزادات</h2></div>
+          <div class="platform-policy compact-policy">
+            <b>السياسات المالية:</b><span>عمولة المشتري 2.5%</span
+            ><span>رسم الدخول الافتراضي 10 ر.س</span
+            ><span>5% من صافي أرباح المنصة للأعمال الخيرية</span>
+          </div>
+          <div class="auction-summary">
+            <article>
+              <span>النشطة</span><b id="auctionActiveCount">0</b>
+            </article>
+            <article>
+              <span>المنتهية</span><b id="auctionEndedCount">0</b>
+            </article>
+            <article>
+              <span>المعتمدة</span><b id="auctionApprovedCount">0</b>
+            </article>
+          </div>
+          <div id="auctionItems" class="grid"></div>
+        </div>
+      </section>
+      <section id="market" class="view">
+        <div class="panel">
+          <div class="auction-title-row"><h2>عروض السوق العام</h2></div>
+          <p class="muted">
+            البيع المباشر مستقل عن المزاد. يمكن عرض قطعة واحدة أو حزمة/بندل أو
+            طقم، مع التفاوض والشراء الجزئي حسب إعداد العرض.
+          </p>
+          <div class="auction-summary">
+            <article>
+              <span>العروض النشطة</span><b id="marketPublishedCount">0</b>
+            </article>
+            <article>
+              <span>طلبات جديدة</span><b id="marketPendingCount">0</b>
+            </article>
+            <article>
+              <span>إجمالي الطلبات</span><b id="marketRequestsCount">0</b>
+            </article>
+          </div>
+          <div class="warehouse-controls" style="margin:14px 0 10px">
+            <input id="marketSearch" autocomplete="off" placeholder="بحث ذكي في السوق: الدولة، الفئة، السنة، التقييم، السعر، الرقم، أو حالة العرض" />
+          </div>
+          <div class="record-filter-bar" id="marketFilters">
+            <button class="market-filter active" data-market-filter="all">
+              الكل</button
+            ><button class="market-filter" data-market-filter="graded">
+              المقيمة</button
+            ><button class="market-filter" data-market-filter="ungraded">
+              غير المقيمة</button
+            ><button class="market-filter" data-market-filter="sets">
+              الأطقم
+            </button>
+          </div>
+          <div class="set-filter-bar" id="marketSetFilters" hidden>
+            <button
+              class="market-set-filter active"
+              data-market-set-filter="all"
+            >
+              كل الأطقم</button
+            ><button class="market-set-filter" data-market-set-filter="mini">
+              ميني 2–3</button
+            ><button class="market-set-filter" data-market-set-filter="small">
+              صغيرة 4–5</button
+            ><button class="market-set-filter" data-market-set-filter="medium">
+              متوسطة 6–10</button
+            ><button class="market-set-filter" data-market-set-filter="large">
+              كبيرة +10
+            </button>
+          </div>
+          <div id="marketAdminItems" class="grid"></div>
+        </div>
+        <div class="panel">
+          <h2>طلبات الشراء والتفاوض</h2>
+          <div id="marketRequests" class="participants-list"></div>
+        </div>
+      </section>
+      <section id="orders" class="view">
+        <div class="panel">
+          <div class="auction-title-row">
+            <div>
+              <h2>📦 الطلبات والشحن</h2>
+              <p class="muted">
+                دورة موحدة لطلبات السوق العام وفائزي المزادات من السداد حتى
+                الأرشيف.
+              </p>
+            </div>
+            <button type="button" id="refreshOrders" class="ghost">
+              ↻ تحديث
+            </button>
+          </div>
+          <div class="order-filters" aria-label="فرز الطلبات">
+            <button class="order-filter active" data-ofilter="active">
+              نشط <b id="ofActive">0</b>
+            </button>
+            <button class="order-filter" data-ofilter="awaiting_payment">
+              بانتظار السداد <b id="ofAwaiting">0</b>
+            </button>
+            <button class="order-filter" data-ofilter="paid">
+              تم السداد <b id="ofPaid">0</b>
+            </button>
+            <button class="order-filter" data-ofilter="preparing">
+              قيد التجهيز <b id="ofPreparing">0</b>
+            </button>
+            <button class="order-filter" data-ofilter="ready_to_ship">
+              جاهز للشحن <b id="ofReady">0</b>
+            </button>
+            <button class="order-filter" data-ofilter="shipped">
+              تم الشحن <b id="ofShipped">0</b>
+            </button>
+            <button class="order-filter" data-ofilter="received">
+              تم الاستلام <b id="ofReceived">0</b>
+            </button>
+            <button class="order-filter" data-ofilter="completed">
+              مكتمل <b id="ofCompleted">0</b>
+            </button>
+            <button class="order-filter" data-ofilter="stalled">
+              متعثر <b id="ofStalled">0</b>
+            </button>
+            <button class="order-filter" data-ofilter="cancelled">
+              ملغي <b id="ofCancelled">0</b>
+            </button>
+            <button class="order-filter" data-ofilter="returned">
+              مرتجع <b id="ofReturned">0</b>
+            </button>
+            <button class="order-filter" data-ofilter="archived">
+              الأرشيف <b id="ofArchived">0</b>
+            </button>
+            <button class="order-filter" data-ofilter="all">
+              الكل <b id="ofAll">0</b>
+            </button>
+          </div>
+          <div class="auction-summary">
+            <article><span>نشطة</span><b id="ordersActiveCount">0</b></article>
+            <article>
+              <span>بانتظار السداد</span><b id="ordersAwaitingCount">0</b>
+            </article>
+            <article>
+              <span>جاهزة/قيد الشحن</span><b id="ordersShippingCount">0</b>
+            </article>
+            <article>
+              <span>الأرشيف</span><b id="ordersArchivedCount">0</b>
+            </article>
+          </div>
+          <div id="ordersList" class="orders-list"></div>
+        </div>
+      </section>
+      <section id="finance" class="view">
+        <div class="panel">
+          <div class="auction-title-row">
+            <div>
+              <h2>اللوحة المالية والتشغيلية</h2>
+              <p class="muted finance-refresh-state" id="financeRefreshState">
+                آخر الأرقام المحسوبة من البيانات الحالية
+              </p>
+            </div>
+            <button type="button" id="refreshFinance" class="ghost">
+              ↻ تحديث المالية
+            </button>
+          </div>
+          <p class="muted">
+            ملخص داخلي للإدارة والبائع. لا تظهر هذه البيانات للزوار.
+          </p>
+          <div class="finance-mini-grid finance-primary-grid">
+            <article>
+              <span>إجمالي رأس المال</span><b id="finCapital">0 ر.س</b>
+            </article>
+            <article>
+              <span>رأس المال المتبقي</span
+              ><b id="finRemainingCapital">0 ر.س</b>
+            </article>
+            <article>
+              <span>المبيعات المكتملة</span><b id="finCompletedSales">0 ر.س</b>
+            </article>
+            <article>
+              <span>الوحدات المباعة</span><b id="finSoldUnits">0</b>
+            </article>
+            <article>
+              <span>دخل المنصة 2.5%</span><b id="finPlatformIncome">0 ر.س</b>
+            </article>
+            <article>
+              <span>إجمالي الاشتراكات</span><b id="finSubsTotal">0 ر.س</b>
+            </article>
+            <article class="estimated-profit-card">
+              <span>الربح التقديري</span><b id="finEstimatedProfit">0 ر.س</b
+              ><small>مؤشر تقديري منفصل عن الصافي المحقق</small>
+            </article>
+            <article class="gross-profit-card">
+              <span>الأرباح قبل التبرع</span><b id="finGrossProfit">0 ر.س</b>
+            </article>
+            <article class="charity-card">
+              <span>مخصص الأعمال الخيرية <em id="finCharityPct">5%</em></span
+              ><b id="finCharityAmount">0 ر.س</b>
+            </article>
+          </div>
+          <div id="finNetProfitStrip" class="net-profit-strip net-profit-final">
+            <span>صافي الربح النهائي</span><b id="finNetProfit">0 ر.س</b
+            ><small id="finNetProfitNote">بعد خصم مخصص الأعمال الخيرية</small>
+          </div>
+          <details class="finance-sub-details">
+            <summary>تفصيل الاشتراكات</summary>
+            <div class="finance-mini-grid finance-sub-grid">
+              <article>
+                <span>اشتراكات يومية</span><b id="finDailySubs">0 ر.س</b>
+              </article>
+              <article>
+                <span>اشتراكات موسمية</span><b id="finSeasonSubs">0 ر.س</b>
+              </article>
+              <article>
+                <span>الباقات</span><b id="finPackageSubs">0 ر.س</b>
+              </article>
+            </div>
+          </details>
+        </div>
+        <div class="panel">
+          <h2>تسجيل إيراد اشتراك</h2>
+          <div class="subscription-form">
+            <label
+              >نوع الاشتراك<select id="subType">
+                <option value="daily">يومي</option>
+                <option value="seasonal">موسمي</option>
+                <option value="package">باقة</option>
+              </select></label
+            ><label>اسم العميل<input id="subCustomer" /></label
+            ><label
+              >المبلغ<input
+                id="subAmount"
+                type="number"
+                min="0"
+                step="0.01" /></label
+            ><label>ملاحظة<input id="subNote" placeholder="اختياري" /></label
+            ><button type="button" id="addSubscription">حفظ الاشتراك</button>
+          </div>
+          <div id="subscriptionList" class="subscription-list"></div>
+        </div>
+      </section>
+      <section id="collectible-approvals" class="view">
+        <div class="panel">
+          <div class="auction-title-row">
+            <div>
+              <h2>🛡️ مراقبة المقتنيات</h2>
+              <p class="muted">المقتنيات تُضاف وتنشر مباشرة. هذه الصفحة للرقابة فقط: تفعيل، إخفاء، إيقاف، أرشفة أو إزالة مع سبب محفوظ في سجل العمليات.</p>
+            </div>
+            <button type="button" id="refreshCollectibleApprovals" class="ghost">↻ تحديث</button>
+          </div>
+          <div class="auction-summary">
+            <article><span>نشط</span><b id="collectiblePendingCount">0</b></article>
+            <article><span>مقيد/مخفي</span><b id="collectibleNeedsCount">0</b></article>
+            <article><span>الإجمالي</span><b id="collectibleTotalCount">0</b></article>
+          </div>
+          <div id="collectibleApprovalsList" class="collectible-approvals-list"></div>
+        </div>
+      </section>
+      <section id="participants" class="view">
+        <div class="panel">
+          <h2>إدارة توثيق الحسابات</h2>
+          <div class="participant-summary">
+            <span>مبدئي/جديد: <b id="pendingParticipantsCount">0</b></span><span>النشطون: <b id="participantsTotalCount">0</b></span><span>الملغون: <b id="participantsArchiveCount">0</b></span>
+          </div>
+          <p class="muted">
+            توثيق الحساب منفصل عن نشر المقتنيات. المقتنيات تنشر مباشرة، بينما الشراء والمزايدة والعمليات المالية يمكن أن تبقى مقيدة حسب حالة الحساب.
+          </p>
+          <div class="participant-filters" id="participantFilters">
+            <button class="active" data-participant-filter="all">الكل</button><button data-participant-filter="preliminary">مبدئي <b data-count="preliminary">0</b></button><button data-participant-filter="final">نهائي <b data-count="final">0</b></button><button data-participant-filter="suspended">معلّق <b data-count="suspended">0</b></button><button data-participant-filter="stopped">موقوف <b data-count="stopped">0</b></button><button data-participant-filter="cancelled">ملغى <b data-count="cancelled">0</b></button>
+          </div>
+          <div id="participantsList" class="participants-list"></div>
+        </div>
+      </section>
+      <section id="warehouseView" class="view warehouse-view">
+        <div class="panel warehouse-panel">
+          <div class="auction-title-row">
+            <div>
+              <h2>⌂ المستودع ومراقبة الكميات</h2>
+              <p class="muted">السجل المركزي للكميات الفعلية. الأرقام المميزة والنادرة تصنيف مستقل ولا تُجمع مرة ثانية ضمن الإجمالي.</p>
+            </div>
+            <button type="button" id="refreshWarehouse" class="ghost">↻ تحديث المؤشرات</button>
+          </div>
+          <div class="warehouse-metrics">
+            <button class="warehouse-metric total active" data-inventory-filter="all"><span>إجمالي الكمية الأصلية</span><b id="invTotal">0</b><small>جميع الأوراق والقطع المسجلة</small></button>
+            <button class="warehouse-metric current" data-inventory-filter="current"><span>الرصيد الحالي العام</span><b id="invCurrent">0</b><small>دون المباعة والتالفة</small></button>
+            <button class="warehouse-metric warehouse" data-inventory-filter="warehouse"><span>المتاح في المستودع</span><b id="invWarehouse">0</b><small>جاهز للتخصيص</small></button>
+            <button class="warehouse-metric market" data-inventory-filter="market"><span>في السوق العام</span><b id="invMarket">0</b><small>معروض وغير محجوز</small></button>
+            <button class="warehouse-metric auction" data-inventory-filter="auction"><span>في المزادات</span><b id="invAuction">0</b><small>مزادات نشطة</small></button>
+            <button class="warehouse-metric special" data-inventory-filter="special"><span>مميزة ونادرة</span><b id="invSpecial">0</b><small>تصنيف فقط — لا يضاعف الإجمالي</small></button>
+            <button class="warehouse-metric reserved" data-inventory-filter="reserved"><span>محجوزة في الطلبات</span><b id="invReserved">0</b><small>بانتظار إكمال الدورة</small></button>
+            <button class="warehouse-metric sold" data-inventory-filter="sold"><span>المباعة</span><b id="invSold">0</b><small>خارج الرصيد الحالي</small></button>
+            <button class="warehouse-metric returned" data-inventory-filter="returned"><span>المرتجعة</span><b id="invReturned">0</b><small>تحتاج فحص الإدارة</small></button>
+            <button class="warehouse-metric damaged" data-inventory-filter="damaged"><span>تالف / مفقود</span><b id="invDamaged">0</b><small>خارج الرصيد المتاح</small></button>
+          </div>
+          <div class="warehouse-controls">
+            <input id="warehouseSearch" placeholder="بحث بالدولة أو الفئة أو السنة أو رقم المقتنى أو موقع التخزين" />
+            <span id="warehouseEquation" class="inventory-equation"></span>
+          </div>
+          <div class="warehouse-repair-bar">
+            <button type="button" id="repairWarehouseSubmissions" class="ghost">فحص وإصلاح المقتنيات المعتمدة سابقًا</button>
+            <small>يعيد ربط المقتنيات القديمة بالمستودع ويحفظ التصنيف والصور والكميات دون نشرها في السوق أو المزاد.</small>
+          </div>
+          <div id="warehouseItems" class="warehouse-items"></div>
+        </div>
+      </section>
+      <section id="special" class="view special-admin-view">
+        <div class="panel special-admin-panel">
+          <div class="special-admin-head">
+            <div>
+              <span class="dashboard-kicker">إدارة مستقلة مرتبطة بالمستودع</span>
+              <h2>✦ الأرقام المميزة والعملات النادرة والأخطاء</h2>
+              <p class="muted">المستودع هو المصدر الوحيد للبيانات. هذه الصفحة لا تنشئ مخزونًا جديدًا؛ بل تدير التصنيف والنشر والسعر والتسلسلات للمقتنيات الأصلية.</p>
+            </div>
+            <div class="actions">
+              <button type="button" class="gold-action" id="specialAddNew">＋ إضافة / تصنيف مقتنى</button>
+              <a class="public-link" href="/special-numbers" target="_blank">فتح صفحة العملاء ↗</a>
+            </div>
+          </div>
+          <div class="special-admin-metrics">
+            <button class="special-metric active" data-special-filter="all"><span>إجمالي المصنف</span><b id="specialTotal">0</b></button>
+            <button class="special-metric" data-special-filter="sale"><span>معروض للبيع</span><b id="specialForSale">0</b></button>
+            <button class="special-metric" data-special-filter="display"><span>عرض فقط</span><b id="specialDisplayOnly">0</b></button>
+            <button class="special-metric" data-special-filter="errors"><span>أخطاء نادرة</span><b id="specialErrors">0</b></button>
+            <button class="special-metric" data-special-filter="serial"><span>أرقام مميزة</span><b id="specialSerials">0</b></button>
+          </div>
+          <div class="special-admin-tools">
+            <input id="specialSearch" placeholder="بحث بالدولة أو الفئة أو السنة أو الرقم أو سبب التميز" />
+            <select id="specialTypeFilter">
+              <option value="all">كل الأنواع</option>
+              <option value="repeated">أرقام متكررة</option>
+              <option value="sequential">أرقام متسلسلة</option>
+              <option value="matching">أرقام متطابقة</option>
+              <option value="radar">أرقام متناظرة / رادار</option>
+              <option value="ascending">أرقام تصاعدية</option>
+              <option value="descending">أرقام تنازلية</option>
+              <option value="rare">أرقام نادرة / مميزة</option>
+              <option value="errors">عملات بأخطاء نادرة</option>
+            </select>
+            <button type="button" class="ghost" id="refreshSpecial">↻ تحديث</button>
+          </div>
+          <div class="special-admin-note">
+            <b>مسار الربط:</b> المستودع ← تصنيف مميز/نادر/خطأ ← هذه الصفحة ← صفحة العملاء ← السلة والطلب ← الطلبات والشحن ← المالية.
+          </div>
+          <div id="specialAdminItems" class="special-admin-list"></div>
+        </div>
+      </section>
+      <section id="transitional" class="view transitional-admin-view">
+        <div class="panel transitional-admin-panel">
+          <div class="special-admin-head">
+            <div>
+              <span class="dashboard-kicker">تصنيف بحثي مرتبط بالمقتنى الأصلي</span>
+              <h2>⇄ الإصدارات الانتقالية</h2>
+              <p class="muted">هذه الصفحة لا تنشئ مخزونًا مستقلًا. تعرض فقط المقتنيات التي تحمل صفة «إصدار انتقالي» مع حقولها البحثية والتقييمية.</p>
+            </div>
+            <div class="actions"><button type="button" class="gold-action" id="transitionalAddNew">＋ إضافة / تصنيف مقتنى</button></div>
+          </div>
+          <div class="transitional-admin-tools">
+            <input id="transitionalSearch" placeholder="بحث بالدولة أو الفئة أو السنة أو نوع الانتقال أو سبب التصنيف" />
+            <select id="transitionalTypeFilter">
+              <option value="all">كل أنواع الانتقال</option>
+              <option value="signature-change">انتقال توقيع</option>
+              <option value="last-before-change">آخر إصدار قبل تغيير</option>
+              <option value="first-after-change">أول إصدار بعد تغيير</option>
+              <option value="design-change">انتقال تصميم / مواصفات</option>
+              <option value="authority-change">انتقال جهة / سلطة إصدار</option>
+              <option value="other">حالة انتقالية أخرى</option>
+            </select>
+            <button type="button" class="ghost" id="refreshTransitional">↻ تحديث</button>
+          </div>
+          <div class="special-admin-note"><b>المعيار:</b> انتقال موثق بين مرحلتين — مثل تغير التوقيع أو آخر إصدار قبل تغيير أو أول إصدار بعده. الشارة تتبع نفس المقتنى في المستودع والسوق والمزاد.</div>
+          <div id="transitionalAdminItems" class="transitional-admin-list"></div>
+        </div>
+      </section>
+      <section id="list" class="view">
+        <div class="panel">
+          <h2>سجل المقتنيات</h2>
+          <div class="record-filter-bar" id="recordFilters">
+            <button class="record-filter active" data-record-filter="all">
+              الكل <b id="rfAll">0</b></button
+            ><button class="record-filter" data-record-filter="graded">
+              المقيمة <b id="rfGraded">0</b></button
+            ><button class="record-filter" data-record-filter="ungraded">
+              غير المقيمة <b id="rfUngraded">0</b></button
+            ><button class="record-filter" data-record-filter="sets">
+              الأطقم <b id="rfSets">0</b>
+            </button>
+          </div>
+          <div class="set-filter-bar" id="recordSetFilters" hidden>
+            <button class="set-filter active" data-set-filter="all">
+              كل الأطقم</button
+            ><button class="set-filter" data-set-filter="mini">ميني 2–3</button
+            ><button class="set-filter" data-set-filter="small">
+              صغيرة 4–5</button
+            ><button class="set-filter" data-set-filter="medium">
+              متوسطة 6–10</button
+            ><button class="set-filter" data-set-filter="large">
+              كبيرة +10
+            </button>
+          </div>
+          <input id="search" placeholder="بحث في جميع الحقول" />
+          <div id="items" class="grid"></div>
+        </div>
+      </section>
+      <section id="notifications" class="view">
+        <div class="panel">
+          <div class="auction-title-row">
+            <div>
+              <h2>🔔 مركز الإشعارات</h2>
+              <p class="muted">
+                تنبيهات الإدارة للمزادات والاعتمادات والسوق والمستحقات. إشعارات
+                المستخدمين تظهر في حساباتهم.
+              </p>
+            </div>
+            <button type="button" id="markAdminNotificationsRead" class="ghost">
+              تحديد الكل كمقروء
+            </button>
+          </div>
+          <div class="notification-tabs">
+            <button class="notification-filter active" data-filter="all">
+              الكل</button
+            ><button class="notification-filter" data-filter="auction">
+              المزادات</button
+            ><button class="notification-filter" data-filter="approval">
+              الاعتمادات</button
+            ><button class="notification-filter" data-filter="market">
+              السوق</button
+            ><button class="notification-filter" data-filter="finance">
+              المالية
+            </button>
+          </div>
+          <div id="adminNotificationsList" class="notifications-list"></div>
+        </div>
+      </section>
+      <section id="dues" class="view">
+        <div class="panel">
+          <div class="auction-title-row">
+            <div>
+              <h2>💳 مستحقات المزادات</h2>
+              <p class="muted">
+                يُمنع المشارك تلقائيًا من مزايدة جديدة إذا بقي مستحق فوز سابق
+                غير مسدد بعد 24 ساعة من نهاية المزاد.
+              </p>
+            </div>
+            <button type="button" id="refreshDues" class="ghost">
+              ↻ تحديث
+            </button>
+          </div>
+          <div class="auction-summary">
+            <article>
+              <span>غير مسدد</span><b id="duesUnpaidCount">0</b>
+            </article>
+            <article>
+              <span>متأخر +24 ساعة</span><b id="duesOverdueCount">0</b>
+            </article>
+            <article><span>مسدد</span><b id="duesPaidCount">0</b></article>
+          </div>
+          <div id="duesList" class="dues-list"></div>
+        </div>
+      </section>
+      <section id="operations" class="view">
+        <div class="panel">
+          <div class="auction-title-row">
+            <div>
+              <h2>≣ سجل العمليات</h2>
+              <p class="muted">
+                سجل إداري للأحداث الحساسة التي تنفذ في النسخة الحالية.
+              </p>
+            </div>
+            <button type="button" id="refreshOperations" class="ghost">
+              ↻ تحديث
+            </button>
+          </div>
+          <div id="operationsList" class="operations-list"></div>
+        </div>
+      </section>
+      <section id="archive" class="view">
+        <div class="panel">
+          <div class="auction-title-row"><div><h2>▤ أرشيف العناصر</h2><p class="muted">الحذف في جميع أقسام الإدارة ينقل العنصر إلى هنا. يمكن استعادته، أما الإزالة النهائية فلا تتم إلا من هذه الصفحة وبعد تأكيد صريح.</p></div><button id="refreshArchive" type="button" class="ghost">↻ تحديث</button></div>
+          <div class="auction-summary"><article><span>العناصر المؤرشفة</span><b id="archiveCount">0</b></article><article><span>قابلة للاستعادة</span><b id="archiveRestoreCount">0</b></article><article><span>الإزالة النهائية</span><b>من الأرشيف فقط</b></article></div>
+          <div id="archiveList" class="collectible-approvals-list"></div>
+        </div>
+      </section>
+      <section id="integrity" class="view">
+        <div class="panel">
+          <div class="auction-title-row"><div><h2>🧪 سلامة المنصة</h2><p class="muted">فحص غير تدميري. لا يحذف ولا يدمج ولا يصلح أي بيانات تلقائيًا.</p></div><button id="refreshIntegrity" type="button" class="ghost">↻ فحص الآن</button></div>
+          <div id="integritySummary" class="auction-summary"></div>
+          <div id="integrityIssues" class="collectible-approvals-list"></div>
+        </div>
+      </section>
+      <section id="settings" class="view">
+        <div class="panel">
+          <div class="auction-title-row">
+            <div>
+              <h2>⚙ الإعدادات وبيانات الدخول</h2>
+              <p class="muted">
+                إعدادات المنصة الأساسية. لا يتم عرض كلمة المرور الحالية هنا.
+              </p>
+            </div>
+          </div>
+          <div class="settings-grid">
+            <label
+              >البريد الإلكتروني الإداري<input
+                id="adminEmail"
+                type="email"
+                placeholder="admin@example.com" /></label
+            ><label
+              >اسم المنصة<input
+                id="platformName"
+                value="نوادر العملات" /></label
+            ><label
+              >مسار Tesseract OCR على ويندوز<input
+                id="ocrTesseractPath"
+                dir="ltr"
+                placeholder="مثال: C:\Program Files\Tesseract-OCR\tesseract.exe" /></label
+            ><label
+              >عمولة المشتري %<input
+                id="settingsBuyerFee"
+                type="number"
+                min="0"
+                step="0.1" /></label
+            ><label
+              >نسبة الأعمال الخيرية من أرباح المنصة %<input
+                id="settingsCharity"
+                type="number"
+                min="0"
+                step="0.1" /></label
+            ><label
+              >رسم دخول المزاد<input
+                id="settingsEntryFee"
+                type="number"
+                min="0"
+                step="0.01" /></label
+            ><label class="check"
+              ><input id="settingsEntryEnabled" type="checkbox" /> تفعيل رسم
+              دخول المزاد</label
+            >
+          </div>
+          <div class="panel" style="margin-top:18px">
+            <h3 style="margin-top:0">👁 ظهور أقسام صفحة الزوار</h3>
+            <p class="muted">أوقف أي قسم لإخفائه بالكامل عن الزوار. البيانات والمقتنيات لا تُحذف، ويمكن إعادة إظهاره في أي وقت.</p>
+            <div class="settings-grid">
+              <label class="check"><input id="visitorSectionMarket" type="checkbox" /> إظهار السوق العام</label>
+              <label class="check"><input id="visitorSectionAuction" type="checkbox" /> إظهار المزادات</label>
+              <label class="check"><input id="visitorSectionSpecialNumbers" type="checkbox" /> إظهار الأرقام المميزة والأخطاء النادرة</label>
+              <label class="check"><input id="visitorSectionTransitional" type="checkbox" /> إظهار الإصدارات الانتقالية</label>
+            </div>
+          </div>
+          <div class="actions">
+            <button type="button" id="saveSettings">حفظ الإعدادات</button
+            ><button type="button" id="testOcr" class="ghost">
+              اختبار محرك OCR</button
+            ><a class="ghost button-link" href="/admin-logout"
+              >تسجيل الخروج لتغيير جلسة الإدارة</a
+            >
+          </div>
+          <p id="settingsStatus" class="muted"></p>
+        </div>
+      </section>
+      <section id="backup" class="view">
+        <div class="panel">
+          <h2>النسخ الاحتياطي</h2>
+          <p class="warn">
+            <b>النسخة الكاملة هي النسخة المعتمدة للنقل والاستعادة.</b> تشمل
+            البيانات والصور والمشاركين والمزايدات والتفاوض والإعدادات.
+          </p>
+          <div class="actions">
+            <button id="exportFull">📦 تصدير نسخة كاملة مع الصور</button
+            ><label class="file"
+              >♻️ استعادة نسخة كاملة<input
+                id="importFull"
+                type="file"
+                accept=".khzbackup,.zip,application/zip"
+            /></label>
+          </div>
+          <p class="muted">
+            ملف JSON القديم يحفظ السجلات فقط ولا يُعتمد لنقل الصور.
+          </p>
+          <div class="actions">
+            <button id="export" class="ghost">تصدير JSON (بيانات فقط)</button
+            ><label class="file ghost"
+              >استيراد JSON<input
+                id="import"
+                type="file"
+                accept=".json" /></label
+            ><button id="csv" class="ghost">تصدير CSV</button>
+          </div>
+          <button id="clear" class="danger">حذف جميع البيانات</button>
+        </div>
+      </section>
+    </main>
+    <dialog id="dlg">
+      <button id="close">×</button>
+      <div id="details"></div>
+    </dialog>
+    <dialog id="auctionExceptionDlg">
+      <form method="dialog" class="dialog-card" id="auctionExceptionForm">
+        <h3>⚠ استثناء مزاد ناجح</h3>
+        <p class="muted">يستخدم فقط قبل اكتمال البيع. سيُلغى حجز الفائز والطلب غير المسدد مع حفظ السبب في سجل المزاد.</p>
+        <input id="auctionExceptionItemId" type="hidden" />
+        <label>سبب الاستثناء
+          <select id="auctionExceptionReason" required>
+            <option value="non_payment">عدم الدفع</option>
+            <option value="bidder_withdrawal">انسحاب المزايد</option>
+            <option value="winner_ineligible">عدم أهلية الفائز</option>
+            <option value="admin_exception">استثناء إداري</option>
+            <option value="other">سبب آخر</option>
+          </select>
+        </label>
+        <label>ملاحظة / توضيح<textarea id="auctionExceptionNote" rows="3" placeholder="اختياري، ويصبح مطلوبًا عند اختيار سبب آخر"></textarea></label>
+        <div class="actions">
+          <button type="submit" class="danger-outline">اعتماد الاستثناء</button>
+          <button type="button" id="closeAuctionException" class="ghost">إلغاء</button>
+        </div>
+        <p id="auctionExceptionStatus" class="muted"></p>
+      </form>
+    </dialog>
+    <dialog id="auctionQuickEditDlg">
+      <button type="button" id="closeAuctionQuickEdit">×</button>
+      <h2>⚙️ تعديل المزاد النشط</h2>
+      <p class="muted">تصحيح سريع لإعدادات الجولة الحالية دون حذف المزاد أو إنشاء جولة جديدة. تحفظ التعديلات في سجل العمليات.</p>
+      <input id="auctionQuickEditItemId" type="hidden" />
+      <label>موعد انتهاء المزاد<input id="auctionQuickEditEnd" type="datetime-local" /></label>
+      <div class="grid2">
+        <label>سعر فتح المزايدة<input id="auctionQuickEditOpening" type="number" step="0.01" min="0" /></label>
+        <label>قيمة الزيادة<input id="auctionQuickEditStep" type="number" step="0.01" min="0.01" /></label>
+        <label>حد البيع المستهدف • إدارة فقط<input id="auctionQuickEditTarget" type="number" step="0.01" min="0" /></label>
+        <label>السعر الحالي<input id="auctionQuickEditCurrent" type="text" readonly /></label>
+      </div>
+      <label>الشروط الإضافية للمزاد<textarea id="auctionQuickEditTerms" rows="3" maxlength="1000" placeholder="مثال: طريقة التسليم، مهلة السداد، أو أي شرط إضافي يظهر للزائر"></textarea></label>
+      <p id="auctionQuickEditHint" class="muted"></p>
+      <div class="actions">
+        <button type="button" id="auctionQuickEditToday" class="ghost">نهاية اليوم</button>
+        <button type="button" id="confirmAuctionQuickEdit">✅ حفظ تعديل المزاد</button>
+      </div>
+      <p id="auctionQuickEditStatus" class="muted"></p>
+    </dialog>
+    <dialog id="relaunchDlg">
+      <button type="button" id="closeRelaunch">×</button>
+      <h2>♻️ إعادة طرح المقتنى في المزاد</h2>
+      <p class="muted">
+        يبدأ النظام جولة مزاد جديدة مع الاحتفاظ بسجل الجولة السابقة ومزايداتها.
+      </p>
+      <input id="relaunchItemId" type="hidden" /><label
+        >موعد انتهاء المزاد الجديد<input id="relaunchEnd" type="datetime-local"
+      /></label>
+      <div class="grid2">
+        <label
+          >سعر فتح المزايدة<input
+            id="relaunchOpening"
+            type="number"
+            step="0.01"
+            min="0" /></label
+        ><label
+          >قيمة الزيادة<input
+            id="relaunchStep"
+            type="number"
+            step="0.01"
+            min="0.01" /></label
+        ><label
+          >حد البيع المستهدف<input
+            id="relaunchTarget"
+            type="number"
+            step="0.01"
+            min="0"
+        /></label>
+      </div>
+      <div class="actions">
+        <button type="button" id="relaunchToday" class="ghost">اليوم</button
+        ><button type="button" id="confirmRelaunch">
+          ✅ اعتماد إعادة المزاد
+        </button>
+      </div>
+      <p id="relaunchStatus" class="muted"></p>
+    </dialog>
+    <dialog id="imageEditorDlg" class="image-editor-dialog">
+      <button type="button" id="closeImageEditor" class="editor-close">
+        ×
+      </button>
+      <h2>تعديل الصورة قبل الاعتماد</h2>
+      <p class="muted">
+        دوّر الصورة ثم حرّك إطار القص أو مقابضه لإزالة الأطراف غير المطلوبة.
+        اضغط «تثبيت الصورة» عند الانتهاء.
+      </p>
+      <div class="image-editor-stage">
+        <canvas id="imageEditorCanvas" width="900" height="560"></canvas>
+      </div>
+      <div class="editor-actions">
+        <button type="button" id="rotateImageLeft" class="ghost">
+          ↺ تدوير يسار</button
+        ><button type="button" id="rotateImageRight" class="ghost">
+          ↻ تدوير يمين</button
+        ><button type="button" id="resetImageCrop" class="ghost">
+          إعادة الإطار</button
+        ><button type="button" id="saveEditedImage">✅ تثبيت الصورة</button>
+      </div>
+      <p id="imageEditorStatus" class="muted"></p>
+    </dialog>
+    <dialog id="coinLightbox" class="coin-lightbox">
+      <button type="button" id="coinLightboxClose" class="lightbox-close">
+        ×
+      </button>
+      <div class="lightbox-toolbar">
+        <button type="button" data-lb="prev">‹ السابق</button
+        ><button type="button" data-lb="zin">＋ تكبير</button
+        ><button type="button" data-lb="zout">− تصغير</button
+        ><button type="button" data-lb="rl">↺ تدوير</button
+        ><button type="button" data-lb="rr">↻ تدوير</button
+        ><button type="button" data-lb="center">◎ توسيط</button
+        ><button type="button" data-lb="reset">100%</button
+        ><button type="button" data-lb="full">⛶ ملء الشاشة</button
+        ><button type="button" data-lb="next">التالي ›</button>
+      </div>
+      <div id="coinLightboxStage" class="lightbox-stage">
+        <img id="coinLightboxImg" alt="صورة العملة" />
+      </div>
+      <div id="coinLightboxCaption" class="lightbox-caption"></div>
+    </dialog>
+    <div id="toast" hidden></div>
+    <div id="legacyCompat" hidden aria-hidden="true">
+      <input id="quick" />
+      <div id="quickResults"></div>
+      <div id="recent"></div>
+    </div>
+    <script src="/admin/app.js?v=4.8.2-archive"></script>
+  </body>
+</html>
