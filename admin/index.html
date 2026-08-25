@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#071b35" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="/admin/styles.css?v=4.4.8-nav-two-level" />
-    <title>نوادر العملات — الإدارة V4.3.1</title>
+    <link rel="stylesheet" href="/admin/styles.css?v=4.3.5-final" />
+    <title>نوادر العملات — الإدارة V4.6.6</title>
   </head>
   <body>
     <header>
@@ -19,30 +19,38 @@
       </div>
       <button id="installBtn" hidden>تثبيت التطبيق</button>
     </header>
-    <nav class="admin-nav" aria-label="التنقل في لوحة الإدارة">
-      <div class="admin-nav-row admin-nav-primary">
-        <button data-v="home" class="active">لوحة التحكم</button>
-        <button data-v="add">إضافة</button>
-        <button data-v="warehouse">المستودع</button>
-        <button data-v="auction">المزاد</button>
-        <button data-v="market">السوق العام</button>
-        <button data-v="orders">الطلبات والشحن <span id="ordersBadge" class="nav-badge" hidden>0</span></button>
-        <button data-v="finance">المالية</button>
-        <button data-v="participants">المشاركون <span id="pendingParticipantsBadge" class="nav-badge" hidden>0</span></button>
-      </div>
-      <div class="admin-nav-row admin-nav-secondary">
-        <button data-v="special">المميزة والنادرة</button>
-        <button data-v="transitional">الإصدارات الانتقالية</button>
-        <button data-v="list">السجل</button>
-        <button data-v="ended-auctions">المزادات المنتهية <span id="endedAuctionsBadge" class="nav-badge" hidden>0</span></button>
-        <button data-v="collectible-approvals">اعتماد المقتنيات <span id="collectibleApprovalsBadge" class="nav-badge" hidden>0</span></button>
-        <button data-v="notifications">الإشعارات <span id="adminNotificationsBadge" class="nav-badge" hidden>0</span></button>
-        <button data-v="dues">المستحقات</button>
-        <button data-v="settings">الإعدادات</button>
-        <button data-v="backup">النسخ الاحتياطي</button>
-        <a class="site-home-link" href="/home" target="_blank">⌂ واجهة الموقع</a>
-        <a class="admin-logout-link" href="/admin-logout">🔒 خروج الإدارة</a>
-      </div>
+    <nav>
+      <a class="site-home-link" href="/home" target="_blank">⌂ واجهة الموقع</a
+      ><button data-v="home" class="active">لوحة التحكم</button
+      ><button data-v="add">إضافة</button><button data-v="warehouse">المستودع</button><button data-v="special">المميزة والنادرة</button><button data-v="transitional">الإصدارات الانتقالية</button><button data-v="list">السجل</button
+      ><button data-v="auction">المزاد</button
+      ><button data-v="ended-auctions">
+        المزادات المنتهية
+        <span id="endedAuctionsBadge" class="nav-badge" hidden>0</span></button
+      ><button data-v="market">السوق العام</button
+      ><button data-v="orders">
+        الطلبات والشحن
+        <span id="ordersBadge" class="nav-badge" hidden>0</span></button
+      ><button data-v="finance">المالية</button
+      ><button data-v="participants">
+        المشاركون
+        <span id="pendingParticipantsBadge" class="nav-badge" hidden
+          >0</span
+        ></button
+      ><button data-v="collectible-approvals">
+        اعتماد المقتنيات
+        <span id="collectibleApprovalsBadge" class="nav-badge" hidden
+          >0</span
+        ></button
+      ><button data-v="notifications">
+        الإشعارات
+        <span id="adminNotificationsBadge" class="nav-badge" hidden
+          >0</span
+        ></button
+      ><button data-v="dues">المستحقات</button
+      ><button data-v="settings">الإعدادات</button
+      ><button data-v="backup">النسخ الاحتياطي</button
+      ><a class="admin-logout-link" href="/admin-logout">🔒 خروج الإدارة</a>
     </nav>
     <main>
       <section id="home" class="view active dashboard-view">
@@ -354,7 +362,28 @@
                   inputmode="tel"
                   placeholder="05xxxxxxxx"
               /></label>
+              <label
+                >دولة صاحب المقتنى / الشحن
+                <select id="ownerCountry">
+                  <option value="المملكة العربية السعودية" selected>🇸🇦 المملكة العربية السعودية</option>
+                  <option value="الإمارات العربية المتحدة">🇦🇪 الإمارات العربية المتحدة</option>
+                  <option value="الكويت">🇰🇼 الكويت</option>
+                  <option value="قطر">🇶🇦 قطر</option>
+                  <option value="البحرين">🇧🇭 البحرين</option>
+                  <option value="سلطنة عمان">🇴🇲 سلطنة عمان</option>
+                  <option value="مصر">🇪🇬 مصر</option>
+                  <option value="الأردن">🇯🇴 الأردن</option>
+                  <option value="لبنان">🇱🇧 لبنان</option>
+                  <option value="العراق">🇮🇶 العراق</option>
+                  <option value="اليمن">🇾🇪 اليمن</option>
+                  <option value="سوريا">🇸🇾 سوريا</option>
+                  <option value="ألمانيا">🇩🇪 ألمانيا</option>
+                  <option value="بريطانيا">🇬🇧 بريطانيا</option>
+                  <option value="الولايات المتحدة">🇺🇸 الولايات المتحدة</option>
+                </select>
+              </label>
             </div>
+            <small class="muted">هذه هي دولة صاحب المقتنى/مكان الشحن، وليست دولة العملة. لمقتنيات صاحب المنصة الافتراضي: المملكة العربية السعودية 🇸🇦.</small>
           </div>
           <label
             >الدولة<select id="country" required>

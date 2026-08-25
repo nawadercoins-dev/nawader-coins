@@ -879,6 +879,7 @@ function dataToken(a) {
         i.marketQuantity,
         i.ownerName,
         i.ownerPhone,
+        i.ownerCountry,
         i.purchase,
         i.shipping,
         i.other,
@@ -2073,6 +2074,7 @@ $("form").onsubmit = async (e) => {
       pocket: v("pocket"),
       ownerName: v("ownerName"),
       ownerPhone: v("ownerPhone"),
+      ownerCountry: v("ownerCountry") || "المملكة العربية السعودية",
       purchase: n("purchase"),
       shipping: n("shipping"),
       other: n("other"),
@@ -2168,6 +2170,7 @@ editingItemId = "";
   $("quantity").value = 1;
   $("soldQuantity").value = 0;
   if ($("damagedQuantity")) $("damagedQuantity").value = 0;
+  if ($("ownerCountry")) $("ownerCountry").value = "المملكة العربية السعودية";
   if ($("inventoryUnitType")) $("inventoryUnitType").value = "piece";
   if ($("inventoryUnitCount")) $("inventoryUnitCount").value = 1;
   if ($("piecesPerUnit")) $("piecesPerUnit").value = 1;
