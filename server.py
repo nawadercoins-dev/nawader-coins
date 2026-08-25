@@ -1,3 +1,4 @@
+# V4.6.3 — public seller identity uses flag icon on cards; country retained in API for shipping/filtering.
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import json, os, threading, shutil, datetime, atexit, re, secrets, mimetypes, socket, webbrowser, time, io, hashlib, hmac, zipfile, tempfile, subprocess, glob
