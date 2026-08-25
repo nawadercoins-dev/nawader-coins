@@ -68,6 +68,13 @@ function initMarketTitleMarquees(){
     });
   });
 }
+
+function sellerIdentity(i){
+  const name=esc(i.sellerName||'صاحب المقتنى'), country=esc(i.sellerCountry||'الدولة غير محددة'), flag=esc(i.sellerFlag||'🌐');
+  const avatar=i.sellerAvatar?`<img src="${esc(i.sellerAvatar)}" alt="">`:`<span>${name.slice(0,1)}</span>`;
+  return `<div class="seller-identity" title="دولة صاحب الحساب والشحن"><div class="seller-avatar">${avatar}</div><div class="seller-name">${name}${i.sellerVerified?' <b class="seller-check">✓</b>':''}</div><div class="seller-country"><span>${flag}</span>${country}</div></div>`;
+}
+
 function card(i){
   let price=displayPrice(i),
       grade=i.isGraded?`${esc(i.gradingCompany||'مُقيَّم')} ${esc(i.gradeValue||'')}`:'',
@@ -79,7 +86,7 @@ function card(i){
       title=i.marketTitle||`${i.country} — ${i.denomination}`,
       images=[i.frontImg,i.backImg,i.gradingCertImage,...(i.additionalImages||[])].filter(Boolean);
   MARKET_IMAGE_GROUPS[i.id]=images;
-  return `<article class="card market-compact-card" id="${esc(i.id)}">
+  return `<article class="card market-compact-card" id="${esc(i.id)}">${sellerIdentity(i)}
     <div class="market-card-top">
       <div class="market-image-column">
         <div class="photo market-photo">
