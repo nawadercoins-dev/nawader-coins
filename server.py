@@ -1,3 +1,4 @@
+# V4.8.0 — direct customer publishing across inventory, market, auction, special/rare, transitional; admin moderation only.
 # V4.7.0 — final collectible lifecycle reconciliation and owner controls.
 # V4.6.6 — platform-owner seller country: admin ownerCountry field, default Saudi Arabia, public flag fallback.
 # V4.6.5 — seller flag repair: normalize country and sync duplicate participant identities by phone.
@@ -382,9 +383,9 @@ def reconcile_collectible_lifecycle(participant_id=None):
             'sourceSubmissionId':sid,
             'storageStatus':'warehouse',
             'warehouse':'المستودع الرئيسي',
-            'forMarket':destination=='market',
+            'forMarket':False,
             'marketApproved':False,
-            'forAuction':destination=='auction',
+            'forAuction':False,
             'auctionApproved':False,
             'created':now,
             'updated':int(time.time()*1000),
@@ -400,6 +401,19 @@ def reconcile_collectible_lifecycle(participant_id=None):
     for row in rows:
         if pid_filter and str(row.get('participantId') or '')!=pid_filter:
             continue
+
+        # من V4.8.0 لا توجد موافقة مسبقة: أي طلب قديم غير مرفوض يتحول إلى مقتنى معتمد مباشرة.
+        if row.get('status') in ('pending','needs_changes') and not row.get('itemId'):
+            if str(row.get('country') or '').strip() and str(row.get('denomination') or '').strip():
+                item=_safe_new_item(row,'')
+                if item:
+                    row['itemId']=item.get('id')
+                    row['status']='approved'
+                    row['warehouseVerified']=True
+                    row['warehouseVerifiedAt']=datetime.datetime.now().isoformat()
+                    row['autoApproved']=True
+                    row['autoApprovedAt']=row['warehouseVerifiedAt']
+                    changed_rows=True
 
         sid=str(row.get('id') or '')
         row_item_id=str(row.get('itemId') or '')
@@ -1291,7 +1305,9 @@ class H(SimpleHTTPRequestHandler):
                     'inventoryUnitType','inventoryUnitCount','piecesPerUnit','quantity','availableQuantity',
                     'forMarket','marketApproved','marketSalePrice','marketPriceUnit','marketNegotiationEnabled','marketNegotiationPercent',
                     'forAuction','auctionApproved','auctionEnd','auctionOpeningPrice','auctionStartPrice','auctionCurrentPrice',
-                    'auctionBidStep','auctionTargetPrice','auctionAdditionalTerms','auctionRound','auctionOutcome','auctionSold'
+                    'auctionBidStep','auctionTargetPrice','auctionAdditionalTerms','auctionRound','auctionOutcome','auctionSold',
+                    'specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason',
+                    'transitionalIssueEnabled','transitionalIssueType','transitionalPreviousIssue','transitionalNextIssue','transitionalRarity','transitionalReason','transitionalNotes'
                 )}
                 sub=submissions.get(str(i.get('id') or '')) or {}
                 y['desiredDestination']=sub.get('desiredDestination') or 'vault'
@@ -1649,30 +1665,197 @@ class H(SimpleHTTPRequestHandler):
             if p=='/api/collectible-submissions':
                 pid=str(d.get('participantId') or '')
                 person=next((x for x in load_people() if str(x.get('id'))==pid),None)
-                if not participant_can_transact(person): self.sendj({'error':'إرسال مقتنى يتطلب الاعتماد النهائي من الإدارة'},403); return
-                country=str(d.get('country') or '').strip(); denomination=str(d.get('denomination') or '').strip()
-                if not country or not denomination: self.sendj({'error':'الدولة والفئة مطلوبتان'},400); return
-                front=str(d.get('frontImage') or ''); back=str(d.get('backImage') or '')
+                if not participant_can_access(person) or person.get('blocked'):
+                    self.sendj({'error':'يجب تسجيل الدخول بحساب فعال لإضافة المقتنى'},403); return
+
+                country=str(d.get('country') or '').strip()
+                denomination=str(d.get('denomination') or '').strip()
+                if not country or not denomination:
+                    self.sendj({'error':'الدولة والفئة مطلوبتان'},400); return
+
+                front=str(d.get('frontImage') or '')
+                back=str(d.get('backImage') or '')
                 for label,img in [('الوجه',front),('الخلف',back)]:
-                    if img and not img.startswith('/uploads/') and (not img.startswith('data:image/') or len(img)>6*1024*1024): self.sendj({'error':f'صورة {label} غير صالحة أو كبيرة جدًا'},400); return
-                rows=load_collectible_submissions(); now=datetime.datetime.now().isoformat()
-                sid=str(d.get('id') or '')
+                    if img and not img.startswith('/uploads/') and (not img.startswith('data:image/') or len(img)>6*1024*1024):
+                        self.sendj({'error':f'صورة {label} غير صالحة أو كبيرة جدًا'},400); return
+
+                now=datetime.datetime.now().isoformat()
+                rows=load_collectible_submissions()
+                items=load()
+                sid=str(d.get('id') or '').strip()
+                destination=str(d.get('desiredDestination') or 'vault').strip()
+                if destination not in ('vault','market','auction'): destination='vault'
+
+                inv=submission_inventory_values(d)
+                serial=str(d.get('serial') or '').strip()
+                normalized_serial=re.sub(r'\s+','',serial).upper()
+                existing_item=None
+                row=None
+
                 if sid:
                     row=next((x for x in rows if str(x.get('id'))==sid and str(x.get('participantId'))==pid),None)
-                    if not row: self.sendj({'error':'السجل غير موجود أو لا تملك صلاحية تعديله'},404); return
-                    if row.get('itemId') or row.get('status')=='approved': self.sendj({'error':'تم اعتماد السجل؛ اطلب من الإدارة تعديله'},409); return
-                    inv=submission_inventory_values(d)
-                    row.update({'country':country,'denomination':denomination,'year':str(d.get('year') or '').strip(),'issueEdition':str(d.get('issueEdition') or '').strip(),'type':str(d.get('type') or 'عملة ورقية').strip(),'condition':str(d.get('condition') or 'UNC').strip(),'serial':str(d.get('serial') or '').strip(),'notes':str(d.get('notes') or '').strip(),'desiredDestination':str(d.get('desiredDestination') or 'vault'),'frontImage':front,'backImage':back,'status':'pending','adminNote':'','updated':now,**inv})
-                    save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
-                    add_notification('admin','','approval','✏️ تم تعديل طلب مقتنى',f"عدّل {person.get('name','عميل')} مقتنى {country} — {denomination} وأعاده للمراجعة.",'','/admin')
-                    self.sendj({'ok':True,'submission':{k:v for k,v in row.items() if k not in ('frontImage','backImage')}}); return
-                inv=submission_inventory_values(d)
-                row={'id':'cs-'+secrets.token_hex(6),'participantId':pid,'participantName':person.get('name',''),'participantPhone':person.get('phone',''),'country':country,'denomination':denomination,'year':str(d.get('year') or '').strip(),'issueEdition':str(d.get('issueEdition') or '').strip(),'type':str(d.get('type') or 'عملة ورقية').strip(),'condition':str(d.get('condition') or 'UNC').strip(),'serial':str(d.get('serial') or '').strip(),'notes':str(d.get('notes') or '').strip(),'desiredDestination':str(d.get('desiredDestination') or 'vault'),'frontImage':front,'backImage':back,'status':'pending','adminNote':'','created':now,'updated':now,'itemId':'',**inv}
-                rows.append(row); save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
-                add_notification('admin','','approval','🪙 طلب اعتماد مقتنى جديد',f"أرسل {person.get('name','عميل')} مقتنى {country} — {denomination} للمراجعة والاعتماد.",'','/admin')
-                add_notification('participant',pid,'approval','تم استلام المقتنى للمراجعة',f'تم استلام {country} — {denomination}. الحالة الآن: قيد المراجعة.','','/account')
-                append_operation('إرسال مقتنى للاعتماد',{'submissionId':row['id'],'participantId':pid,'country':country,'denomination':denomination},actor='العميل')
-                self.sendj({'ok':True,'submission':{k:v for k,v in row.items() if k not in ('frontImage','backImage')}}); return
+                    if not row:
+                        self.sendj({'error':'السجل غير موجود أو لا تملك صلاحية تعديله'},404); return
+                    if row.get('itemId'):
+                        existing_item=next((x for x in items if str(x.get('id'))==str(row.get('itemId')) and str(x.get('ownerParticipantId') or '')==pid),None)
+
+                # منع تكرار الرقم التسلسلي على مقتنى آخر.
+                if normalized_serial:
+                    for other in items:
+                        if existing_item and str(other.get('id'))==str(existing_item.get('id')): continue
+                        vals=other.get('serials') or [other.get('serial')]
+                        if not isinstance(vals,list): vals=[vals]
+                        norms={re.sub(r'\s+','',str(v or '')).upper() for v in vals if str(v or '').strip()}
+                        if normalized_serial in norms:
+                            self.sendj({'error':'الرقم التسلسلي مسجل مسبقًا في المنصة'},409); return
+
+                # إعداد السوق المباشر عند اختياره.
+                market_price=max(0,float(d.get('marketSalePrice') or 0))
+                market_qty=max(1,int(float(d.get('marketQuantity') or d.get('inventoryUnitCount') or 1)))
+                market_neg=bool(d.get('marketNegotiationEnabled'))
+                market_neg_pct=max(0,min(50,float(d.get('marketNegotiationPercent') or 5)))
+                if destination=='market' and market_price<=0:
+                    self.sendj({'error':'حدد سعر البيع قبل نشر المقتنى في السوق'},400); return
+
+                # إعداد المزاد المباشر عند اختياره.
+                auction_end=str(d.get('auctionEnd') or '').strip()
+                opening=max(0,float(d.get('auctionOpeningPrice') or 0))
+                step=max(.01,float(d.get('auctionBidStep') or 1))
+                target=max(0,float(d.get('auctionTargetPrice') or 0))
+                terms=str(d.get('auctionAdditionalTerms') or '').strip()[:1000]
+                if destination=='auction':
+                    if not auction_end:
+                        self.sendj({'error':'حدد موعد انتهاء المزاد'},400); return
+                    try:
+                        end_dt=datetime.datetime.fromisoformat(auction_end.replace('Z','+00:00'))
+                        now_dt=datetime.datetime.now(end_dt.tzinfo) if end_dt.tzinfo else datetime.datetime.now()
+                        if end_dt<=now_dt:
+                            self.sendj({'error':'موعد انتهاء المزاد يجب أن يكون في المستقبل'},400); return
+                    except ValueError:
+                        self.sendj({'error':'صيغة موعد انتهاء المزاد غير صحيحة'},400); return
+                    if opening<=0:
+                        self.sendj({'error':'حدد سعر افتتاح أكبر من صفر للمزاد'},400); return
+
+                # تصنيفات عامة مباشرة.
+                special_enabled=bool(d.get('specialNumberEnabled'))
+                special_types=d.get('specialNumberTypes') if isinstance(d.get('specialNumberTypes'),list) else []
+                special_types=[str(x).strip() for x in special_types if str(x).strip()]
+                special_reason=str(d.get('specialNumberReason') or '').strip()[:1000]
+
+                transitional_enabled=bool(d.get('transitionalIssueEnabled'))
+                transitional_type=str(d.get('transitionalIssueType') or '').strip()
+                transitional_prev=str(d.get('transitionalPreviousIssue') or '').strip()
+                transitional_next=str(d.get('transitionalNextIssue') or '').strip()
+                transitional_rarity=str(d.get('transitionalRarity') or '').strip()
+                transitional_reason=str(d.get('transitionalReason') or '').strip()[:1000]
+                transitional_notes=str(d.get('transitionalNotes') or '').strip()[:1000]
+
+                if special_enabled and not special_types:
+                    self.sendj({'error':'اختر نوع الرقم المميز أو النادر'},400); return
+                if transitional_enabled and not transitional_type:
+                    self.sendj({'error':'اختر نوع الحالة الانتقالية'},400); return
+
+                base_fields={
+                    'country':country,'denomination':denomination,
+                    'year':str(d.get('year') or '').strip(),
+                    'issueEdition':str(d.get('issueEdition') or '').strip(),
+                    'type':str(d.get('type') or 'عملة ورقية').strip(),
+                    'condition':str(d.get('condition') or 'UNC').strip(),
+                    'serial':serial,'serials':[serial] if serial else [],
+                    'notes':str(d.get('notes') or '').strip(),
+                    'frontImg':front,'backImg':back,
+                    'ownerName':person.get('alias') or person.get('name',''),
+                    'ownerPhone':person.get('phone',''),
+                    'ownerParticipantId':pid,
+                    'storageStatus':'warehouse','warehouse':'المستودع الرئيسي',
+                    'forMarket':destination=='market','marketApproved':destination=='market',
+                    'marketSalePrice':market_price if destination=='market' else 0,
+                    'marketQuantity':market_qty if destination=='market' else 0,
+                    'marketNegotiationEnabled':market_neg if destination=='market' else False,
+                    'marketNegotiationPercent':market_neg_pct if destination=='market' else 0,
+                    'forAuction':destination=='auction','auctionApproved':destination=='auction',
+                    'auctionEnd':auction_end if destination=='auction' else '',
+                    'auctionOpeningPrice':opening if destination=='auction' else 0,
+                    'auctionStartPrice':opening if destination=='auction' else 0,
+                    'auctionCurrentPrice':opening if destination=='auction' else 0,
+                    'auctionBidStep':step if destination=='auction' else 1,
+                    'auctionTargetPrice':target if destination=='auction' else 0,
+                    'auctionAdditionalTerms':terms if destination=='auction' else '',
+                    'specialNumberEnabled':special_enabled,
+                    'specialNumberTypes':special_types,
+                    'specialNumberType':special_types[0] if special_types else '',
+                    'specialNumberReason':special_reason,
+                    'transitionalIssueEnabled':transitional_enabled,
+                    'transitionalIssueType':transitional_type,
+                    'transitionalPreviousIssue':transitional_prev,
+                    'transitionalNextIssue':transitional_next,
+                    'transitionalRarity':transitional_rarity,
+                    'transitionalReason':transitional_reason,
+                    'transitionalNotes':transitional_notes,
+                    'updated':int(time.time()*1000),
+                    **inv
+                }
+
+                if existing_item:
+                    # السجل المعتمد يعدل مقتناه مباشرة دون إعادة اعتماد.
+                    protected_quantity=bool(existing_item.get('forMarket') or existing_item.get('forAuction'))
+                    if protected_quantity:
+                        for k in ('inventoryUnitType','inventoryUnitCount','piecesPerUnit','quantity'):
+                            base_fields.pop(k,None)
+                    existing_item.update(base_fields)
+                    existing_item['sourceSubmissionId']=sid
+                    item=existing_item
+                    item_id=str(item.get('id'))
+                else:
+                    item_id='k-'+secrets.token_hex(8)
+                    item={'id':item_id,'soldQuantity':0,'damagedQuantity':0,'sourceSubmissionId':sid or '', 'created':now, **base_fields}
+                    items.append(item)
+
+                # سجل تاريخي فقط؛ لا توجد مرحلة موافقة.
+                if row is None:
+                    sid='cs-'+secrets.token_hex(6)
+                    item['sourceSubmissionId']=sid
+                    row={'id':sid,'created':now}
+                    rows.append(row)
+
+                row.update({
+                    'participantId':pid,'participantName':person.get('name',''),'participantPhone':person.get('phone',''),
+                    'country':country,'denomination':denomination,'year':base_fields['year'],
+                    'issueEdition':base_fields['issueEdition'],'type':base_fields['type'],
+                    'condition':base_fields['condition'],'serial':serial,'notes':base_fields['notes'],
+                    'desiredDestination':destination,'frontImage':front,'backImage':back,
+                    'status':'approved','adminNote':'','updated':now,'itemId':item_id,
+                    'warehouseVerified':True,'warehouseVerifiedAt':now,
+                    'autoApproved':True,'autoApprovedAt':now,
+                    'specialNumberEnabled':special_enabled,'specialNumberTypes':special_types,
+                    'transitionalIssueEnabled':transitional_enabled,'transitionalIssueType':transitional_type,
+                    **inv
+                })
+
+                save(items)
+                save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
+                append_operation('إضافة/تعديل مقتنى مباشر بواسطة العميل',{
+                    'submissionId':sid,'itemId':item_id,'participantId':pid,
+                    'destination':destination,'marketPublished':destination=='market',
+                    'auctionPublished':destination=='auction',
+                    'specialNumberEnabled':special_enabled,
+                    'transitionalIssueEnabled':transitional_enabled
+                },actor='العميل')
+
+                # الإدارة تستلم إشعار رقابي فقط، بلا طلب اعتماد.
+                add_notification('admin','','moderation','🪙 إضافة مباشرة جديدة',
+                                 f"{person.get('name','عميل')} أضاف {country} — {denomination} مباشرة إلى المنصة. يمكن للإدارة الإيقاف أو الإخفاء عند الحاجة.",
+                                 item_id,'/admin')
+                add_notification('participant',pid,'approval','✅ تمت إضافة المقتنى مباشرة',
+                                 f"تمت إضافة {country} — {denomination} بنجاح دون انتظار اعتماد الإدارة.",
+                                 item_id,'/account')
+
+                self.sendj({
+                    'ok':True,'directApproved':True,'itemId':item_id,
+                    'publishedMarket':destination=='market',
+                    'publishedAuction':destination=='auction',
+                    'submission':{k:v for k,v in row.items() if k not in ('frontImage','backImage')}
+                }); return
             if p=='/api/collectible-submissions/delete':
                 pid=str(d.get('participantId') or ''); sid=str(d.get('id') or '')
                 person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
@@ -1767,6 +1950,25 @@ class H(SimpleHTTPRequestHandler):
                 if item.get('auctionSold'): self.sendj({'error':'المقتنى مباع ولا يمكن تعديل بياناته الأساسية'},409); return
                 for k in ('country','denomination','issueEdition','year','type','condition','notes','frontImg','backImg'):
                     if k in d: item[k]=str(d.get(k) or '').strip()
+                if 'specialNumberEnabled' in d:
+                    item['specialNumberEnabled']=bool(d.get('specialNumberEnabled'))
+                    types=d.get('specialNumberTypes') if isinstance(d.get('specialNumberTypes'),list) else []
+                    types=[str(x).strip() for x in types if str(x).strip()]
+                    item['specialNumberTypes']=types
+                    item['specialNumberType']=types[0] if types else ''
+                    item['specialNumberReason']=str(d.get('specialNumberReason') or '').strip()[:1000]
+                    if item['specialNumberEnabled'] and not types:
+                        self.sendj({'error':'اختر نوع الرقم المميز أو النادر'},400); return
+                if 'transitionalIssueEnabled' in d:
+                    item['transitionalIssueEnabled']=bool(d.get('transitionalIssueEnabled'))
+                    item['transitionalIssueType']=str(d.get('transitionalIssueType') or '').strip()
+                    item['transitionalPreviousIssue']=str(d.get('transitionalPreviousIssue') or '').strip()
+                    item['transitionalNextIssue']=str(d.get('transitionalNextIssue') or '').strip()
+                    item['transitionalRarity']=str(d.get('transitionalRarity') or '').strip()
+                    item['transitionalReason']=str(d.get('transitionalReason') or '').strip()[:1000]
+                    item['transitionalNotes']=str(d.get('transitionalNotes') or '').strip()[:1000]
+                    if item['transitionalIssueEnabled'] and not item['transitionalIssueType']:
+                        self.sendj({'error':'اختر نوع الحالة الانتقالية'},400); return
                 # الكمية لا تتغير مع التزامات قائمة.
                 if 'inventoryUnitCount' in d or 'piecesPerUnit' in d:
                     round_no=int(item.get('auctionRound') or 1)
@@ -1820,14 +2022,12 @@ class H(SimpleHTTPRequestHandler):
                 item['marketSalePrice']=price; item['availableQuantity']=min(qty,max_qty)
                 item['marketNegotiationEnabled']=bool(d.get('marketNegotiationEnabled',item.get('marketNegotiationEnabled',False)))
                 item['marketNegotiationPercent']=max(0,min(50,float(d.get('marketNegotiationPercent') or item.get('marketNegotiationPercent') or 0)))
-                was_approved=bool(item.get('marketApproved'))
                 item['forMarket']=True
-                if not was_approved:
-                    item['marketApproved']=False
-                    add_notification('admin','','approval','🛒 طلب عرض مقتنى في السوق',f"{item.get('country','')} — {item.get('denomination','')} بسعر {price:g} ر.س",iid,'/admin')
+                item['marketApproved']=True
+                add_notification('admin','','moderation','🛒 عرض سوق مباشر',f"{item.get('country','')} — {item.get('denomination','')} نُشر مباشرة بواسطة صاحبه.",iid,'/admin')
                 item['updated']=int(time.time()*1000); save(items)
-                append_operation('إدارة السوق بواسطة المالك',{'itemId':iid,'participantId':pid,'price':price,'approved':was_approved},actor='العميل')
-                self.sendj({'ok':True,'pendingApproval':not was_approved}); return
+                append_operation('نشر/تحديث السوق مباشرة بواسطة المالك',{'itemId':iid,'participantId':pid,'price':price,'approved':True},actor='العميل')
+                self.sendj({'ok':True,'pendingApproval':False,'published':True}); return
 
             if p=='/api/owner/auction/update':
                 pid=str(d.get('participantId') or ''); iid=str(d.get('itemId') or '')
@@ -1855,14 +2055,12 @@ class H(SimpleHTTPRequestHandler):
                 item['auctionTargetPrice']=max(0,float(d.get('auctionTargetPrice') or item.get('auctionTargetPrice') or 0))
                 item['auctionAdditionalTerms']=str(d.get('auctionAdditionalTerms') or item.get('auctionAdditionalTerms') or '').strip()[:1000]
                 if d.get('auctionEnd'): item['auctionEnd']=str(d.get('auctionEnd')).strip()
-                was_approved=bool(item.get('auctionApproved'))
                 item['forAuction']=True
-                if not was_approved:
-                    item['auctionApproved']=False
-                    add_notification('admin','','approval','⚖ طلب إدخال مقتنى للمزاد',f"{item.get('country','')} — {item.get('denomination','')}",iid,'/admin')
+                item['auctionApproved']=True
+                add_notification('admin','','moderation','⚖ مزاد مباشر',f"{item.get('country','')} — {item.get('denomination','')} نُشر مباشرة بواسطة صاحبه.",iid,'/admin')
                 item['updated']=int(time.time()*1000); save(items)
-                append_operation('إدارة المزاد بواسطة المالك',{'itemId':iid,'participantId':pid,'bidCount':len(bids),'approved':was_approved},actor='العميل')
-                self.sendj({'ok':True,'openingLocked':bool(bids),'pendingApproval':not was_approved}); return
+                append_operation('نشر/تحديث المزاد مباشرة بواسطة المالك',{'itemId':iid,'participantId':pid,'bidCount':len(bids),'approved':True},actor='العميل')
+                self.sendj({'ok':True,'openingLocked':bool(bids),'pendingApproval':False,'published':True}); return
 
             if p=='/api/owner/auction/cancel':
                 pid=str(d.get('participantId') or ''); iid=str(d.get('itemId') or ''); reason=str(d.get('reason') or '').strip()
