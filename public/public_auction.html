@@ -876,15 +876,53 @@
 
 </style>
 
-<style id="seller-identity-v462">
-.seller-identity{height:42px;display:flex;align-items:center;gap:7px;padding:5px 9px;border-bottom:1px solid #e6d8b5;background:linear-gradient(90deg,#fffdf8,#fff);white-space:nowrap;overflow:hidden;direction:rtl}
-.seller-avatar{width:30px;height:30px;flex:0 0 30px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:#0b2a55;color:#fff;font-weight:900;border:1px solid #d8a33b}
+
+<style id="seller-flag-only-v463">
+.seller-identity{
+  height:42px;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:5px 9px;
+  border-bottom:1px solid #e6d8b5;
+  background:linear-gradient(90deg,#fffdf8,#fff);
+  white-space:nowrap;
+  overflow:hidden;
+  direction:rtl
+}
+.seller-avatar{
+  width:30px;height:30px;flex:0 0 30px;border-radius:50%;overflow:hidden;
+  display:grid;place-items:center;background:#0b2a55;color:#fff;font-weight:900;
+  border:1px solid #d8a33b
+}
 .seller-avatar img{width:100%;height:100%;object-fit:cover}
-.seller-name{font-weight:900;color:#102747;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.seller-check{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;background:#2879d8;color:#fff;font-size:10px}
-.seller-country{margin-inline-start:auto;display:flex;align-items:center;gap:5px;color:#34465d;font-weight:800;font-size:.82rem;flex:0 0 auto}
-.seller-country span{font-size:1.15rem}
-@media(max-width:650px){.seller-identity{height:38px;padding:4px 7px}.seller-country{font-size:.75rem}.seller-avatar{width:27px;height:27px;flex-basis:27px}}
+.seller-name{
+  font-weight:900;color:#102747;overflow:hidden;text-overflow:ellipsis;min-width:0
+}
+.seller-check{
+  display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;
+  background:#2879d8;color:#fff;font-size:10px
+}
+.seller-flag{
+  margin-inline-start:auto;
+  flex:0 0 auto;
+  display:grid;
+  place-items:center;
+  min-width:31px;
+  height:27px;
+  padding:0 4px;
+  border-radius:8px;
+  border:1px solid #e1d3ad;
+  background:#fffaf0;
+  font-size:1.35rem;
+  line-height:1;
+  cursor:help
+}
+@media(max-width:650px){
+  .seller-identity{height:38px;padding:4px 7px}
+  .seller-avatar{width:27px;height:27px;flex-basis:27px}
+  .seller-flag{min-width:29px;height:25px;font-size:1.2rem}
+}
 </style>
 </head>
 <body>

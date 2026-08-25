@@ -70,9 +70,14 @@ function initMarketTitleMarquees(){
 }
 
 function sellerIdentity(i){
-  const name=esc(i.sellerName||'صاحب المقتنى'), country=esc(i.sellerCountry||'الدولة غير محددة'), flag=esc(i.sellerFlag||'🌐');
+  const name=esc(i.sellerName||'صاحب المقتنى'), flag=esc(i.sellerFlag||'🌐');
   const avatar=i.sellerAvatar?`<img src="${esc(i.sellerAvatar)}" alt="">`:`<span>${name.slice(0,1)}</span>`;
-  return `<div class="seller-identity" title="دولة صاحب الحساب والشحن"><div class="seller-avatar">${avatar}</div><div class="seller-name">${name}${i.sellerVerified?' <b class="seller-check">✓</b>':''}</div><div class="seller-country"><span>${flag}</span>${country}</div></div>`;
+  const countryTitle=esc(i.sellerCountry||'دولة الشحن غير محددة');
+  return `<div class="seller-identity" title="دولة صاحب الحساب والشحن: ${countryTitle}">
+    <div class="seller-avatar">${avatar}</div>
+    <div class="seller-name">${name}${i.sellerVerified?' <b class="seller-check">✓</b>':''}</div>
+    <div class="seller-flag" aria-label="${countryTitle}" title="${countryTitle}">${flag}</div>
+  </div>`;
 }
 
 function card(i){
