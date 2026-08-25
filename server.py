@@ -648,6 +648,22 @@ def create_order_for_market(req):
     row={'id':'ord-'+secrets.token_hex(6),'orderNumber':'NW-'+datetime.datetime.now().strftime('%y%m%d')+'-'+secrets.token_hex(3).upper(),'source':'market','sourceId':req.get('id'),'participantId':str(req.get('participantId') or ''),'customerName':req.get('name',''),'customerPhone':req.get('phone',''),'status':'awaiting_payment','paymentStatus':'unpaid','created':datetime.datetime.now().isoformat(),'updated':datetime.datetime.now().isoformat(),'subtotal':subtotal,'buyerFee':fee,'total':float(req.get('buyerTotal') or subtotal+fee),'items':[{'itemId':item.get('id'),'title':req.get('itemTitle') or item_title(item),'quantity':units,'physicalQuantity':physical,'unitPrice':float(req.get('unitPrice') or 0),'total':subtotal,'images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'storage':storage_location(item),'selectedSerials':list(req.get('selectedSerials') or [])}],'shippingCompany':'','trackingNumber':'','history':[{'status':'awaiting_payment','at':datetime.datetime.now().isoformat(),'note':'تم إنشاء الطلب من السوق العام'}],'archived':False}
     orders.append(row); save_json(ORDERS,{'orders':orders}); req['orderId']=row['id']; return row
 
+def reconcile_direct_market_buy_orders(participant_id=''):
+    """Direct purchases do not wait for admin approval. Repair older pending buy rows too."""
+    requests=load_market_requests(); changed=False; repaired=0
+    for req in requests:
+        if str(req.get('action') or 'buy')!='buy': continue
+        if participant_id and str(req.get('participantId') or '')!=str(participant_id): continue
+        if str(req.get('status') or 'pending')=='pending':
+            req['status']='accepted'; req['acceptedAt']=req.get('acceptedAt') or datetime.datetime.now().isoformat(); req['updated']=datetime.datetime.now().isoformat(); changed=True
+        if str(req.get('status'))=='accepted':
+            order=create_order_for_market(req)
+            if order and not req.get('orderId'):
+                req['orderId']=order.get('id'); changed=True
+            repaired+=1
+    if changed: save_json(MARKET_REQUESTS,{'requests':requests})
+    return repaired
+
 def finalize_order_inventory(order,reverse=False):
     items=load(); changed=False
     for line in order.get('items') or []:
@@ -1720,7 +1736,7 @@ class H(SimpleHTTPRequestHandler):
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
             person=self.require_participant(pid)
             if not person: return
-            ensure_auction_outcomes(); phone=str(person.get('phone') or '').replace(' ',''); labels={'new':'طلب جديد','awaiting_payment':'بانتظار السداد','paid':'تم السداد','preparing':'قيد التجهيز','ready_to_ship':'جاهز للشحن','shipped':'تم الشحن','received':'تم الاستلام','completed':'مكتمل','stalled':'متعثر','cancelled':'ملغي','returned':'مرتجع'}
+            ensure_auction_outcomes(); reconcile_direct_market_buy_orders(pid); phone=str(person.get('phone') or '').replace(' ',''); labels={'new':'طلب جديد','awaiting_payment':'بانتظار السداد','paid':'تم السداد','preparing':'قيد التجهيز','ready_to_ship':'جاهز للشحن','shipped':'تم الشحن','received':'تم الاستلام','completed':'مكتمل','stalled':'متعثر','cancelled':'ملغي','returned':'مرتجع'}
             rows=[]
             for o in load_orders():
                 if str(o.get('participantId') or '')!=pid and str(o.get('customerPhone') or '').replace(' ','')!=phone: continue
@@ -2413,11 +2429,16 @@ class H(SimpleHTTPRequestHandler):
                     if offered<=0 or offered+1e-9<minimum: self.sendj({'error':f'أقل عرض تفاوض مسموح {minimum:.2f} ر.س'},409); return
                 else: offered=base
                 fee_pct=float(load_settings().get('buyerFeePercent') or 0); fee=(offered if action=='offer' else base)*fee_pct/100; total=(offered if action=='offer' else base)+fee
-                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or ((item.get('country') or '')+' — '+(item.get('denomination') or '')),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':unit,'name':name,'phone':phone,'action':action,'quantity':qty,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':round(fee,2),'buyerTotal':round(total,2),'status':'pending','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'created':datetime.datetime.now().isoformat()}
+                now=datetime.datetime.now().isoformat(); direct_buy=(action=='buy')
+                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or ((item.get('country') or '')+' — '+(item.get('denomination') or '')),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':unit,'name':name,'phone':phone,'action':action,'quantity':qty,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':round(fee,2),'buyerTotal':round(total,2),'status':'accepted' if direct_buy else 'pending','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'created':now,'updated':now}
+                if direct_buy: row['acceptedAt']=now
                 a=load_market_requests(); a.append(row); save_json(MARKET_REQUESTS,{'requests':a})
+                if direct_buy:
+                    order=create_order_for_market(row); save_json(MARKET_REQUESTS,{'requests':a})
+                    add_notification('participant',pid,'order','تم إنشاء طلب الشراء',f"تم تسجيل طلب {row.get('itemTitle') or 'المقتنى'} ويمكن متابعته من مشترياتي وطلباتي.",item_id,'/account')
                 chk=next((x for x in load_market_requests() if x.get('id')==row['id']),None)
                 if not chk: self.sendj({'error':'تعذر التحقق من تسجيل طلب السوق'},500); return
-                self.sendj({'ok':True,'request':chk}); return
+                self.sendj({'ok':True,'request':chk,'orderId':row.get('orderId')}); return
             if p=='/api/market/request/respond':
                 rid=str(d.get('id','')); status=str(d.get('status','')).strip(); allowed={'accepted','rejected','shipped','completed','pending'}
                 if status not in allowed: self.sendj({'error':'حالة الطلب غير صالحة'},400); return
