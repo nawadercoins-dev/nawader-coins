@@ -1,4 +1,4 @@
-// V4.8.1 — participant session-aware visitor state.
+// V4.9.0 — persistent participant session-aware visitor state and market-first launch.
 (()=>{
 const K='nawaderVisitor',C='nawaderCart';
 const reactionKey=(kind)=>{let v=read(K,null);return (kind==='favorite'?'nawaderFavorites:':'nawaderLikes:')+(v?.id||'guest')};

@@ -62,7 +62,7 @@
 <label class="wide">وصف / ملاحظات<textarea id="subNotes" placeholder="معلومات مهمة عن العملة أو سبب تميزها"></textarea></label><label class="image-pick">صورة الوجه<input id="subFront" type="file" accept="image/*"><span class="image-preview" id="subFrontPreview"></span></label><label class="image-pick">صورة الخلف<input id="subBack" type="file" accept="image/*"><span class="image-preview" id="subBackPreview"></span></label><div class="wide submit-actions"><button class="send" id="sendSubmission">إضافة مباشرة</button><button class="cancel" id="cancelSubmission">إلغاء</button><span id="submissionMsg"></span></div></div></div>
   <h3 style="margin-top:20px">سجل إضافات المقتنيات</h3><div id="submissionList"><div class="empty">لا توجد طلبات اعتماد مقتنيات حتى الآن.</div></div></section>
   <section class="panel" id="ownedItemsPanel">
-    <div class="section-title"><h2>🪙 مقتنياتي <small style="font-size:.55em;color:#9a6818">V4.8.2</small></h2><span class="status" id="ownedItemsCount">0</span></div>
+    <div class="section-title"><h2>🪙 مقتنياتي <small style="font-size:.55em;color:#9a6818">V4.9.0</small></h2><span class="status" id="ownedItemsCount">0</span></div>
     <p class="auth-help">إدارة مقتنياتك المضافة مباشرة إلى المنصة.</p>
     <div id="ownedItemsList"><div class="empty">لا توجد مقتنيات معتمدة حتى الآن.</div></div>
   </section>
@@ -70,7 +70,7 @@
   <section class="panel" id="favoritesPanel"><div class="section-title"><h2>❤️ المفضلة</h2><span class="status" id="likesCount"></span></div><div id="favoritesList" class="activity-list"><div class="empty">لم تضف مقتنيات إلى المفضلة بعد.</div></div></section>
   <section class="panel" id="activityPanel"><h2>سجل النشاط المختصر</h2><div id="activity" class="activity-list"><div class="empty">لا يوجد نشاط حتى الآن.</div></div></section>
 </section>
-</main><script src="/visitor.js?v=4.8.1-stability"></script><script>
+</main><script src="/visitor.js?v=4.9.0-launch"></script><script>
 const $=x=>document.getElementById(x),esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function maskPhone(p){p=String(p||'').replace(/\s/g,'');if(p.length<6)return p;return p.slice(0,2)+'*****'+p.slice(-3)}
 function aliasKey(id){return 'nawaderAlias:'+id}function favoriteKey(id){return 'nawaderFavorites:'+id}
@@ -239,6 +239,6 @@ window.cancelOwnedAuction=async id=>{
   try{await ownerPost('/api/owner/auction/cancel',{participantId:v.id,itemId:id,reason});alert('تم إلغاء المزاد');loadOwnedItems(v)}catch(e){alert(e.message)}
 };
 
-$('register').onclick=async()=>{try{let current=NawaderVisitor.get();let r=await fetch('/api/participant/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('name').value.trim(),phone:$('phone').value.trim(),country:$('regCountry')?.value||'',pin:$('pin').value,claimId:current?.id||''})}),d=await r.json();if(!r.ok)throw Error(d.error||'تعذر تسجيل الدخول');if(!d.verified)throw Error('لم يكتمل تسجيل الدخول؛ أعد المحاولة');NawaderVisitor.set({...d.participant,verified:true});$('pin').value='';$('msg').textContent='✅ '+(d.message||'تم تسجيل الدخول');sync()}catch(e){$('msg').textContent='⚠️ '+e.message}};
+$('register').onclick=async()=>{try{let current=NawaderVisitor.get();let r=await fetch('/api/participant/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('name').value.trim(),phone:$('phone').value.trim(),country:$('regCountry')?.value||'',pin:$('pin').value,claimId:current?.id||''})}),d=await r.json();if(!r.ok)throw Error(d.error||'تعذر تسجيل الدخول');if(!d.verified)throw Error('لم يكتمل تسجيل الدخول؛ أعد المحاولة');NawaderVisitor.set({...d.participant,verified:true});$('pin').value='';$('msg').textContent='✅ '+(d.message||'تم تسجيل الدخول');let next=new URLSearchParams(location.search).get('next')||'';if(next&&next.startsWith('/')&&!next.startsWith('//')){location.href=next;return}sync()}catch(e){$('msg').textContent='⚠️ '+e.message}};
 sync();window.addEventListener('storage',sync);
 </script></body></html>
