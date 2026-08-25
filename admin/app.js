@@ -1,3 +1,4 @@
+// V4.8.2 ARCHIVE — moderation and integrity UI.
 const DB = "khazina_db",
   STORE = "items";
 let db,
@@ -104,8 +105,9 @@ async function api(path, opt = {}) {
   return j || {};
 }
 async function all() {
-  return (await api("/api/items")).items || [];
+  return ((await api("/api/items")).items || []).filter(i => !['archived','removed'].includes(i.moderationStatus||'') && !i.ownerArchived);
 }
+async function archivedItems(){ return (await api('/api/archive/items')).items || []; }
 async function put(x) {
   return api("/api/item", {
     method: "POST",
@@ -652,7 +654,7 @@ else setupStorageSelectors();
 function show(vw) {
   document
     .querySelectorAll(".view")
-    .forEach((x) => x.classList.toggle("active", x.id === vw));
+    .forEach((x) => x.classList.toggle("active", x.id === vw || (vw === "warehouse" && x.id === "warehouseView")));
   document
     .querySelectorAll("nav button")
     .forEach((x) => x.classList.toggle("active", x.dataset.v === vw));
@@ -733,7 +735,7 @@ function auctionCard(i) {
   let endedActions = successfulClosed
     ? `<button class="danger-outline" onclick="openAuctionException('${i.id}')">استثناء</button>`
     : `<button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة المزاد</button><button class="ghost" onclick="returnEndedAuctionToWarehouse('${i.id}')">إعادة للمستودع</button>`;
-  return `<article class="item auction-item ${successfulClosed ? "successful-locked" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="openAdminAuctionImages('${i.id}',0)" title="اضغط لفتح عارض الصور" style="cursor:zoom-in"><span class="auction-state ${successfulClosed ? "sold" : exception ? "exception" : ended ? "ended" : "live"}">${successfulClosed ? "ناجح — مغلق" : exception ? "استثناء" : ended ? "منتهي" : "نشط"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${successfulClosed ? "ok" : i.auctionApproved ? "ok" : "pending"}">${successfulClosed ? "🏆 مزاد ناجح" : i.auctionApproved ? "✓ معتمد" : "بانتظار الاعتماد"}</span></div><p class="auction-clock ${ended ? "ended" : ""}" data-end="${esc(i.auctionEnd || "")}">${esc(left || "بدون وقت انتهاء")}</p><div class="auction-admin-metrics"><div><span>السعر الحالي</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>قيمة الزيادة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع • إدارة فقط</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${successfulClosed ? '<p class="sold-order-note">🔒 أُغلق المزاد بنجاح؛ لا عودة ولا إعادة مزايدة إلا باستثناء موثق.</p>' : ""}<p class="round-chip">الجولة ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض</button>${!successfulClosed ? `<button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button>${!ended ? `<button class="ghost auction-quick-edit-btn" onclick="openAuctionQuickEdit('${i.id}')">⚙️ تعديل المزاد</button><button class="danger" onclick="cancelActiveAuction('${i.id}')">⛔ إلغاء المزاد</button>` : ""}` : ""}${ended ? endedActions : ""}<a class="public-link" href="/auction#${i.id}" target="_blank">مشاركة</a></div><div class="bid-list" id="bids-${i.id}" data-round="${Number(i.auctionRound || 1)}"></div></div></article>`;
+  return `<article class="item auction-item ${successfulClosed ? "successful-locked" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="openAdminAuctionImages('${i.id}',0)" title="اضغط لفتح عارض الصور" style="cursor:zoom-in"><span class="auction-state ${successfulClosed ? "sold" : exception ? "exception" : ended ? "ended" : "live"}">${successfulClosed ? "ناجح — مغلق" : exception ? "استثناء" : ended ? "منتهي" : "نشط"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${successfulClosed ? "ok" : i.auctionApproved ? "ok" : "pending"}">${successfulClosed ? "🏆 مزاد ناجح" : i.auctionApproved ? "✓ نشط" : "موقوف/غير منشور"}</span></div><p class="auction-clock ${ended ? "ended" : ""}" data-end="${esc(i.auctionEnd || "")}">${esc(left || "بدون وقت انتهاء")}</p><div class="auction-admin-metrics"><div><span>السعر الحالي</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>قيمة الزيادة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع • إدارة فقط</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${successfulClosed ? '<p class="sold-order-note">🔒 أُغلق المزاد بنجاح؛ لا عودة ولا إعادة مزايدة إلا باستثناء موثق.</p>' : ""}<p class="round-chip">الجولة ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض</button>${archiveButton(i.id)}${!successfulClosed ? `<button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button>${!ended ? `<button class="ghost auction-quick-edit-btn" onclick="openAuctionQuickEdit('${i.id}')">⚙️ تعديل المزاد</button><button class="danger" onclick="cancelActiveAuction('${i.id}')">⛔ إلغاء المزاد</button>` : ""}` : ""}${ended ? endedActions : ""}<a class="public-link" href="/auction#${i.id}" target="_blank">مشاركة</a></div><div class="bid-list" id="bids-${i.id}" data-round="${Number(i.auctionRound || 1)}"></div></div></article>`;
 }
 
 function endedReserveReached(i) {
@@ -774,7 +776,7 @@ function endedAuctionCard(i) {
   let actions = sold
     ? `<button onclick="detail('${i.id}')">عرض السجل</button><button class="danger-outline" onclick="openAuctionException('${i.id}')">استثناء</button>`
     : cancelled ? `<button onclick="detail('${i.id}')">عرض السجل</button>`
-    : `<button onclick="detail('${i.id}')">عرض السجل</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button><button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة إدراج</button>`;
+    : `<button onclick="detail('${i.id}')">عرض السجل</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button>${archiveButton(i.id)}<button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة إدراج</button>`;
   return `<article class="item auction-item ended-admin-card ${sold ? "sold-ended successful-locked" : exception ? "exception-ended" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="detail('${i.id}')"><span class="auction-state ${stateClass}">${stateText}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${sold ? "ok" : exception ? "warning" : "pending"}">${chipText}</span></div><p class="ended-date">انتهى: ${esc(i.auctionEnd || "—")}</p><div class="auction-admin-metrics"><div><span>آخر سعر</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح السابق</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>الزيادة السابقة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع السابق</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${sold ? '<p class="sold-order-note">🔒 مزاد ناجح نهائي — لا عودة للمستودع ولا إعادة مزايدة. الاستثناء فقط للحالات الموثقة قبل اكتمال البيع.</p>' : ""}${exceptionNote}${cancelNote}<p class="round-chip">الجولة المنتهية ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions">${actions}</div></div></article>`;
 }
 async function renderEndedAuctions(a) {
@@ -947,7 +949,7 @@ async function refresh(force = false) {
     $("recent").innerHTML =
       a.slice(0, 12).map(card).join("") || "<p>لا توجد بيانات.</p>";
     renderList(a);
-    if (document.getElementById("warehouse")?.classList.contains("active"))
+    if (document.getElementById("warehouseView")?.classList.contains("active"))
       await renderWarehouse();
     if (document.getElementById("special")?.classList.contains("active"))
       await renderSpecialAdmin(a);
@@ -1185,7 +1187,7 @@ function renderWarehouseRows() {
       : '<div class="warehouse-no-photo">لا توجد صورة</div>';
     let returnActions = Number(x.returned || 0) > 0 ? `<button onclick="resolveInventoryReturn('${x.itemId}','warehouse')">↩ إعادة للمستودع</button><button class="danger" onclick="resolveInventoryReturn('${x.itemId}','damaged')">تسجيل تالف</button>` : "";
     let classification = ({graded:"مُقيَّم",ungraded:"غير مُقيَّم",set:"طقم"})[effectiveClassification(x)] || "غير مُقيَّم";
-    return `<article class="warehouse-item">${photo}<div class="warehouse-item-main"><div class="warehouse-item-title"><h3>${esc(x.country)} — ${esc(x.denomination)} ${transitionalBadge(x._source||x)}</h3><span>${esc(x.year || "بدون سنة")}</span></div><div class="warehouse-item-quantities"><span>التصنيف <b>${classification}</b></span><span>الإجمالي <b>${x.total}</b></span><span>المتاح <b>${x.warehouse}</b></span><span>السوق <b>${x.market}</b></span><span>المزاد <b>${x.auction}</b></span><span>المحجوز <b>${x.reserved}</b></span><span>المرتجع <b>${x.returned}</b></span><span>المباع <b>${x.sold}</b></span></div><p class="storage-path">${esc(location)}</p><small>${x.unitCount} ${esc(inventoryUnitLabel(x.unitType))} × ${x.piecesPerUnit} ورقة/قطعة${x.sourceSubmissionId ? " — محوّل من طلب اعتماد" : ""}</small></div><div class="actions"><button onclick="detail('${x.itemId}')">عرض</button><button class="ghost" onclick="editItem('${x.itemId}')">تعديل</button>${adminMoveButtons({id:x.itemId},"warehouse")}${returnActions}</div></article>`;
+    return `<article class="warehouse-item">${photo}<div class="warehouse-item-main"><div class="warehouse-item-title"><h3>${esc(x.country)} — ${esc(x.denomination)} ${transitionalBadge(x._source||x)}</h3><span>${esc(x.year || "بدون سنة")}</span></div><div class="warehouse-item-quantities"><span>التصنيف <b>${classification}</b></span><span>الإجمالي <b>${x.total}</b></span><span>المتاح <b>${x.warehouse}</b></span><span>السوق <b>${x.market}</b></span><span>المزاد <b>${x.auction}</b></span><span>المحجوز <b>${x.reserved}</b></span><span>المرتجع <b>${x.returned}</b></span><span>المباع <b>${x.sold}</b></span></div><p class="storage-path">${esc(location)}</p><small>${x.unitCount} ${esc(inventoryUnitLabel(x.unitType))} × ${x.piecesPerUnit} ورقة/قطعة${x.sourceSubmissionId ? " — محوّل من طلب اعتماد" : ""}</small></div><div class="actions"><button onclick="detail('${x.itemId}')">عرض</button><button class="ghost" onclick="editItem('${x.itemId}')">تعديل</button>${archiveButton(x.itemId)}${adminMoveButtons({id:x.itemId},"warehouse")}${returnActions}</div></article>`;
   }).join("") || '<p class="muted">لا توجد مقتنيات في هذا المؤشر.</p>';
 }
 async function renderWarehouse() {
@@ -1261,7 +1263,7 @@ function renderTransitionalAdminCard(i) {
       <div class="transitional-data"><span>السنة<b>${esc(i.year||"—")}</b></span><span>الندرة<b>${esc(rarity)}</b></span><span>الإصدار السابق<b>${esc(i.transitionalPreviousIssue||"—")}</b></span><span>الإصدار اللاحق<b>${esc(i.transitionalNextIssue||"—")}</b></span><span>التوفر التقديري<b>${esc(i.transitionalEstimatedPopulation||"—")}</b></span><span>القيمة المرجعية<b>${Number(i.transitionalReferenceValue||0)>0?money(i.transitionalReferenceValue):"—"}</b></span></div>
       <p class="special-reason"><b>سبب التصنيف:</b> ${esc(i.transitionalReason||"—")}</p>${i.transitionalNotes?`<p class="special-reason"><b>ملاحظات:</b> ${esc(i.transitionalNotes)}</p>`:""}
     </div>
-    <div class="actions special-admin-actions"><button onclick="detail('${esc(i.id)}')">عرض</button><button class="ghost" onclick="editItem('${esc(i.id)}')">✎ تعديل</button>${adminMoveButtons(i,adminItemLocation(i))}</div>
+    <div class="actions special-admin-actions"><button onclick="detail('${esc(i.id)}')">عرض</button><button class="ghost" onclick="editItem('${esc(i.id)}')">✎ تعديل</button>${archiveButton(i.id)}${adminMoveButtons(i,adminItemLocation(i))}</div>
   </article>`;
 }
 async function renderTransitionalAdmin(){
@@ -1304,7 +1306,7 @@ function specialAdminCard(i) {
       <div class="special-admin-data"><span>السعر <b>${price > 0 ? money(price) : "غير محدد"}</b></span><span>الكمية <b>${Number(i.marketQuantity || i.quantity || 0)}</b></span><span>الأرقام <b>${serials.length}</b></span><span>الموقع <b>${esc(loc(i))}</b></span></div>
       ${serials.length ? `<details class="special-serials"><summary>عرض الأرقام التسلسلية (${serials.length})</summary><div>${serials.slice(0,200).map(x=>`<span dir="ltr">${esc(x)}</span>`).join("")}${serials.length>200?`<em>+ ${serials.length-200} رقم إضافي</em>`:""}</div></details>` : ""}
     </div>
-    <div class="actions special-admin-actions"><button onclick="detail('${esc(i.id)}')">عرض</button><button class="ghost" onclick="editItem('${esc(i.id)}')">✎ تعديل التصنيف والسعر</button>${adminMoveButtons(i,"special")}<a class="public-link" href="/special-numbers#item-${encodeURIComponent(i.id)}" target="_blank">معاينة للعميل</a><button class="danger" onclick="disableSpecialItem('${esc(i.id)}')">إيقاف من الصفحة</button></div>
+    <div class="actions special-admin-actions"><button onclick="detail('${esc(i.id)}')">عرض</button><button class="ghost" onclick="editItem('${esc(i.id)}')">✎ تعديل التصنيف والسعر</button>${archiveButton(i.id)}${adminMoveButtons(i,"special")}<a class="public-link" href="/special-numbers#item-${encodeURIComponent(i.id)}" target="_blank">معاينة للعميل</a><button class="danger" onclick="disableSpecialItem('${esc(i.id)}')">إيقاف من الصفحة</button></div>
   </article>`;
 }
 function renderSpecialAdminRows() {
@@ -1355,16 +1357,16 @@ if ($("refreshSpecial")) $("refreshSpecial").onclick = () => renderSpecialAdmin(
 if ($("specialAddNew")) $("specialAddNew").onclick = () => { show("add"); setTimeout(() => $("specialNumberEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}), 80); };
 
 window.removeItem = async (id) => {
-  if (confirm("حذف السجل؟")) {
-    try {
-      await del(id);
-      await refresh(true);
-      toast("تم حذف المقتنى.");
-    } catch (error) {
-      alert("تعذر حذف المقتنى: " + (error?.message || "خطأ غير معروف"));
-    }
-  }
+  let reason=(prompt("سيتم نقل المقتنى إلى الأرشيف ولن يحذف نهائيًا. اكتب سبب الحذف:","")||"").trim();
+  if(!reason)return;
+  if(!confirm("نقل هذا المقتنى إلى الأرشيف؟ يمكن استعادته لاحقًا."))return;
+  try {
+    await api('/api/archive/item',{method:'POST',body:JSON.stringify({itemId:id,reason})});
+    await refresh(true); await renderArchive();
+    toast("تم نقل المقتنى إلى الأرشيف.");
+  } catch (error) { alert("تعذر نقل المقتنى إلى الأرشيف: " + (error?.message || "خطأ غير معروف")); }
 };
+window.archiveButton=(id)=>`<button class="danger" onclick="removeItem('${esc(id)}')">حذف</button>`;
 window.detail = async (id) => {
   let i = (await all()).find((x) => String(x.id) === String(id)),
     rows = [
@@ -1423,8 +1425,8 @@ window.detail = async (id) => {
           : "غير مخصص",
       ],
       [
-        "اعتماد المزاد",
-        i.forAuction ? (i.auctionApproved ? "معتمد" : "غير معتمد") : "—",
+        "حالة نشر المزاد",
+        i.forAuction ? (i.auctionApproved ? "نشط" : "غير منشور") : "—",
       ],
       ["كمية المزاد", i.forAuction ? i.auctionQuantity || 1 : "—"],
       [
@@ -1530,7 +1532,24 @@ function initViewers() {
 let participantFilter = "all";
 const approvalMeta = {new:["طلب جديد","new"],preliminary:["اعتماد مبدئي","preliminary"],final:["اعتماد نهائي","final"],suspended:["معلّق","suspended"],stopped:["موقوف","stopped"],cancelled:["ملغى","cancelled"]};
 function approvalBadge(x){let s=x.approvalStatus||"new",m=approvalMeta[s]||approvalMeta.new;return `<span class="approval-badge ${m[1]}">${m[0]}</span>`}
-function participantActions(x){if((x.approvalStatus||"")==="cancelled")return `<button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`;return `<button class="approval-preliminary" onclick="participantSetStatus('${x.id}','preliminary')">اعتماد مبدئي</button><button class="approval-final" onclick="participantSetStatus('${x.id}','final')">اعتماد نهائي</button><button class="approval-suspended" onclick="participantSetStatus('${x.id}','suspended')">تعليق الاعتماد</button><button class="approval-stopped" onclick="participantSetStatus('${x.id}','stopped')">إيقاف الاعتماد</button><button class="approval-cancelled" onclick="participantSetStatus('${x.id}','cancelled')">إلغاء الاعتماد</button><button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`}
+function participantActions(x){
+  if((x.approvalStatus||"")==="cancelled")
+    return `<button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`;
+  return `<button class="approval-preliminary" onclick="participantSetStatus('${x.id}','preliminary')">توثيق مبدئي</button>
+  <button class="approval-final" onclick="participantSetStatus('${x.id}','final')">توثيق كامل</button>
+  <button class="approval-suspended" onclick="participantSetStatus('${x.id}','suspended')">تعليق الحساب</button>
+  <button class="approval-stopped" onclick="participantSetStatus('${x.id}','stopped')">إيقاف الحساب</button>
+  <button class="approval-cancelled" onclick="participantSetStatus('${x.id}','cancelled')">إلغاء الحساب</button>
+  <button class="ghost" onclick="resetParticipantPin('${x.id}')">🔑 رمز الدخول</button>
+  <button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`;
+}
+window.resetParticipantPin=async id=>{
+  let pin=(prompt("اكتب رمز دخول جديد للحساب (4 خانات أو أكثر):","")||"").trim();
+  if(!pin)return;
+  if(pin.length<4){alert("الرمز قصير جدًا");return}
+  if(!confirm("سيتم إنهاء أي جلسة دخول قديمة لهذا الحساب. متابعة؟"))return;
+  try{await api("/api/participant/reset-pin",{method:"POST",body:JSON.stringify({id,pin})});alert("تم تحديث رمز الدخول. أعطه لصاحب الحساب بطريقة آمنة.")}catch(e){alert(e.message)}
+};
 async function renderParticipants() {
   try {
     let r = await api("/api/participants");
@@ -1568,7 +1587,7 @@ async function refreshParticipantBadge() {
       $("dashboardParticipantsPending").textContent = r.pending || 0;
   } catch (e) {}
 }
-window.participantSetStatus=async(id,status)=>{let labels={preliminary:"الاعتماد المبدئي",final:"الاعتماد النهائي",suspended:"تعليق الاعتماد",stopped:"إيقاف الاعتماد",cancelled:"إلغاء الاعتماد نهائيًا"},reason="";if(["suspended","stopped","cancelled"].includes(status)){reason=prompt("اكتب سبب القرار (إلزامي):","")?.trim()||"";if(!reason){alert("لم ينفذ القرار: كتابة السبب إلزامية.");return}}if(!confirm(`تأكيد ${labels[status]} لهذا المستخدم؟${reason?"\nالسبب: "+reason:""}`))return;try{await api("/api/participant/approval-status",{method:"POST",body:JSON.stringify({id,status,reason})});await renderParticipants();await renderAdminNotifications()}catch(e){alert("تعذر تحديث الاعتماد: "+e.message)}};
+window.participantSetStatus=async(id,status)=>{let labels={preliminary:"التوثيق المبدئي",final:"التوثيق الكامل",suspended:"تعليق الحساب",stopped:"إيقاف الحساب",cancelled:"إلغاء الحساب نهائيًا"},reason="";if(["suspended","stopped","cancelled"].includes(status)){reason=prompt("اكتب سبب القرار (إلزامي):","")?.trim()||"";if(!reason){alert("لم ينفذ القرار: كتابة السبب إلزامية.");return}}if(!confirm(`تأكيد ${labels[status]} لهذا المستخدم؟${reason?"\nالسبب: "+reason:""}`))return;try{await api("/api/participant/approval-status",{method:"POST",body:JSON.stringify({id,status,reason})});await renderParticipants();await renderAdminNotifications()}catch(e){alert("تعذر تحديث حالة الحساب: "+e.message)}};
 window.showParticipantHistory=id=>{let x=(window.__participantRows||[]).find(p=>p.id===id),rows=x?.approvalHistory||[];let lines=rows.length?rows.slice().reverse().map(h=>`${new Date(h.at).toLocaleString("ar-SA")} — ${(approvalMeta[h.status]||[h.status])[0]} — ${h.actor||"الإدارة"}${h.reason?" — "+h.reason:""}`).join("\n"):"لا يوجد سجل سابق.";alert(`سجل المستخدم: ${x?.name||""}\n\n${lines}`)};
 document.querySelectorAll("[data-participant-filter]").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("[data-participant-filter]").forEach(x=>x.classList.remove("active"));b.classList.add("active");participantFilter=b.dataset.participantFilter;renderParticipants()}));
 async function loadAdminBids() {
@@ -1952,7 +1971,7 @@ $("form").onsubmit = async (e) => {
       let end = v("auctionEnd");
       if (!end)
         throw new Error(
-          "اعتماد المزاد للنشر يتطلب تحديد تاريخ ووقت انتهاء المزاد",
+          "نشر المزاد يتطلب تحديد تاريخ ووقت انتهاء المزاد",
         );
       if (!Number.isFinite(auctionEndMs))
         throw new Error("صيغة تاريخ انتهاء المزاد غير صحيحة");
@@ -1961,7 +1980,7 @@ $("form").onsubmit = async (e) => {
     }
     if (marketPublish) {
       if (n("marketSalePrice") <= 0)
-        throw new Error("اعتماد العرض في السوق يتطلب سعر بيع أكبر من صفر");
+        throw new Error("نشر العرض في السوق يتطلب سعر بيع أكبر من صفر");
       if ((n("marketQuantity") || 0) < 1)
         throw new Error("الكمية المعروضة في السوق يجب أن تكون 1 على الأقل");
     }
@@ -3015,7 +3034,7 @@ function marketAdminCard(i) {
       ...(i.additionalImages || []),
     ].filter(Boolean),
     title = i.marketTitle || `${i.country} — ${i.denomination}`;
-  return `<article class="item market-admin-card">${i.frontImg ? `<button type="button" class="market-image-button" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})' title="فتح عارض الصور"><img src="${i.frontImg}" alt="${esc(title)}"><span class="market-image-hint">⛶ تكبير الصور</span></button>` : '<div class="market-image-button market-no-photo">لا توجد صورة</div>'}<div class="market-admin-body"><h3>${esc(title)} ${transitionalBadge(i)}</h3><p class="market-status-row"><span class="badge market-badge">${marketTypeLabel(i.marketOfferType)}</span> <span class="approval-chip ${i.marketApproved ? "ok" : "bad"}">${i.marketApproved ? "نشط" : "غير نشط"}</span></p><div class="market-admin-metrics"><b>سعر ${ul}: ${money(price)}</b><span>المتاح ${left} من ${qty} ${i.marketOfferType === "set" ? "طقم" : i.marketOfferType === "bundle" ? "حزمة" : "وحدة"}</span>${i.marketSetPieces ? `<span>داخل الوحدة ${Number(i.marketSetPieces)} قطعة/ورقة</span>` : ""}</div><p class="market-negotiation">${i.marketNegotiationEnabled ? `التفاوض حتى ${Number(i.marketNegotiationPercent || 0)}%` : "سعر ثابت"}</p><div class="actions market-admin-actions">${imgs.length ? `<button class="ghost" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})'>⛶ الصور</button>` : ""}<button onclick="editItem('${i.id}')">تعديل</button>${adminMoveButtons(i,"market")}<a class="public-link" href="/market#${i.id}" target="_blank">عرض في السوق</a></div></div></article>`;
+  return `<article class="item market-admin-card">${i.frontImg ? `<button type="button" class="market-image-button" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})' title="فتح عارض الصور"><img src="${i.frontImg}" alt="${esc(title)}"><span class="market-image-hint">⛶ تكبير الصور</span></button>` : '<div class="market-image-button market-no-photo">لا توجد صورة</div>'}<div class="market-admin-body"><h3>${esc(title)} ${transitionalBadge(i)}</h3><p class="market-status-row"><span class="badge market-badge">${marketTypeLabel(i.marketOfferType)}</span> <span class="approval-chip ${i.marketApproved ? "ok" : "bad"}">${i.marketApproved ? "نشط" : "غير نشط"}</span></p><div class="market-admin-metrics"><b>سعر ${ul}: ${money(price)}</b><span>المتاح ${left} من ${qty} ${i.marketOfferType === "set" ? "طقم" : i.marketOfferType === "bundle" ? "حزمة" : "وحدة"}</span>${i.marketSetPieces ? `<span>داخل الوحدة ${Number(i.marketSetPieces)} قطعة/ورقة</span>` : ""}</div><p class="market-negotiation">${i.marketNegotiationEnabled ? `التفاوض حتى ${Number(i.marketNegotiationPercent || 0)}%` : "سعر ثابت"}</p><div class="actions market-admin-actions">${imgs.length ? `<button class="ghost" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})'>⛶ الصور</button>` : ""}<button onclick="editItem('${i.id}')">تعديل</button>${archiveButton(i.id)}${adminMoveButtons(i,"market")}<a class="public-link" href="/market#${i.id}" target="_blank">عرض في السوق</a></div></div></article>`;
 }
 function marketStatusLabel(st) {
   return st === "accepted"
@@ -4070,71 +4089,98 @@ document
     b.addEventListener("click", () => setTimeout(() => renderFinance(), 50)),
   );
 
-// V4.0.11 — customer collectible approval workflow
-function collectibleApprovalStatus(s) {
-  return s === "approved"
-    ? "معتمد"
-    : s === "needs_changes"
-      ? "يحتاج استكمال"
-      : s === "rejected"
-        ? "مرفوض"
-        : "قيد المراجعة";
+// V4.8.2 — direct publishing moderation workflow
+function moderationLabel(s){
+  return ({active:"نشط",hidden:"مخفي",suspended:"موقوف",archived:"مؤرشف"})[s||"active"]||"نشط";
 }
-async function renderCollectibleApprovals() {
-  if (!$("collectibleApprovalsList")) return;
-  try {
-    let r = await api("/api/collectible-submissions/admin"),
-      rows = r.submissions || [];
-    $("collectiblePendingCount").textContent = r.pending || 0;
-    $("collectibleNeedsCount").textContent = r.needsChanges || 0;
-    $("collectibleTotalCount").textContent = rows.length;
-    let badge = $("collectibleApprovalsBadge");
-    if (badge) {
-      let n = (r.pending || 0) + (r.needsChanges || 0);
-      badge.textContent = n;
-      badge.hidden = !n;
-    }
-    $("collectibleApprovalsList").innerHTML =
-      rows
-        .map(
-          (x) =>
-            `<article class="collectible-approval-card"><div class="collectible-approval-images">${x.frontImage ? `<img src="${x.frontImage}" onclick='openCoinLightbox([${JSON.stringify(x.frontImage)},${JSON.stringify(x.backImage || "")}].filter(Boolean),0,${JSON.stringify((x.country || "") + " — " + (x.denomination || ""))})'>` : ""}${x.backImage ? `<img src="${x.backImage}" onclick='openCoinLightbox([${JSON.stringify(x.frontImage || "")},${JSON.stringify(x.backImage)}].filter(Boolean),${x.frontImage ? 1 : 0},${JSON.stringify((x.country || "") + " — " + (x.denomination || ""))})'>` : ""}</div><div class="collectible-approval-info"><h3>${esc(x.country)} — ${esc(x.denomination)}</h3><div><b>${esc(x.participantName || "عميل")}</b> — ${esc(x.participantPhone || "")}</div><div class="collectible-meta"><span>${esc(x.year || "بدون سنة")}</span><span>${esc(x.condition || "—")}</span>${x.serial ? `<span>رقم: ${esc(x.serial)}</span>` : ""}<span>التصنيف: ${x.inventoryClassification === "set" ? "طقم" : x.inventoryClassification === "graded" ? "مُقيَّم" : "غير مُقيَّم"}</span><span>الكمية الفعلية: ${Number(x.quantity || 1)}</span><span>الرغبة: ${x.desiredDestination === "market" ? "السوق" : x.desiredDestination === "auction" ? "المزاد" : "المستودع"}</span><span class="collectible-state ${esc(x.status)}">${collectibleApprovalStatus(x.status)}</span></div>${x.notes ? `<p>${esc(x.notes)}</p>` : ""}${x.itemId ? `<p><b>${x.warehouseVerified ? "✓ محفوظ ومتحقق داخل المستودع:" : "أضيف للسجل:"}</b> ${esc(x.itemId)}</p>` : ""}<textarea id="cap-note-${esc(x.id)}" class="collectible-admin-note" placeholder="ملاحظة للعميل عند طلب الاستكمال أو الرفض">${esc(x.adminNote || "")}</textarea><div class="collectible-actions"><button class="approve" onclick="setCollectibleApproval('${esc(x.id)}','approved')" ${x.status === "approved" ? "disabled" : ""}>✓ اعتماد وإيداع بالمستودع</button><button class="changes" onclick="setCollectibleApproval('${esc(x.id)}','needs_changes')">✎ طلب استكمال</button><button class="reject" onclick="setCollectibleApproval('${esc(x.id)}','rejected')">رفض</button></div><small>${x.created ? new Date(x.created).toLocaleString("ar-SA") : ""}</small></div></article>`,
-        )
-        .join("") ||
-      '<p class="muted">لا توجد طلبات اعتماد مقتنيات حتى الآن.</p>';
-  } catch (e) {
-    $("collectibleApprovalsList").textContent =
-      "تعذر تحميل طلبات الاعتماد: " + e.message;
-  }
+async function renderCollectibleApprovals(){
+  if(!$("collectibleApprovalsList"))return;
+  try{
+    let r=await api("/api/items"),rows=r.items||[];
+    let active=rows.filter(x=>(x.moderationStatus||"active")==="active").length;
+    let restricted=rows.length-active;
+    $("collectiblePendingCount").textContent=active;
+    $("collectibleNeedsCount").textContent=restricted;
+    $("collectibleTotalCount").textContent=rows.length;
+    let badge=$("collectibleApprovalsBadge");if(badge){badge.textContent=restricted;badge.hidden=!restricted}
+    $("collectibleApprovalsList").innerHTML=rows.slice().sort((a,b)=>Number(b.updated||0)-Number(a.updated||0)).map(i=>{
+      let s=i.moderationStatus||"active",imgs=[i.frontImg,i.backImg].filter(Boolean);
+      return `<article class="collectible-approval-card">
+        <div class="collectible-approval-images">${imgs.slice(0,2).map((src,idx)=>`<img src="${esc(src)}" onclick='openCoinLightbox(${JSON.stringify(imgs)},${idx},${JSON.stringify((i.country||"")+" — "+(i.denomination||""))})'>`).join("")}</div>
+        <div class="collectible-approval-info">
+          <h3>${esc(i.country||"—")} — ${esc(i.denomination||"—")}</h3>
+          <div><b>${esc(i.ownerName||"صاحب المنصة")}</b> ${i.ownerCountry?`— ${esc(i.ownerCountry)}`:""}</div>
+          <div class="collectible-meta"><span>${esc(i.year||"بدون سنة")}</span><span>السوق: ${i.forMarket&&i.marketApproved?"منشور":"—"}</span><span>المزاد: ${i.forAuction&&i.auctionApproved?"منشور":"—"}</span><span class="collectible-state">${moderationLabel(s)}</span></div>
+          ${i.moderationReason?`<p><b>سبب آخر إجراء:</b> ${esc(i.moderationReason)}</p>`:""}
+          <div class="collectible-actions">
+            ${s!=="active"?`<button class="approve" onclick="setItemModeration('${esc(i.id)}','active')">✓ تفعيل</button>`:""}
+            <button class="changes" onclick="setItemModeration('${esc(i.id)}','hidden')">إخفاء</button>
+            <button class="changes" onclick="setItemModeration('${esc(i.id)}','suspended')">إيقاف</button>
+            <button class="reject" onclick="removeItem('${esc(i.id)}')">حذف ← الأرشيف</button>
+          </div>
+        </div>
+      </article>`;
+    }).join("")||'<p class="muted">لا توجد مقتنيات.</p>';
+  }catch(e){$("collectibleApprovalsList").textContent="تعذر تحميل مراقبة المقتنيات: "+e.message}
 }
-window.setCollectibleApproval = async (id, status) => {
-  try {
-    let note = $("cap-note-" + id)?.value || "";
-    if (
-      status === "rejected" &&
-      !note.trim() &&
-      !confirm("لم تكتب سبب الرفض. هل تريد المتابعة؟")
-    )
-      return;
-    await api("/api/collectible-submissions/status", {
-      method: "POST",
-      body: JSON.stringify({ id, status, note }),
-    });
-    await renderCollectibleApprovals();
-    await renderAdminNotifications();
-    await refresh(true);
-  } catch (e) {
-    alert(e.message);
-  }
+window.setItemModeration=async(id,status)=>{
+  let reason="";
+  if(status!=="active"){reason=(prompt("اكتب سبب الإجراء (إلزامي):","")||"").trim();if(!reason)return}
+  if(!confirm(`${status==="active"?"إعادة تفعيل":"تطبيق الإجراء"} على هذا المقتنى؟`))return;
+  try{await api("/api/moderation/item",{method:"POST",body:JSON.stringify({itemId:id,status,reason})});await renderCollectibleApprovals();await refresh(true);await renderAdminNotifications()}catch(e){alert(e.message)}
 };
-if ($("refreshCollectibleApprovals"))
-  $("refreshCollectibleApprovals").onclick = renderCollectibleApprovals;
-document
-  .querySelectorAll(
-    'nav button[data-v="collectible-approvals"],.dashboard-go[data-go="collectible-approvals"]',
-  )
-  .forEach((b) => b.addEventListener("click", renderCollectibleApprovals));
-setTimeout(renderCollectibleApprovals, 600);
+if($("refreshCollectibleApprovals"))$("refreshCollectibleApprovals").onclick=renderCollectibleApprovals;
+document.querySelectorAll('nav button[data-v="collectible-approvals"],.dashboard-go[data-go="collectible-approvals"]').forEach(b=>b.addEventListener("click",renderCollectibleApprovals));
+setTimeout(renderCollectibleApprovals,600);
+
+async function renderArchive(){
+  if(!$('archiveList'))return;
+  try{
+    let rows=await archivedItems();
+    $('archiveCount').textContent=rows.length; $('archiveRestoreCount').textContent=rows.length;
+    let badge=$('archiveBadge'); if(badge){badge.textContent=rows.length;badge.hidden=!rows.length}
+    $('archiveList').innerHTML=rows.map(i=>{
+      let imgs=[i.frontImg,i.backImg].filter(Boolean),title=`${i.country||'—'} — ${i.denomination||'—'}`;
+      return `<article class="collectible-approval-card"><div class="collectible-approval-images">${imgs.slice(0,2).map((src,n)=>`<img src="${esc(src)}" onclick='openCoinLightbox(${JSON.stringify(imgs)},${n},${JSON.stringify(title)})'>`).join('')}</div><div class="collectible-approval-info"><h3>${esc(title)}</h3><div><b>المالك:</b> ${esc(i.ownerName||'صاحب المنصة')}</div><div class="collectible-meta"><span>الحذف: ${i.archivedAt?new Date(i.archivedAt).toLocaleString('ar-SA'):'—'}</span><span>بواسطة: ${esc(i.archivedBy|| (i.ownerArchived?'صاحب المقتنى':'الإدارة'))}</span></div><p><b>السبب:</b> ${esc(i.archiveReason||i.moderationReason||'غير مسجل')}</p><div class="actions"><button class="approve" onclick="restoreArchiveItem('${esc(i.id)}')">↩ استعادة</button><button class="reject" onclick="purgeArchiveItem('${esc(i.id)}')">🗑 إزالة نهائية</button><button class="ghost" onclick="detailArchived('${esc(i.id)}')">عرض البيانات</button></div></div></article>`;
+    }).join('')||'<p class="muted">الأرشيف فارغ.</p>';
+  }catch(e){$('archiveList').textContent='تعذر تحميل الأرشيف: '+e.message}
+}
+window.restoreArchiveItem=async id=>{
+  if(!confirm('استعادة هذا المقتنى من الأرشيف؟'))return;
+  try{let r=await api('/api/archive/restore',{method:'POST',body:JSON.stringify({itemId:id})});await renderArchive();await refresh(true);toast('تمت استعادة المقتنى.');if(r.warning)alert(r.warning)}catch(e){alert('تعذر الاستعادة: '+e.message)}
+};
+window.purgeArchiveItem=async id=>{
+  let reason=(prompt('اكتب سبب الإزالة النهائية:', '')||'').trim(); if(!reason)return;
+  let confirmText=(prompt('هذه العملية تزيل سجل المقتنى نهائيًا مع إبقاء تاريخ الطلبات والمزايدات. اكتب: إزالة نهائية','')||'').trim();
+  if(confirmText!=='إزالة نهائية'){alert('لم يتم التأكيد.');return}
+  if(!confirm('تأكيد أخير: لا يمكن استعادة المقتنى بعد الإزالة النهائية.'))return;
+  try{let r=await api('/api/archive/purge',{method:'POST',body:JSON.stringify({itemId:id,reason,confirmText})});await renderArchive();await refresh(true);toast('تمت إزالة المقتنى نهائيًا من الأرشيف، وبقي تاريخ المعاملات محفوظًا.')}catch(e){alert('تعذر الإزالة النهائية: '+e.message)}
+};
+window.detailArchived=async id=>{
+  let i=(await archivedItems()).find(x=>String(x.id)===String(id));if(!i)return;
+  alert(`${i.country||'—'} — ${i.denomination||'—'}\nالسنة: ${i.year||'—'}\nالحالة: ${i.condition||'—'}\nالرقم: ${i.serial||'—'}\nسبب الأرشفة: ${i.archiveReason||i.moderationReason||'—'}`)
+};
+if($('refreshArchive'))$('refreshArchive').onclick=renderArchive;
+document.querySelectorAll('nav button[data-v="archive"],.dashboard-go[data-go="archive"]').forEach(b=>b.addEventListener('click',renderArchive));
+setTimeout(renderArchive,900);
+
+async function renderIntegrity(){
+  if(!$("integrityIssues"))return;
+  try{
+    let r=await api("/api/integrity"),issues=r.issues||{},count=Number(r.issueCount||0);
+    $("integritySummary").innerHTML=`<article><span>المقتنيات</span><b>${Number(r.counts?.items||0)}</b></article><article><span>الحسابات</span><b>${Number(r.counts?.participants||0)}</b></article><article><span>ملاحظات السلامة</span><b>${count}</b></article>`;
+    const labels={duplicateIds:"معرّفات مقتنيات مكررة",duplicateSerials:"أرقام تسلسلية مكررة",duplicatePhones:"حسابات جوال مكررة",orphanOwners:"مقتنيات مرتبطة بمالك غير موجود",zeroPriceMarket:"عروض سوق بسعر صفر",invalidAuctions:"مزادات ناقصة الإعداد",orphanSubmissions:"روابط سجل يتيمة",missingImages:"مقتنيات بلا صور"};
+    let cards=[];
+    for(const [key,val] of Object.entries(issues)){
+      let n=Array.isArray(val)?val.length:Object.keys(val||{}).length;
+      cards.push(`<article class="collectible-approval-card"><div class="collectible-approval-info"><h3>${labels[key]||key}</h3><p><b>${n}</b> حالة</p>${n?`<details><summary>عرض التفاصيل</summary><pre style="white-space:pre-wrap">${esc(JSON.stringify(val,null,2))}</pre></details>`:"<p>✓ لا توجد مشكلة</p>"}</div></article>`);
+    }
+    $("integrityIssues").innerHTML=cards.join("");
+  }catch(e){$("integrityIssues").textContent="تعذر فحص سلامة المنصة: "+e.message}
+}
+window.renderIntegrity=renderIntegrity;
+if($("refreshIntegrity"))$("refreshIntegrity").onclick=renderIntegrity;
+document.querySelectorAll('nav button[data-v="integrity"],.dashboard-go[data-go="integrity"]').forEach(b=>b.addEventListener("click",renderIntegrity));
 
 function setupClassificationFilters() {
   document.querySelectorAll(".record-filter").forEach(

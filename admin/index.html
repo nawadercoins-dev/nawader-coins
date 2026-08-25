@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#071b35" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="/admin/styles.css?v=4.3.5-final" />
-    <title>نوادر العملات — الإدارة V4.6.6</title>
+    <title>نوادر العملات — الإدارة V4.8.2</title>
   </head>
   <body>
     <header>
@@ -38,7 +38,7 @@
           >0</span
         ></button
       ><button data-v="collectible-approvals">
-        اعتماد المقتنيات
+        مراقبة المقتنيات
         <span id="collectibleApprovalsBadge" class="nav-badge" hidden
           >0</span
         ></button
@@ -48,6 +48,8 @@
           >0</span
         ></button
       ><button data-v="dues">المستحقات</button
+      ><button data-v="archive">الأرشيف <span id="archiveBadge" class="nav-badge" hidden>0</span></button
+      ><button data-v="integrity">سلامة المنصة</button
       ><button data-v="settings">الإعدادات</button
       ><button data-v="backup">النسخ الاحتياطي</button
       ><a class="admin-logout-link" href="/admin-logout">🔒 خروج الإدارة</a>
@@ -111,7 +113,7 @@
             ><small>طلبات جديدة تحتاج متابعة</small>
           </article>
           <article class="metric-tile">
-            <span>اعتمادات معلقة</span><b id="dashboardParticipantsPending">0</b
+            <span>تنبيهات رقابية</span><b id="dashboardParticipantsPending">0</b
             ><small>بانتظار إجراء الإدارة</small>
           </article>
         </div>
@@ -313,11 +315,11 @@
               ><small>الوظيفة المستقرة الأصلية بدون تغيير</small
               ><span class="stable-badge">مستقر</span>
             </button>
-            <div class="module-card module-pending">
+            <button type="button" class="module-card dashboard-go" data-go="archive">
               <span class="module-icon">▤</span><b>أرشيف العناصر</b
-              ><small>الحذف الآمن والاستعادة — قيد التطوير</small
-              ><span class="pending-badge">قيد التطوير</span>
-            </div>
+              ><small>الحذف الآمن، الاستعادة، والإزالة النهائية</small
+              ><span class="stable-badge">فعال</span>
+            </button>
             <button
               type="button"
               class="module-card dashboard-go"
@@ -890,8 +892,7 @@
                   <option value="20">20%</option>
                 </select></label
               ><label class="check"
-                ><input id="marketApproved" type="checkbox" /> اعتماد العرض
-                ونشره في السوق العام</label
+                ><input id="marketApproved" type="checkbox" /> نشر العرض في السوق العام</label
               >
               <p class="muted wide">
                 سعر الشراء يبقى في الدفتر المالي السري ولا يظهر للمشتري. يمكن
@@ -951,7 +952,7 @@
                   step="0.01"
                   readonly /></label
               ><label class="check"
-                ><input id="auctionApproved" type="checkbox" /> اعتماد المزاد
+                ><input id="auctionApproved" type="checkbox" /> نشر المزاد
                 للنشر</label
               >
               <div class="negotiation-admin">
@@ -1286,46 +1287,27 @@
         <div class="panel">
           <div class="auction-title-row">
             <div>
-              <h2>🪙 طلبات اعتماد المقتنيات</h2>
-              <p class="muted">
-                المقتنيات التي يرسلها العملاء من صفحة حسابي. الاعتماد يحفظ
-                التصنيف والصور والكميات ثم يودع المقتنى في المستودع، دون نشره
-                تلقائيًا في السوق أو المزاد.
-              </p>
+              <h2>🛡️ مراقبة المقتنيات</h2>
+              <p class="muted">المقتنيات تُضاف وتنشر مباشرة. هذه الصفحة للرقابة فقط: تفعيل، إخفاء، إيقاف، أرشفة أو إزالة مع سبب محفوظ في سجل العمليات.</p>
             </div>
-            <button
-              type="button"
-              id="refreshCollectibleApprovals"
-              class="ghost"
-            >
-              ↻ تحديث
-            </button>
+            <button type="button" id="refreshCollectibleApprovals" class="ghost">↻ تحديث</button>
           </div>
           <div class="auction-summary">
-            <article>
-              <span>قيد المراجعة</span><b id="collectiblePendingCount">0</b>
-            </article>
-            <article>
-              <span>تحتاج استكمال</span><b id="collectibleNeedsCount">0</b>
-            </article>
-            <article>
-              <span>الإجمالي</span><b id="collectibleTotalCount">0</b>
-            </article>
+            <article><span>نشط</span><b id="collectiblePendingCount">0</b></article>
+            <article><span>مقيد/مخفي</span><b id="collectibleNeedsCount">0</b></article>
+            <article><span>الإجمالي</span><b id="collectibleTotalCount">0</b></article>
           </div>
-          <div
-            id="collectibleApprovalsList"
-            class="collectible-approvals-list"
-          ></div>
+          <div id="collectibleApprovalsList" class="collectible-approvals-list"></div>
         </div>
       </section>
       <section id="participants" class="view">
         <div class="panel">
-          <h2>إدارة اعتماد المشاركين</h2>
+          <h2>إدارة توثيق الحسابات</h2>
           <div class="participant-summary">
             <span>مبدئي/جديد: <b id="pendingParticipantsCount">0</b></span><span>النشطون: <b id="participantsTotalCount">0</b></span><span>الملغون: <b id="participantsArchiveCount">0</b></span>
           </div>
           <p class="muted">
-            التحقق آلي دون رمز أو واتساب ويمنح اعتمادًا مبدئيًا فقط. المشاركة المالية والمزايدة والبيع تتطلب الاعتماد النهائي.
+            توثيق الحساب منفصل عن نشر المقتنيات. المقتنيات تنشر مباشرة، بينما الشراء والمزايدة والعمليات المالية يمكن أن تبقى مقيدة حسب حالة الحساب.
           </p>
           <div class="participant-filters" id="participantFilters">
             <button class="active" data-participant-filter="all">الكل</button><button data-participant-filter="preliminary">مبدئي <b data-count="preliminary">0</b></button><button data-participant-filter="final">نهائي <b data-count="final">0</b></button><button data-participant-filter="suspended">معلّق <b data-count="suspended">0</b></button><button data-participant-filter="stopped">موقوف <b data-count="stopped">0</b></button><button data-participant-filter="cancelled">ملغى <b data-count="cancelled">0</b></button>
@@ -1333,7 +1315,7 @@
           <div id="participantsList" class="participants-list"></div>
         </div>
       </section>
-      <section id="warehouse" class="view warehouse-view">
+      <section id="warehouseView" class="view warehouse-view">
         <div class="panel warehouse-panel">
           <div class="auction-title-row">
             <div>
@@ -1533,6 +1515,20 @@
             </button>
           </div>
           <div id="operationsList" class="operations-list"></div>
+        </div>
+      </section>
+      <section id="archive" class="view">
+        <div class="panel">
+          <div class="auction-title-row"><div><h2>▤ أرشيف العناصر</h2><p class="muted">الحذف في جميع أقسام الإدارة ينقل العنصر إلى هنا. يمكن استعادته، أما الإزالة النهائية فلا تتم إلا من هذه الصفحة وبعد تأكيد صريح.</p></div><button id="refreshArchive" type="button" class="ghost">↻ تحديث</button></div>
+          <div class="auction-summary"><article><span>العناصر المؤرشفة</span><b id="archiveCount">0</b></article><article><span>قابلة للاستعادة</span><b id="archiveRestoreCount">0</b></article><article><span>الإزالة النهائية</span><b>من الأرشيف فقط</b></article></div>
+          <div id="archiveList" class="collectible-approvals-list"></div>
+        </div>
+      </section>
+      <section id="integrity" class="view">
+        <div class="panel">
+          <div class="auction-title-row"><div><h2>🧪 سلامة المنصة</h2><p class="muted">فحص غير تدميري. لا يحذف ولا يدمج ولا يصلح أي بيانات تلقائيًا.</p></div><button id="refreshIntegrity" type="button" class="ghost">↻ فحص الآن</button></div>
+          <div id="integritySummary" class="auction-summary"></div>
+          <div id="integrityIssues" class="collectible-approvals-list"></div>
         </div>
       </section>
       <section id="settings" class="view">
@@ -1769,6 +1765,6 @@
       <div id="quickResults"></div>
       <div id="recent"></div>
     </div>
-    <script src="/admin/app.js?v=4.3.5-final"></script>
+    <script src="/admin/app.js?v=4.8.2-archive"></script>
   </body>
 </html>
