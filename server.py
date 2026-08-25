@@ -119,6 +119,27 @@ def participant_public(person):
     safe={k:v for k,v in (person or {}).items() if k not in ('otp','otpExpires','otpAttempts')}; status=participant_approval_status(person)
     safe['approvalStatus']=status; safe['approvalLabel']=APPROVAL_LABELS[status]; return safe
 
+SELLER_COUNTRY_FLAGS={
+    'السعودية':'🇸🇦','المملكة العربية السعودية':'🇸🇦','الكويت':'🇰🇼','البحرين':'🇧🇭','قطر':'🇶🇦',
+    'عُمان':'🇴🇲','سلطنة عمان':'🇴🇲','الإمارات':'🇦🇪','الإمارات العربية المتحدة':'🇦🇪',
+    'مصر':'🇪🇬','الأردن':'🇯🇴','لبنان':'🇱🇧','العراق':'🇮🇶','اليمن':'🇾🇪','سوريا':'🇸🇾',
+    'ألمانيا':'🇩🇪','بريطانيا':'🇬🇧','المملكة المتحدة':'🇬🇧','الولايات المتحدة':'🇺🇸'
+}
+def public_seller_identity(item):
+    """هوية صاحب المعروض العامة فقط؛ لا ترسل الجوال أو البيانات الخاصة."""
+    pid=str((item or {}).get('ownerParticipantId') or '').strip()
+    person=next((x for x in load_people() if str(x.get('id') or '')==pid),None) if pid else None
+    display=str((person or {}).get('alias') or (person or {}).get('displayName') or (person or {}).get('name') or (item or {}).get('ownerName') or 'صاحب المقتنى').strip()
+    country=str((person or {}).get('country') or '').strip()
+    return {
+        'sellerId':pid,
+        'sellerName':display,
+        'sellerCountry':country,
+        'sellerFlag':SELLER_COUNTRY_FLAGS.get(country,'🌐' if country else '🌐'),
+        'sellerAvatar':str((person or {}).get('avatarUrl') or '').strip(),
+        'sellerVerified':bool((person or {}).get('verified') or (person or {}).get('approved')),
+    }
+
 def participant_permissions(pid):
     defaults={'sellerEndedAuctions':False,'sellerMarket':False,'marketSupervision':False,'auctionSupervision':False,'ordersView':False,'ordersManage':False}
     x=load_user_permissions().get(str(pid),{})
@@ -510,7 +531,7 @@ def public_item(i):
         except Exception: ended=False
     sold=bool(ended and bids and (target<=0 or top>=target))
     public_keys=['id','country','denomination','year','type','condition','quantity','serials','frontImg','backImg','auctionEnd','auctionOpeningPrice','auctionBidStep','auctionAdditionalTerms','notes','negotiationEnabled','negotiationPercent','auctionRound','issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason','updated']
-    return {k:i.get(k) for k in public_keys} | {'auctionCurrentPrice':top,'bidCount':len(bids),'reserveState':reserve_state,'auctionEnded':ended,'auctionSold':sold}
+    return {k:i.get(k) for k in public_keys} | public_seller_identity(i) | {'auctionCurrentPrice':top,'bidCount':len(bids),'reserveState':reserve_state,'auctionEnded':ended,'auctionSold':sold}
 
 
 
@@ -521,6 +542,7 @@ def public_market_item(i):
           'marketOfferType','marketSalePrice','marketUnitPrice','marketQuantity','marketSetPieces','marketSetSize','marketSetCurrencyMode','marketPriceUnit',
           'marketPartialAllowed','marketNegotiationEnabled','marketNegotiationPercent','marketTitle','updated','specialNumberEnabled']
     out={k:i.get(k) for k in keys}
+    out.update(public_seller_identity(i))
     _,_,reserved=item_order_quantities(i.get('id'),item=i)
     per_unit=market_physical_per_unit(i)
     reserved_units=(reserved.get('market',0)+per_unit-1)//per_unit
@@ -945,7 +967,7 @@ ADMIN_GET_API={
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
     '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary'
 }
-PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel'}
+PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel'}
 PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/invoice.html'}
 
 class H(SimpleHTTPRequestHandler):
@@ -1935,7 +1957,7 @@ class H(SimpleHTTPRequestHandler):
             if p=='/api/analyze':
                 ok,data,note=analyze_image(d.get('url','')); self.sendj({'ok':ok,'data':data,'note':note}); return
             if p=='/api/participant/register':
-                name=str(d.get('name','')).strip(); raw_phone=str(d.get('phone','')).strip(); phone=''.join(ch for ch in raw_phone if ch.isdigit() or ch=='+')
+                name=str(d.get('name','')).strip(); reg_country=str(d.get('country','')).strip()[:80]; raw_phone=str(d.get('phone','')).strip(); phone=''.join(ch for ch in raw_phone if ch.isdigit() or ch=='+')
                 if not name or not phone: self.sendj({'error':'الاسم والجوال مطلوبان'},400); return
                 if len(''.join(ch for ch in phone if ch.isdigit())) < 7: self.sendj({'error':'رقم الجوال غير مكتمل'},400); return
                 a=load_people(); existing=next((x for x in a if str(x.get('phone','')).replace(' ','')==phone.replace(' ','')),None)
@@ -1944,16 +1966,30 @@ class H(SimpleHTTPRequestHandler):
                 if existing_status in ('stopped','cancelled'):
                     self.sendj({'error':'هذا الرقم موقوف أو ملغى ولا يمكن إنشاء حساب جديد به. تواصل مع الإدارة.'},403); return
                 if existing:
-                    existing.update({'name':name or existing.get('name',''),'lastSeen':nowiso,'verifiedAt':existing.get('verifiedAt') or nowiso,'otp':'','otpExpires':'','otpAttempts':0}); apply_approval_status(existing,existing_status or 'preliminary')
+                    existing.update({'name':name or existing.get('name',''),'country':reg_country or existing.get('country',''),'lastSeen':nowiso,'verifiedAt':existing.get('verifiedAt') or nowiso,'otp':'','otpExpires':'','otpAttempts':0}); apply_approval_status(existing,existing_status or 'preliminary')
                     x=existing
                 else:
-                    x={'id':'p-'+secrets.token_hex(6),'name':name,'phone':phone,'approved':False,'verified':True,'blocked':False,'archived':False,'approvalStatus':'preliminary','created':nowiso,'lastSeen':nowiso,'verifiedAt':nowiso,'preliminaryApprovedAt':nowiso,'verificationMode':'automatic','otp':'','otpExpires':'','otpAttempts':0,'approvalHistory':[{'status':'preliminary','previousStatus':'new','reason':'تحقق آلي من رقم الجوال دون رمز','actor':'النظام','at':nowiso}]}; a.append(x)
+                    x={'id':'p-'+secrets.token_hex(6),'name':name,'phone':phone,'country':reg_country,'approved':False,'verified':True,'blocked':False,'archived':False,'approvalStatus':'preliminary','created':nowiso,'lastSeen':nowiso,'verifiedAt':nowiso,'preliminaryApprovedAt':nowiso,'verificationMode':'automatic','otp':'','otpExpires':'','otpAttempts':0,'approvalHistory':[{'status':'preliminary','previousStatus':'new','reason':'تحقق آلي من رقم الجوال دون رمز','actor':'النظام','at':nowiso}]}; a.append(x)
                 save_json(PEOPLE,{'participants':a})
                 saved=next((z for z in load_people() if z.get('id')==x['id']),None)
                 if not saved: self.sendj({'error':'تعذر تثبيت التسجيل على الخادم'},500); return
                 add_notification('admin','','approval','طلب مراجعة اعتماد نهائي',f"تم التحقق آليًا ومنح {saved.get('name','مشارك')} — {saved.get('phone','')} اعتمادًا مبدئيًا.",saved.get('id',''), '/admin')
                 append_operation('اعتماد مبدئي تلقائي',{'participantId':saved.get('id'),'phone':saved.get('phone','')},actor='النظام'); safe=participant_public(saved)
                 self.sendj({'ok':True,'participant':safe,'verified':True,'approved':False,'approvalStatus':safe['approvalStatus'],'otpRequired':False,'message':'تم التحقق ومنحك اعتمادًا مبدئيًا. تنتظر الاعتماد النهائي للمزايدة والشراء والبيع.'}); return
+
+            if p=='/api/participant/profile':
+                pid=str(d.get('id') or '').strip()
+                a=load_people(); person=next((x for x in a if str(x.get('id') or '')==pid),None)
+                if not person: self.sendj({'error':'الحساب غير موجود'},404); return
+                alias=str(d.get('alias') or '').strip()[:60]
+                country=str(d.get('country') or '').strip()[:80]
+                avatar=str(d.get('avatarUrl') or '').strip()[:500]
+                if avatar and not (avatar.startswith('/uploads/') or avatar.startswith('data:image/')):
+                    self.sendj({'error':'مسار صورة الحساب غير صالح'},400); return
+                person['alias']=alias; person['country']=country; person['avatarUrl']=avatar
+                person['profileUpdatedAt']=datetime.datetime.now().isoformat()
+                save_json(PEOPLE,{'participants':a})
+                self.sendj({'ok':True,'participant':participant_public(person)}); return
             if p=='/api/participant/verify':
                 pid=str(d.get('id','')); code=str(d.get('code','')).strip(); a=load_people(); person=next((x for x in a if x.get('id')==pid),None)
                 if not person: self.sendj({'error':'المشارك غير موجود'},404); return
