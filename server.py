@@ -1,3 +1,4 @@
+# V4.7.0 — final collectible lifecycle reconciliation and owner controls.
 # V4.6.6 — platform-owner seller country: admin ownerCountry field, default Saudi Arabia, public flag fallback.
 # V4.6.5 — seller flag repair: normalize country and sync duplicate participant identities by phone.
 # V4.6.4 — approved collectible lifecycle, owner records/actions, destination routing, clean activity feed.
@@ -322,42 +323,201 @@ def inventory_summary():
         for key in totals: totals[key]+=inventory_int(snap.get(key),0)
     return {'totals':totals,'items':rows,'generatedAt':datetime.datetime.now().isoformat()}
 
-def repair_approved_submission_inventory():
-    """Repair approved customer submissions while preserving existing item data."""
-    items=load(); rows=load_collectible_submissions(); repaired=created=0; skipped=[]; changed=False
-    for row in rows:
-        if row.get('status')!='approved': continue
+def reconcile_collectible_lifecycle(participant_id=None):
+    """
+    إصلاح دورة حياة مقتنيات العملاء دون حذف التاريخ:
+    - يفك السجلات العالقة التي تحمل itemId غير موجود.
+    - يعيد ربط المقتنى الموجود عبر sourceSubmissionId.
+    - يعيد إنشاء المقتنى المعتمد المفقود عند إمكان ذلك بأمان.
+    - يثبت ownerParticipantId و sourceSubmissionId.
+    - لا ينشئ نسخة ثانية لمقتنى موجود.
+    """
+    items=load()
+    rows=load_collectible_submissions()
+    pid_filter=str(participant_id or '').strip()
+    changed_items=False
+    changed_rows=False
+    report={'ok':True,'relinked':0,'recreated':0,'unlocked':0,'ownerFixed':0,'approvedFixed':0,'manualReview':[]}
+
+    by_id={str(x.get('id') or ''):x for x in items if x.get('id')}
+    by_submission={str(x.get('sourceSubmissionId') or ''):x for x in items if x.get('sourceSubmissionId')}
+
+    def _safe_new_item(row, preferred_id=''):
+        nonlocal changed_items
         sid=str(row.get('id') or '')
-        item=next((x for x in items if str(x.get('id'))==str(row.get('itemId') or '')),None)
-        if not item: item=next((x for x in items if str(x.get('sourceSubmissionId') or '')==sid),None)
+        serial=str(row.get('serial') or '').strip()
+        norm=re.sub(r'\s+','',serial).upper()
+        if norm:
+            for other in items:
+                values=other.get('serials') or [other.get('serial')]
+                if not isinstance(values,list): values=[values]
+                other_norms={re.sub(r'\s+','',str(v or '')).upper() for v in values if str(v or '').strip()}
+                if norm in other_norms:
+                    report['manualReview'].append({'submissionId':sid,'reason':'duplicate_serial','serial':serial})
+                    return None
         inv=submission_inventory_values(row)
-        if not item:
-            serial=str(row.get('serial') or '').strip(); norm=re.sub(r'\s+','',serial).upper(); duplicate=False
-            if norm:
-                for other in items:
-                    values=other.get('serials') or [other.get('serial')]
-                    if not isinstance(values,list): values=[values]
-                    if norm in {re.sub(r'\s+','',str(v or '')).upper() for v in values if str(v or '').strip()}: duplicate=True; break
-            if duplicate:
-                skipped.append({'submissionId':sid,'reason':'duplicate_serial'}); continue
-            now=datetime.datetime.now().isoformat(); item_id='k-'+secrets.token_hex(8)
-            item={'id':item_id,'country':row.get('country',''),'denomination':row.get('denomination',''),'issueEdition':row.get('issueEdition',''),'year':row.get('year',''),'type':row.get('type') or 'عملة ورقية','condition':row.get('condition','UNC'),'soldQuantity':0,'damagedQuantity':0,'serial':serial,'serials':[serial] if serial else [],'frontImg':row.get('frontImage',''),'backImg':row.get('backImage',''),'notes':row.get('notes',''),'ownerName':row.get('participantName',''),'ownerPhone':row.get('participantPhone',''),'ownerParticipantId':row.get('participantId',''),'sourceSubmissionId':sid,'storageStatus':'warehouse','warehouse':'المستودع الرئيسي','forMarket':str(row.get('desiredDestination') or 'vault')=='market','marketApproved':False,'forAuction':str(row.get('desiredDestination') or 'vault')=='auction','auctionApproved':False,'created':now,'updated':int(time.time()*1000),**inv}
-            items.append(item); created+=1; changed=True
-        else:
-            before=json.dumps(item,ensure_ascii=False,sort_keys=True)
-            for key,value in (('country',row.get('country','')),('denomination',row.get('denomination','')),('issueEdition',row.get('issueEdition','')),('year',row.get('year','')),('type',row.get('type') or 'عملة ورقية'),('condition',row.get('condition','UNC')),('frontImg',row.get('frontImage','')),('backImg',row.get('backImage',''))):
-                if item.get(key) in (None,'') and value not in (None,''): item[key]=value
+        item_id=str(preferred_id or '').strip()
+        if not item_id or item_id in by_id:
+            item_id='k-'+secrets.token_hex(8)
+        now=datetime.datetime.now().isoformat()
+        destination=str(row.get('desiredDestination') or 'vault')
+        item={
+            'id':item_id,
+            'country':row.get('country',''),
+            'denomination':row.get('denomination',''),
+            'issueEdition':row.get('issueEdition',''),
+            'year':row.get('year',''),
+            'type':row.get('type') or 'عملة ورقية',
+            'condition':row.get('condition','UNC'),
+            'soldQuantity':0,
+            'damagedQuantity':0,
+            'serial':serial,
+            'serials':[serial] if serial else [],
+            'frontImg':row.get('frontImage',''),
+            'backImg':row.get('backImage',''),
+            'notes':row.get('notes',''),
+            'ownerName':row.get('participantName',''),
+            'ownerPhone':row.get('participantPhone',''),
+            'ownerParticipantId':row.get('participantId',''),
+            'sourceSubmissionId':sid,
+            'storageStatus':'warehouse',
+            'warehouse':'المستودع الرئيسي',
+            'forMarket':destination=='market',
+            'marketApproved':False,
+            'forAuction':destination=='auction',
+            'auctionApproved':False,
+            'created':now,
+            'updated':int(time.time()*1000),
+            **inv
+        }
+        items.append(item)
+        by_id[item_id]=item
+        by_submission[sid]=item
+        changed_items=True
+        report['recreated']+=1
+        return item
+
+    for row in rows:
+        if pid_filter and str(row.get('participantId') or '')!=pid_filter:
+            continue
+
+        sid=str(row.get('id') or '')
+        row_item_id=str(row.get('itemId') or '')
+        item=by_id.get(row_item_id) if row_item_id else None
+
+        if not item and sid:
+            linked=by_submission.get(sid)
+            if linked:
+                item=linked
+                if row_item_id!=str(item.get('id') or ''):
+                    row['itemId']=item.get('id')
+                    changed_rows=True
+                    report['relinked']+=1
+
+        # itemId عالق بلا مقتنى:
+        if not item and row_item_id:
+            if row.get('status')=='approved' or row.get('warehouseVerified'):
+                item=_safe_new_item(row,row_item_id)
+                if not item:
+                    # لا نتركه عالقًا: يرجع للاستكمال مع الحفاظ على التاريخ.
+                    row['itemId']=''
+                    row['warehouseVerified']=False
+                    row['warehouseVerifiedAt']=''
+                    row['status']='needs_changes'
+                    note='تعذر استعادة المقتنى تلقائيًا بسبب تعارض يحتاج مراجعة الإدارة.'
+                    row['adminNote']=((str(row.get('adminNote') or '')+' '+note).strip())
+                    changed_rows=True
+                    report['unlocked']+=1
+            else:
+                # لم يُعتمد فعليًا، إذن itemId القديم رابط يتيم ويمنع التعديل والحذف.
+                row['itemId']=''
+                row['warehouseVerified']=False
+                row['warehouseVerifiedAt']=''
+                changed_rows=True
+                report['unlocked']+=1
+
+        # معتمد بلا itemId:
+        if not item and row.get('status')=='approved':
+            item=_safe_new_item(row,'')
+            if item:
+                row['itemId']=item.get('id')
+                row['warehouseVerified']=True
+                row['warehouseVerifiedAt']=datetime.datetime.now().isoformat()
+                changed_rows=True
+
+        if item:
+            # تثبيت الربط والمالك من المصدر الأصلي، لكن لا نستولي على مقتنى يملكه حساب آخر.
+            item_pid=str(item.get('ownerParticipantId') or '')
+            row_pid=str(row.get('participantId') or '')
+            phones_match=_norm_phone(item.get('ownerPhone')) and _norm_phone(item.get('ownerPhone'))==_norm_phone(row.get('participantPhone'))
+            if not item_pid or item_pid==row_pid or phones_match:
+                if item_pid!=row_pid and row_pid:
+                    item['ownerParticipantId']=row_pid
+                    changed_items=True
+                    report['ownerFixed']+=1
+            if not item.get('sourceSubmissionId') and sid:
+                item['sourceSubmissionId']=sid
+                changed_items=True
+            if str(row.get('itemId') or '')!=str(item.get('id') or ''):
+                row['itemId']=item.get('id')
+                changed_rows=True
+                report['relinked']+=1
+
+            # إذا كان المقتنى موجودًا ومصدره هذا الطلب، فالطلب تم اعتماده فعليًا.
+            if str(item.get('sourceSubmissionId') or '')==sid and row.get('status')!='approved':
+                row['status']='approved'
+                row['warehouseVerified']=True
+                row['warehouseVerifiedAt']=row.get('warehouseVerifiedAt') or datetime.datetime.now().isoformat()
+                changed_rows=True
+                report['approvedFixed']+=1
+
+            # استكمال الحقول الناقصة فقط دون الكتابة فوق بيانات أحدث.
+            inv=submission_inventory_values(row)
+            fill_pairs=(
+                ('country',row.get('country','')),('denomination',row.get('denomination','')),
+                ('issueEdition',row.get('issueEdition','')),('year',row.get('year','')),
+                ('type',row.get('type') or 'عملة ورقية'),('condition',row.get('condition','UNC')),
+                ('frontImg',row.get('frontImage','')),('backImg',row.get('backImage','')),
+                ('ownerName',row.get('participantName','')),('ownerPhone',row.get('participantPhone',''))
+            )
+            for key,value in fill_pairs:
+                if item.get(key) in (None,'') and value not in (None,''):
+                    item[key]=value
+                    changed_items=True
             for key,value in inv.items():
-                if item.get(key) in (None,''): item[key]=value
-            item['inventoryClassification']=item.get('inventoryClassification') or inv['inventoryClassification']
-            item['collectionClass']='set' if item['inventoryClassification']=='set' else 'single'; item['isSet']=item['inventoryClassification']=='set'
-            item['warehouse']=item.get('warehouse') or 'المستودع الرئيسي'; item['storageStatus']='warehouse'; item['sourceSubmissionId']=sid
-            if json.dumps(item,ensure_ascii=False,sort_keys=True)!=before: repaired+=1; changed=True
-        row['itemId']=item['id']; row['warehouseVerified']=True; row['warehouseVerifiedAt']=datetime.datetime.now().isoformat(); changed=True
-    if changed:
-        save(items); save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
-        append_operation('فحص وإصلاح تحويلات المقتنيات إلى المستودع',{'repaired':repaired,'created':created,'skipped':skipped})
-    return {'ok':True,'repaired':repaired,'created':created,'skipped':skipped,'inventory':inventory_summary()}
+                if item.get(key) in (None,''):
+                    item[key]=value
+                    changed_items=True
+
+            destination=str(row.get('desiredDestination') or 'vault')
+            if destination=='market' and not item.get('auctionSold'):
+                if not item.get('forMarket'):
+                    item['forMarket']=True
+                    item['marketApproved']=False
+                    changed_items=True
+            elif destination=='auction' and not item.get('auctionSold'):
+                if not item.get('forAuction'):
+                    item['forAuction']=True
+                    item['auctionApproved']=False
+                    changed_items=True
+
+    if changed_items:
+        save(items)
+    if changed_rows:
+        save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
+    if changed_items or changed_rows:
+        append_operation('إصلاح تلقائي لدورة مقتنيات العملاء',{
+            'participantId':pid_filter,'relinked':report['relinked'],'recreated':report['recreated'],
+            'unlocked':report['unlocked'],'ownerFixed':report['ownerFixed'],
+            'approvedFixed':report['approvedFixed'],'manualReview':report['manualReview']
+        })
+    return report
+
+def repair_approved_submission_inventory():
+    # توافق خلفي مع زر الإصلاح الإداري القديم.
+    report=reconcile_collectible_lifecycle()
+    report['inventory']=inventory_summary()
+    return report
 
 def storage_location(item):
     return {'warehouse':item.get('warehouse',''),'cabinet':item.get('cabinet',''),'shelf':item.get('shelf',''),'box':item.get('box',''),'album':item.get('album',''),'pocket':item.get('pocket','')}
@@ -1119,6 +1279,7 @@ class H(SimpleHTTPRequestHandler):
             self.sendj({'ok':bool(exe),'path':exe,'version':version,'hasArabic':'ara' in langs,'hasEnglish':'eng' in langs,'languages':langs[:80],'diagnostics':diag[-5:]}); return
         if p=='/api/owner/items':
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
+            reconcile_collectible_lifecycle(pid)
             person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
             if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
             submissions={str(x.get('itemId') or ''):x for x in load_collectible_submissions() if str(x.get('participantId') or '')==pid and x.get('itemId')}
@@ -1142,6 +1303,7 @@ class H(SimpleHTTPRequestHandler):
             self.sendj({'items':owned}); return
         if p=='/api/collectible-submissions':
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
+            reconcile_collectible_lifecycle(pid)
             person=next((x for x in load_people() if str(x.get('id'))==pid),None)
             if not participant_can_access(person): self.sendj({'error':'الحساب غير متاح'},403); return
             rows=[x for x in load_collectible_submissions() if str(x.get('participantId'))==pid]
@@ -1517,7 +1679,13 @@ class H(SimpleHTTPRequestHandler):
                 if not person: self.sendj({'error':'يجب تسجيل الدخول بحساب موثق أولًا'},403); return
                 rows=load_collectible_submissions(); row=next((x for x in rows if str(x.get('id'))==sid and str(x.get('participantId'))==pid),None)
                 if not row: self.sendj({'error':'السجل غير موجود أو لا تملك صلاحية حذفه'},404); return
-                if row.get('itemId') or row.get('status')=='approved': self.sendj({'error':'تم اعتماد السجل؛ الحذف من صلاحية الإدارة'},409); return
+                if row.get('itemId'):
+                    linked=next((x for x in load() if str(x.get('id'))==str(row.get('itemId')) or str(x.get('sourceSubmissionId') or '')==sid),None)
+                    if linked or row.get('status')=='approved':
+                        self.sendj({'error':'تم اعتماد السجل؛ استخدم الحذف الآمن من «مقتنياتي المعتمدة»'},409); return
+                    row['itemId']=''
+                if row.get('status')=='approved':
+                    self.sendj({'error':'تم اعتماد السجل؛ استخدم الحذف الآمن من «مقتنياتي المعتمدة»'},409); return
                 rows=[x for x in rows if str(x.get('id'))!=sid]; save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
                 append_operation('حذف طلب مقتنى',{'submissionId':sid,'participantId':pid},actor='العميل')
                 self.sendj({'ok':True}); return
@@ -1646,6 +1814,7 @@ class H(SimpleHTTPRequestHandler):
                     append_operation('سحب عرض السوق بواسطة المالك',{'itemId':iid,'participantId':pid},actor='العميل')
                     self.sendj({'ok':True}); return
                 price=max(0,float(d.get('marketSalePrice') or item.get('marketSalePrice') or 0))
+                if price<=0: self.sendj({'error':'حدد سعر بيع أكبر من صفر قبل إرسال العرض للسوق'},400); return
                 qty=max(1,int(float(d.get('availableQuantity') or item.get('availableQuantity') or 1)))
                 max_qty=max(1,int(item.get('quantity') or item.get('availableQuantity') or qty))
                 item['marketSalePrice']=price; item['availableQuantity']=min(qty,max_qty)
@@ -1668,6 +1837,14 @@ class H(SimpleHTTPRequestHandler):
                 if not item: self.sendj({'error':'المقتنى غير موجود أو لا تملك صلاحية إدارته'},404); return
                 if item.get('auctionSold') or str(item.get('auctionOutcome') or '')=='sold':
                     self.sendj({'error':'المزاد مباع ومغلق نهائيًا'},409); return
+                requested_end=str(d.get('auctionEnd') or item.get('auctionEnd') or '').strip()
+                if requested_end:
+                    try:
+                        end_dt=datetime.datetime.fromisoformat(requested_end.replace('Z','+00:00'))
+                        now_dt=datetime.datetime.now(end_dt.tzinfo) if end_dt.tzinfo else datetime.datetime.now()
+                        if end_dt<=now_dt: self.sendj({'error':'موعد انتهاء المزاد يجب أن يكون في المستقبل'},400); return
+                    except ValueError:
+                        self.sendj({'error':'صيغة موعد انتهاء المزاد غير صحيحة'},400); return
                 round_no=int(item.get('auctionRound') or 1)
                 bids=[b for b in load_bids() if str(b.get('itemId'))==iid and int(b.get('auctionRound') or 1)==round_no]
                 if not bids:
