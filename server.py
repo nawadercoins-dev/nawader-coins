@@ -1,3 +1,6 @@
+# V4.6.6 — platform-owner seller country: admin ownerCountry field, default Saudi Arabia, public flag fallback.
+# V4.6.5 — seller flag repair: normalize country and sync duplicate participant identities by phone.
+# V4.6.4 — approved collectible lifecycle, owner records/actions, destination routing, clean activity feed.
 # V4.6.3 — public seller identity uses flag icon on cards; country retained in API for shipping/filtering.
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -121,22 +124,76 @@ def participant_public(person):
     safe['approvalStatus']=status; safe['approvalLabel']=APPROVAL_LABELS[status]; return safe
 
 SELLER_COUNTRY_FLAGS={
-    'السعودية':'🇸🇦','المملكة العربية السعودية':'🇸🇦','الكويت':'🇰🇼','البحرين':'🇧🇭','قطر':'🇶🇦',
-    'عُمان':'🇴🇲','سلطنة عمان':'🇴🇲','الإمارات':'🇦🇪','الإمارات العربية المتحدة':'🇦🇪',
-    'مصر':'🇪🇬','الأردن':'🇯🇴','لبنان':'🇱🇧','العراق':'🇮🇶','اليمن':'🇾🇪','سوريا':'🇸🇾',
-    'ألمانيا':'🇩🇪','بريطانيا':'🇬🇧','المملكة المتحدة':'🇬🇧','الولايات المتحدة':'🇺🇸'
+    'السعودية':'🇸🇦','المملكة العربية السعودية':'🇸🇦',
+    'الكويت':'🇰🇼','البحرين':'🇧🇭','قطر':'🇶🇦',
+    'عمان':'🇴🇲','عُمان':'🇴🇲','سلطنة عمان':'🇴🇲',
+    'الامارات':'🇦🇪','الإمارات':'🇦🇪','الإمارات العربية المتحدة':'🇦🇪',
+    'مصر':'🇪🇬','الأردن':'🇯🇴','الاردن':'🇯🇴','لبنان':'🇱🇧','العراق':'🇮🇶',
+    'اليمن':'🇾🇪','سوريا':'🇸🇾','ألمانيا':'🇩🇪','المانيا':'🇩🇪',
+    'بريطانيا':'🇬🇧','المملكة المتحدة':'🇬🇧',
+    'الولايات المتحدة':'🇺🇸','الولايات المتحدة الأمريكية':'🇺🇸'
 }
+
+def _norm_phone(value):
+    digits=''.join(ch for ch in str(value or '') if ch.isdigit())
+    # توحيد السعودية 05xxxxxxxx و 9665xxxxxxxx
+    if digits.startswith('966') and len(digits)>=12:
+        digits='0'+digits[3:]
+    return digits
+
+def _norm_country(value):
+    c=str(value or '').strip()
+    c=c.replace('أ','ا').replace('إ','ا').replace('آ','ا').replace('ى','ي').replace('ة','ه').replace('ُ','')
+    aliases={
+        'السعوديه':'السعودية','المملكه العربيه السعوديه':'المملكة العربية السعودية',
+        'عمان':'عمان','سلطنه عمان':'سلطنة عمان',
+        'الامارات':'الإمارات','الامارات العربيه المتحده':'الإمارات العربية المتحدة',
+        'الاردن':'الأردن','المانيا':'ألمانيا',
+        'الولايات المتحده':'الولايات المتحدة','الولايات المتحده الامريكيه':'الولايات المتحدة الأمريكية'
+    }
+    return aliases.get(c,c)
+
 def public_seller_identity(item):
-    """هوية صاحب المعروض العامة فقط؛ لا ترسل الجوال أو البيانات الخاصة."""
+    """هوية عامة لصاحب المعروض، مع إصلاح تلقائي للحسابات المكررة القديمة."""
     pid=str((item or {}).get('ownerParticipantId') or '').strip()
-    person=next((x for x in load_people() if str(x.get('id') or '')==pid),None) if pid else None
+    people=load_people()
+    person=next((x for x in people if str(x.get('id') or '')==pid),None) if pid else None
+
+    # بعض المقتنيات القديمة مرتبطة بسجل مكرر لا يحتوي دولة/اسم ظاهر.
+    # ابحث عن سجل آخر لنفس الجوال واستعمل أحدث بيانات الهوية المتاحة.
+    owner_phone=str((item or {}).get('ownerPhone') or (person or {}).get('phone') or '')
+    phone_key=_norm_phone(owner_phone)
+    siblings=[x for x in people if phone_key and _norm_phone(x.get('phone'))==phone_key]
+    if siblings:
+        richest=max(
+            siblings,
+            key=lambda x: (
+                bool(str(x.get('country') or '').strip()),
+                bool(str(x.get('alias') or x.get('displayName') or '').strip()),
+                str(x.get('profileUpdatedAt') or x.get('lastSeen') or x.get('created') or '')
+            )
+        )
+        if not person:
+            person=richest
+        else:
+            # لا نستبدل هوية الحساب الأساسية، فقط نعوض الحقول الناقصة.
+            person=dict(person)
+            for k in ('country','alias','displayName','avatarUrl'):
+                if not str(person.get(k) or '').strip() and str(richest.get(k) or '').strip():
+                    person[k]=richest.get(k)
+
     display=str((person or {}).get('alias') or (person or {}).get('displayName') or (person or {}).get('name') or (item or {}).get('ownerName') or 'صاحب المقتنى').strip()
-    country=str((person or {}).get('country') or '').strip()
+    country=_norm_country((person or {}).get('country') or (item or {}).get('ownerCountry') or ('المملكة العربية السعودية' if not pid else ''))
+    flag=SELLER_COUNTRY_FLAGS.get(country)
+    if not flag:
+        # محاولة ثانية بالقيمة الأصلية قبل التطبيع.
+        flag=SELLER_COUNTRY_FLAGS.get(str((person or {}).get('country') or (item or {}).get('ownerCountry') or ('المملكة العربية السعودية' if not pid else '')).strip(),'🌐')
+
     return {
-        'sellerId':pid,
+        'sellerId':pid or str((person or {}).get('id') or ''),
         'sellerName':display,
         'sellerCountry':country,
-        'sellerFlag':SELLER_COUNTRY_FLAGS.get(country,'🌐' if country else '🌐'),
+        'sellerFlag':flag,
         'sellerAvatar':str((person or {}).get('avatarUrl') or '').strip(),
         'sellerVerified':bool((person or {}).get('verified') or (person or {}).get('approved')),
     }
@@ -284,7 +341,7 @@ def repair_approved_submission_inventory():
             if duplicate:
                 skipped.append({'submissionId':sid,'reason':'duplicate_serial'}); continue
             now=datetime.datetime.now().isoformat(); item_id='k-'+secrets.token_hex(8)
-            item={'id':item_id,'country':row.get('country',''),'denomination':row.get('denomination',''),'issueEdition':row.get('issueEdition',''),'year':row.get('year',''),'type':row.get('type') or 'عملة ورقية','condition':row.get('condition','UNC'),'soldQuantity':0,'damagedQuantity':0,'serial':serial,'serials':[serial] if serial else [],'frontImg':row.get('frontImage',''),'backImg':row.get('backImage',''),'notes':row.get('notes',''),'ownerName':row.get('participantName',''),'ownerPhone':row.get('participantPhone',''),'ownerParticipantId':row.get('participantId',''),'sourceSubmissionId':sid,'storageStatus':'warehouse','warehouse':'المستودع الرئيسي','forMarket':False,'marketApproved':False,'forAuction':False,'auctionApproved':False,'created':now,'updated':int(time.time()*1000),**inv}
+            item={'id':item_id,'country':row.get('country',''),'denomination':row.get('denomination',''),'issueEdition':row.get('issueEdition',''),'year':row.get('year',''),'type':row.get('type') or 'عملة ورقية','condition':row.get('condition','UNC'),'soldQuantity':0,'damagedQuantity':0,'serial':serial,'serials':[serial] if serial else [],'frontImg':row.get('frontImage',''),'backImg':row.get('backImage',''),'notes':row.get('notes',''),'ownerName':row.get('participantName',''),'ownerPhone':row.get('participantPhone',''),'ownerParticipantId':row.get('participantId',''),'sourceSubmissionId':sid,'storageStatus':'warehouse','warehouse':'المستودع الرئيسي','forMarket':str(row.get('desiredDestination') or 'vault')=='market','marketApproved':False,'forAuction':str(row.get('desiredDestination') or 'vault')=='auction','auctionApproved':False,'created':now,'updated':int(time.time()*1000),**inv}
             items.append(item); created+=1; changed=True
         else:
             before=json.dumps(item,ensure_ascii=False,sort_keys=True)
@@ -968,7 +1025,7 @@ ADMIN_GET_API={
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
     '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary'
 }
-PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel'}
+PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel'}
 PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/invoice.html'}
 
 class H(SimpleHTTPRequestHandler):
@@ -1064,9 +1121,10 @@ class H(SimpleHTTPRequestHandler):
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
             person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
             if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+            submissions={str(x.get('itemId') or ''):x for x in load_collectible_submissions() if str(x.get('participantId') or '')==pid and x.get('itemId')}
             owned=[]
             for i in load():
-                if str(i.get('ownerParticipantId') or '')!=pid: continue
+                if str(i.get('ownerParticipantId') or '')!=pid or i.get('ownerArchived'): continue
                 y={k:i.get(k) for k in (
                     'id','country','denomination','issueEdition','year','type','condition','notes','frontImg','backImg',
                     'inventoryUnitType','inventoryUnitCount','piecesPerUnit','quantity','availableQuantity',
@@ -1074,6 +1132,9 @@ class H(SimpleHTTPRequestHandler):
                     'forAuction','auctionApproved','auctionEnd','auctionOpeningPrice','auctionStartPrice','auctionCurrentPrice',
                     'auctionBidStep','auctionTargetPrice','auctionAdditionalTerms','auctionRound','auctionOutcome','auctionSold'
                 )}
+                sub=submissions.get(str(i.get('id') or '')) or {}
+                y['desiredDestination']=sub.get('desiredDestination') or 'vault'
+                y['sourceSubmissionId']=i.get('sourceSubmissionId') or sub.get('id') or ''
                 round_no=int(i.get('auctionRound') or 1)
                 y['bidCount']=sum(1 for b in load_bids() if str(b.get('itemId'))==str(i.get('id')) and int(b.get('auctionRound') or 1)==round_no)
                 y['marketOpenRequests']=sum(1 for r in load_market_requests() if str(r.get('itemId'))==str(i.get('id')) and str(r.get('status') or 'new') not in ('completed','cancelled','rejected'))
@@ -1487,11 +1548,26 @@ class H(SimpleHTTPRequestHandler):
                         append_save_audit({'id':item_id,'ok':False,'created':now,'reason':'submission_warehouse_verification_failed'})
                         self.sendj({'error':'تعذر التحقق من حفظ التصنيف أو الصور أو الكمية داخل المستودع؛ لم يُعتمد الطلب'},500); return
                     row['itemId']=item_id; row['warehouseVerified']=True; row['warehouseVerifiedAt']=now
+                    destination=str(row.get('desiredDestination') or 'vault')
+                    if destination=='market':
+                        item['forMarket']=True; item['marketApproved']=False
+                        # لا ينشر في السوق العام قبل تحديد سعر البيع واعتماد العرض.
+                        if not item.get('marketSalePrice'): item['marketSalePrice']=0
+                        save(items)
+                        add_notification('participant',row.get('participantId'),'market','🛒 المقتنى جاهز لإكمال عرض السوق',
+                                         f"{item.get('country','')} — {item.get('denomination','')} تم اعتماده. افتح «مقتنياتي المعتمدة» وحدد سعر البيع ليُرسل العرض للاعتماد.",item_id,'/account')
+                    elif destination=='auction':
+                        item['forAuction']=True; item['auctionApproved']=False; save(items)
+                        add_notification('participant',row.get('participantId'),'auction','⚖ المقتنى جاهز لإعداد المزاد',
+                                         f"{item.get('country','')} — {item.get('denomination','')} تم اعتماده. أكمل وقت المزاد وسعر الافتتاح والزيادة من حسابك.",item_id,'/account')
                     append_save_audit({'id':item_id,'ok':True,'country':item.get('country'),'denomination':item.get('denomination'),'created':now,'source':'collectible_submission','warehouse':snap})
                 row['status']=action; row['adminNote']=note; row['updated']=now
                 save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
                 pid=row.get('participantId'); title=f"{row.get('country','')} — {row.get('denomination','')}".strip(' —')
-                if action=='approved': nt=('✅ تم اعتماد المقتنى وإيداعه في المستودع',f'تم اعتماد {title} وحفظ تصنيفه وصوره وكميته في المستودع. يمكنك طلب عرضه لاحقًا حسب الصلاحيات.')
+                if action=='approved':
+                    dest=str(row.get('desiredDestination') or 'vault')
+                    suffix=' وهو جاهز لإكمال بيانات السوق من «مقتنياتي المعتمدة».' if dest=='market' else (' وهو جاهز لإكمال إعداد المزاد من «مقتنياتي المعتمدة».' if dest=='auction' else '.')
+                    nt=('✅ تم اعتماد المقتنى وإيداعه في المستودع',f'تم اعتماد {title} وحفظ تصنيفه وصوره وكميته في المستودع'+suffix)
                 elif action=='needs_changes': nt=('✏️ يحتاج المقتنى إلى استكمال',f'طلب {title} يحتاج تعديل/استكمال بيانات.'+((' ملاحظة الإدارة: '+note) if note else ''))
                 else: nt=('تم رفض طلب اعتماد المقتنى',f'لم يتم اعتماد {title}.'+((' السبب: '+note) if note else ''))
                 add_notification('participant',pid,'approval',nt[0],nt[1],row.get('itemId',''),'/account')
@@ -1536,6 +1612,24 @@ class H(SimpleHTTPRequestHandler):
                 item['updated']=int(time.time()*1000); save(items)
                 append_operation('تعديل المقتنى بواسطة المالك',{'itemId':iid,'participantId':pid},actor='العميل')
                 add_notification('admin','','approval','✏️ عدّل المالك بيانات مقتناه',f"{item.get('country','')} — {item.get('denomination','')}",iid,'/admin')
+                self.sendj({'ok':True}); return
+
+            if p=='/api/owner/item/delete':
+                pid=str(d.get('participantId') or ''); iid=str(d.get('itemId') or '')
+                person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+                if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+                items=load(); item=next((x for x in items if str(x.get('id'))==iid and str(x.get('ownerParticipantId') or '')==pid),None)
+                if not item: self.sendj({'error':'المقتنى غير موجود أو لا تملك صلاحية حذفه'},404); return
+                round_no=int(item.get('auctionRound') or 1)
+                has_bids=any(str(b.get('itemId'))==iid and int(b.get('auctionRound') or 1)==round_no for b in load_bids())
+                has_market=any(str(r.get('itemId'))==iid and str(r.get('status') or 'new') not in ('completed','cancelled','rejected') for r in load_market_requests())
+                has_orders=any(any(str(line.get('itemId'))==iid for line in (o.get('items') or [])) for o in load_orders())
+                if item.get('forMarket') or item.get('forAuction') or has_bids or has_market or has_orders or item.get('auctionSold'):
+                    self.sendj({'error':'لا يمكن حذف مقتنى مرتبط بعرض أو مزاد أو طلب. اسحب العرض/ألغ المزاد وأغلق الالتزامات أولًا.'},409); return
+                item['ownerArchived']=True; item['ownerArchivedAt']=datetime.datetime.now().isoformat(); item['storageStatus']='owner_removed'
+                item['updated']=int(time.time()*1000); save(items)
+                append_operation('حذف/أرشفة مقتنى بواسطة المالك',{'itemId':iid,'participantId':pid},actor='العميل')
+                add_notification('participant',pid,'approval','تم حذف المقتنى من قائمتك',f"{item.get('country','')} — {item.get('denomination','')} حُفظ في الأرشيف الداخلي ولم يعد ظاهرًا في حسابك.",iid,'/account')
                 self.sendj({'ok':True}); return
 
             if p=='/api/owner/market/update':
@@ -1987,10 +2081,26 @@ class H(SimpleHTTPRequestHandler):
                 avatar=str(d.get('avatarUrl') or '').strip()[:500]
                 if avatar and not (avatar.startswith('/uploads/') or avatar.startswith('data:image/')):
                     self.sendj({'error':'مسار صورة الحساب غير صالح'},400); return
-                person['alias']=alias; person['country']=country; person['avatarUrl']=avatar
-                person['profileUpdatedAt']=datetime.datetime.now().isoformat()
+
+                nowiso=datetime.datetime.now().isoformat()
+                person['alias']=alias; person['country']=country; person['avatarUrl']=avatar; person['profileUpdatedAt']=nowiso
+
+                # توحيد الهوية العامة لكل سجلات الحساب القديمة التي تحمل الجوال نفسه.
+                phone_key=_norm_phone(person.get('phone'))
+                synced=0
+                if phone_key:
+                    for other in a:
+                        if str(other.get('id') or '')==pid: continue
+                        if _norm_phone(other.get('phone'))==phone_key:
+                            other['alias']=alias; other['country']=country
+                            if avatar: other['avatarUrl']=avatar
+                            other['profileUpdatedAt']=nowiso
+                            synced+=1
+
                 save_json(PEOPLE,{'participants':a})
-                self.sendj({'ok':True,'participant':participant_public(person)}); return
+                append_operation('تحديث هوية الحساب العامة',{'participantId':pid,'country':country,'syncedDuplicateAccounts':synced},actor='العميل')
+                self.sendj({'ok':True,'participant':participant_public(person),'syncedDuplicateAccounts':synced}); return
+
             if p=='/api/participant/verify':
                 pid=str(d.get('id','')); code=str(d.get('code','')).strip(); a=load_people(); person=next((x for x in a if x.get('id')==pid),None)
                 if not person: self.sendj({'error':'المشارك غير موجود'},404); return
