@@ -37,7 +37,7 @@ ADMIN_SESSIONS={}
 PARTICIPANT_SESSIONS={}
 SESSION_TTL_SECONDS=12*60*60
 PARTICIPANT_SESSION_TTL_SECONDS=30*24*60*60
-MARKET_FIRST_LAUNCH=str(os.environ.get('NAWADER_LAUNCH_MARKET_ONLY','1')).strip().lower() not in ('0','false','no','off')
+MARKET_FIRST_LAUNCH=False
 LOCK=threading.Lock()
 BACKUP_DIR=os.path.join(DATA_ROOT,'backups')
 UPLOAD_DIR=os.path.join(DATA_ROOT,'uploads')
@@ -774,7 +774,7 @@ def overdue_due_for(pid):
     return None
 
 def load_settings():
-    defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':False,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','duesTrackingStartedAt':'','visitorSections':{'market':True,'auction':True,'specialNumbers':True,'transitionalIssues':True}}
+    defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':True,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','duesTrackingStartedAt':'','visitorSections':{'market':True,'auction':True,'specialNumbers':True,'transitionalIssues':True},'fullPublicEnableV493':False}
     x=load_json(SETTINGS,defaults.copy())
     defaults.update(x if isinstance(x,dict) else {})
     vis=defaults.get('visitorSections')
@@ -785,12 +785,23 @@ def load_settings():
         'specialNumbers': bool(vis.get('specialNumbers',True)),
         'transitionalIssues': bool(vis.get('transitionalIssues',True)),
     }
+    # V4.9.3 one-time corrective migration:
+    # previous market-first launch mode may have left public sections/auction fee disabled.
+    # Enable all once, persist the correction, then future admin changes remain authoritative.
+    if not bool(defaults.get('fullPublicEnableV493')):
+        defaults['visitorSections']={
+            'market':True,
+            'auction':True,
+            'specialNumbers':True,
+            'transitionalIssues':True,
+        }
+        defaults['entryFeeEnabled']=True
+        defaults['fullPublicEnableV493']=True
+        save_json(SETTINGS,defaults)
     return defaults
 
 def effective_visitor_sections(settings=None):
     st=settings or load_settings(); vs=dict(st.get('visitorSections') or {})
-    if MARKET_FIRST_LAUNCH:
-        return {'market':True,'auction':False,'specialNumbers':False,'transitionalIssues':False}
     return {
         'market':vs.get('market',True) is not False,
         'auction':vs.get('auction',True) is not False,
@@ -1512,7 +1523,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'4.9.0','channel':'LAUNCH-CANDIDATE','marketFirstLaunch':MARKET_FIRST_LAUNCH}); return
+            self.sendj({'version':'4.9.3','channel':'FULL-SECTIONS','marketFirstLaunch':False}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict'); self.send_header('Location','/account'); self.end_headers(); return
