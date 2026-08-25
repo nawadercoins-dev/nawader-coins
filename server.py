@@ -945,7 +945,7 @@ ADMIN_GET_API={
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
     '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary'
 }
-PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/market','/api/owner/item/auction'}
+PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel'}
 PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/invoice.html'}
 
 class H(SimpleHTTPRequestHandler):
@@ -1037,6 +1037,25 @@ class H(SimpleHTTPRequestHandler):
             exe,version,diag=resolve_tesseract()
             langs=sorted(_tesseract_languages(exe)) if exe else []
             self.sendj({'ok':bool(exe),'path':exe,'version':version,'hasArabic':'ara' in langs,'hasEnglish':'eng' in langs,'languages':langs[:80],'diagnostics':diag[-5:]}); return
+        if p=='/api/owner/items':
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
+            person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+            if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+            owned=[]
+            for i in load():
+                if str(i.get('ownerParticipantId') or '')!=pid: continue
+                y={k:i.get(k) for k in (
+                    'id','country','denomination','issueEdition','year','type','condition','notes','frontImg','backImg',
+                    'inventoryUnitType','inventoryUnitCount','piecesPerUnit','quantity','availableQuantity',
+                    'forMarket','marketApproved','marketSalePrice','marketPriceUnit','marketNegotiationEnabled','marketNegotiationPercent',
+                    'forAuction','auctionApproved','auctionEnd','auctionOpeningPrice','auctionStartPrice','auctionCurrentPrice',
+                    'auctionBidStep','auctionTargetPrice','auctionAdditionalTerms','auctionRound','auctionOutcome','auctionSold'
+                )}
+                round_no=int(i.get('auctionRound') or 1)
+                y['bidCount']=sum(1 for b in load_bids() if str(b.get('itemId'))==str(i.get('id')) and int(b.get('auctionRound') or 1)==round_no)
+                y['marketOpenRequests']=sum(1 for r in load_market_requests() if str(r.get('itemId'))==str(i.get('id')) and str(r.get('status') or 'new') not in ('completed','cancelled','rejected'))
+                owned.append(y)
+            self.sendj({'items':owned}); return
         if p=='/api/collectible-submissions':
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
             person=next((x for x in load_people() if str(x.get('id'))==pid),None)
@@ -1050,11 +1069,6 @@ class H(SimpleHTTPRequestHandler):
                 if str(x.get('frontImage') or '').startswith('/uploads/'): y['frontImage']=x.get('frontImage')
                 if str(x.get('backImage') or '').startswith('/uploads/'): y['backImage']=x.get('backImage')
                 y['hasFrontImage']=bool(x.get('frontImage')); y['hasBackImage']=bool(x.get('backImage'))
-                if x.get('itemId'):
-                    owner_item=next((it for it in load() if str(it.get('id'))==str(x.get('itemId')) and str(it.get('ownerParticipantId'))==pid),None)
-                    if owner_item:
-                        y['ownerItem']={k:owner_item.get(k) for k in ('id','country','denomination','year','issueEdition','type','condition','serial','notes','frontImg','backImg','inventoryUnitType','inventoryUnitCount','piecesPerUnit','quantity','forMarket','marketApproved','marketTitle','marketSalePrice','marketQuantity','marketNegotiationEnabled','marketNegotiationPercent','forAuction','auctionApproved','auctionOpeningPrice','auctionBidStep','auctionTargetPrice','auctionEnd','auctionAdditionalTerms','auctionOutcome','auctionRound')}
-                        y['ownerItem']['bidCount']=sum(1 for b in load_bids() if str(b.get('itemId'))==str(owner_item.get('id')) and int(b.get('auctionRound') or 1)==int(owner_item.get('auctionRound') or 1))
                 safe.append(y)
             self.sendj({'submissions':safe}); return
         if p=='/api/collectible-submissions/admin':
@@ -1386,93 +1400,6 @@ class H(SimpleHTTPRequestHandler):
         try: d=self.body()
         except Exception: self.sendj({'error':'bad json'},400); return
         with LOCK:
-            if p=='/api/owner/item/update':
-                pid=str(d.get('participantId') or ''); iid=str(d.get('id') or '')
-                person=next((x for x in load_people() if str(x.get('id'))==pid),None)
-                if not participant_can_transact(person): self.sendj({'error':'إدارة المقتنيات تتطلب الاعتماد النهائي'},403); return
-                items=load(); item=next((x for x in items if str(x.get('id'))==iid and str(x.get('ownerParticipantId'))==pid),None)
-                if not item: self.sendj({'error':'المقتنى غير موجود أو لا تملك صلاحية تعديله'},404); return
-                country=str(d.get('country') or item.get('country') or '').strip(); denom=str(d.get('denomination') or item.get('denomination') or '').strip()
-                if not country or not denom: self.sendj({'error':'الدولة والفئة مطلوبتان'},400); return
-                # لا نسمح بتغيير الكمية الفيزيائية أثناء وجود عرض/مزاد أو التزام بيع.
-                has_commitment=bool(item.get('forMarket') or item.get('forAuction') or inventory_int(item.get('soldQuantity'),0)>0 or any(str(line.get('itemId'))==iid and str(o.get('status') or '') not in ('cancelled','rejected','refunded','returned') for o in load_orders() for line in (o.get('items') or [])))
-                item.update({'country':country,'denomination':denom,'year':str(d.get('year') if d.get('year') is not None else item.get('year') or '').strip(),'issueEdition':str(d.get('issueEdition') if d.get('issueEdition') is not None else item.get('issueEdition') or '').strip(),'type':str(d.get('type') if d.get('type') is not None else item.get('type') or 'عملة ورقية').strip(),'condition':str(d.get('condition') if d.get('condition') is not None else item.get('condition') or 'UNC').strip(),'serial':str(d.get('serial') if d.get('serial') is not None else item.get('serial') or '').strip(),'notes':str(d.get('notes') if d.get('notes') is not None else item.get('notes') or '').strip()})
-                if d.get('frontImg'): item['frontImg']=str(d.get('frontImg'))
-                if d.get('backImg'): item['backImg']=str(d.get('backImg'))
-                if not has_commitment:
-                    unit=str(d.get('inventoryUnitType') or item.get('inventoryUnitType') or 'piece'); count=max(1,inventory_int(d.get('inventoryUnitCount'),inventory_unit_count(item))); pieces=max(1,inventory_int(d.get('piecesPerUnit'),inventory_pieces_per_unit(item)))
-                    if unit=='strap' and pieces==1: pieces=100
-                    item['inventoryUnitType']=unit; item['inventoryUnitCount']=count; item['piecesPerUnit']=pieces; item['quantity']=count*pieces
-                item['updated']=int(time.time()*1000); save(items)
-                # حافظ على بيانات طلب الاعتماد متزامنة مع سجل المالك.
-                rows=load_collectible_submissions()
-                for row in rows:
-                    if str(row.get('itemId'))==iid and str(row.get('participantId'))==pid:
-                        row.update({'country':item.get('country'),'denomination':item.get('denomination'),'year':item.get('year'),'issueEdition':item.get('issueEdition'),'type':item.get('type'),'condition':item.get('condition'),'serial':item.get('serial'),'notes':item.get('notes'),'frontImage':item.get('frontImg'),'backImage':item.get('backImg'),'updated':datetime.datetime.now().isoformat()})
-                save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
-                append_operation('تعديل المالك للمقتنى',{'itemId':iid,'participantId':pid,'hasCommitment':has_commitment},actor='العميل')
-                self.sendj({'ok':True,'item':item,'inventoryLocked':has_commitment}); return
-            if p=='/api/owner/item/market':
-                pid=str(d.get('participantId') or ''); iid=str(d.get('id') or ''); action=str(d.get('action') or 'save')
-                person=next((x for x in load_people() if str(x.get('id'))==pid),None)
-                if not participant_can_transact(person): self.sendj({'error':'إدارة السوق تتطلب الاعتماد النهائي'},403); return
-                items=load(); item=next((x for x in items if str(x.get('id'))==iid and str(x.get('ownerParticipantId'))==pid),None)
-                if not item: self.sendj({'error':'المقتنى غير موجود أو لا تملك صلاحية إدارته'},404); return
-                reqs=[r for r in load_market_requests() if str(r.get('itemId'))==iid and str(r.get('status') or 'pending') not in ('rejected','cancelled','expired','completed')]
-                if action=='cancel':
-                    if reqs: self.sendj({'error':'لا يمكن سحب العرض لوجود طلب شراء/تفاوض قائم. عالج الطلب أولًا.'},409); return
-                    item['forMarket']=False; item['marketApproved']=False; item['storageStatus']='warehouse'; item['updated']=int(time.time()*1000); save(items)
-                    append_operation('سحب المالك للمقتنى من السوق',{'itemId':iid,'participantId':pid},actor='العميل'); add_notification('admin','','market','سحب مالك مقتنى من السوق',item_title(item),iid,'/admin')
-                    self.sendj({'ok':True,'item':item}); return
-                price=float(d.get('marketSalePrice') or item.get('marketSalePrice') or 0); qty=max(1,inventory_int(d.get('marketQuantity'),item.get('marketQuantity') or 1))
-                if price<=0: self.sendj({'error':'سعر البيع يجب أن يكون أكبر من صفر'},400); return
-                available=max(0,inventory_snapshot(item).get('warehouse',0)+inventory_snapshot(item).get('market',0))
-                if qty>max(1,available): self.sendj({'error':f'الكمية المطلوبة أكبر من المتاح ({available})'},409); return
-                was_approved=bool(item.get('forMarket') and item.get('marketApproved'))
-                item.update({'forMarket':True,'marketTitle':str(d.get('marketTitle') or item.get('marketTitle') or item_title(item)).strip(),'marketSalePrice':price,'marketQuantity':qty,'marketNegotiationEnabled':bool(d.get('marketNegotiationEnabled')),'marketNegotiationPercent':max(0,min(100,float(d.get('marketNegotiationPercent') or 0))),'updated':int(time.time()*1000)})
-                # إذا كان العرض منشورًا يبقى منشورًا؛ أما العرض الجديد فيحتاج اعتماد الإدارة مرة واحدة.
-                if not was_approved: item['marketApproved']=False
-                save(items); append_operation('إدارة المالك لعرض السوق',{'itemId':iid,'participantId':pid,'approved':was_approved,'price':price,'quantity':qty},actor='العميل')
-                if not was_approved: add_notification('admin','','market','🛒 طلب نشر مقتنى في السوق',f"{person.get('name','عميل')} طلب نشر {item_title(item)} بسعر {price:g} ر.س.",iid,'/admin')
-                self.sendj({'ok':True,'item':item,'needsAdminApproval':not was_approved}); return
-            if p=='/api/owner/item/auction':
-                pid=str(d.get('participantId') or ''); iid=str(d.get('id') or ''); action=str(d.get('action') or 'save')
-                person=next((x for x in load_people() if str(x.get('id'))==pid),None)
-                if not participant_can_transact(person): self.sendj({'error':'إدارة المزاد تتطلب الاعتماد النهائي'},403); return
-                items=load(); item=next((x for x in items if str(x.get('id'))==iid and str(x.get('ownerParticipantId'))==pid),None)
-                if not item: self.sendj({'error':'المقتنى غير موجود أو لا تملك صلاحية إدارته'},404); return
-                if str(item.get('auctionOutcome') or '')=='sold': self.sendj({'error':'المزاد الناجح مغلق ولا يمكن تعديله أو إلغاؤه'},409); return
-                rnd=int(item.get('auctionRound') or 1); round_bids=[b for b in load_bids() if str(b.get('itemId'))==iid and int(b.get('auctionRound') or 1)==rnd]
-                if action=='cancel':
-                    reason=str(d.get('reason') or '').strip()
-                    if round_bids and not reason: self.sendj({'error':'سبب الإلغاء مطلوب عند وجود مزايدات'},400); return
-                    if not reason: reason='إلغاء من صاحب المقتنى قبل وجود مزايدات'
-                    notified=set()
-                    for b in round_bids:
-                        bidder=str(b.get('participantId') or '')
-                        if bidder and bidder not in notified:
-                            add_notification('participant',bidder,'auction','⛔ تم إلغاء المزاد',f"تم إلغاء مزاد {item_title(item)} من صاحب المقتنى. السبب: {reason}",iid,'/auction'); notified.add(bidder)
-                    hist=list(item.get('auctionHistory') or []); hist.append({'round':rnd,'event':'cancelled_by_owner','reason':reason,'bidCount':len(round_bids),'at':datetime.datetime.now().isoformat()}); item['auctionHistory']=hist
-                    item.update({'auctionOutcome':'cancelled','auctionCancelReason':reason,'auctionCancelledAt':datetime.datetime.now().isoformat(),'forAuction':False,'auctionApproved':False,'storageStatus':'warehouse','updated':int(time.time()*1000)})
-                    save(items); append_operation('إلغاء المالك للمزاد',{'itemId':iid,'participantId':pid,'round':rnd,'reason':reason,'bidCount':len(round_bids)},actor='العميل'); add_notification('admin','','auction','⛔ ألغى المالك مزاده',f"{item_title(item)} — {reason}",iid,'/admin')
-                    self.sendj({'ok':True,'item':item,'bidCount':len(round_bids)}); return
-                end=str(d.get('auctionEnd') or item.get('auctionEnd') or '').strip()
-                try: enddt=datetime.datetime.fromisoformat(end)
-                except Exception: self.sendj({'error':'موعد انتهاء المزاد غير صحيح'},400); return
-                if enddt<=auction_local_now(): self.sendj({'error':'موعد انتهاء المزاد يجب أن يكون في المستقبل'},400); return
-                opening=max(0,float(d.get('auctionOpeningPrice') or item.get('auctionOpeningPrice') or item.get('auctionStartPrice') or 0)); step=max(.01,float(d.get('auctionBidStep') or item.get('auctionBidStep') or 1)); target=max(0,float(d.get('auctionTargetPrice') if d.get('auctionTargetPrice') not in (None,'') else item.get('auctionTargetPrice') or 0))
-                if round_bids:
-                    opening=float(item.get('auctionOpeningPrice') or item.get('auctionStartPrice') or opening)  # سعر الافتتاح يقفل بعد أول مزايدة
-                was_approved=bool(item.get('forAuction') and item.get('auctionApproved'))
-                item.update({'forAuction':True,'auctionEnd':end,'auctionOpeningPrice':opening,'auctionStartPrice':opening,'auctionBidStep':step,'auctionTargetPrice':target,'auctionAdditionalTerms':str(d.get('auctionAdditionalTerms') or item.get('auctionAdditionalTerms') or '').strip()[:1000],'updated':int(time.time()*1000)})
-                if not was_approved:
-                    item['auctionApproved']=False; item['auctionOutcome']=''; item['auctionRound']=max(1,int(item.get('auctionRound') or 0)+1)
-                save(items); append_operation('إدارة المالك للمزاد',{'itemId':iid,'participantId':pid,'approved':was_approved,'bidCount':len(round_bids)},actor='العميل')
-                if round_bids and was_approved:
-                    for bidder in {str(b.get('participantId') or '') for b in round_bids if b.get('participantId')}:
-                        add_notification('participant',bidder,'auction','✏️ تم تحديث إعدادات المزاد',f"حدّث صاحب المقتنى إعدادات مزاد {item_title(item)}. راجع الوقت والزيادة قبل المزايدة التالية.",iid,'/auction')
-                if not was_approved: add_notification('admin','','auction','⚖ طلب إدخال مقتنى للمزاد',f"{person.get('name','عميل')} طلب إدخال {item_title(item)} للمزاد.",iid,'/admin')
-                self.sendj({'ok':True,'item':item,'needsAdminApproval':not was_approved,'openingLocked':bool(round_bids)}); return
             if p=='/api/collectible-submissions':
                 pid=str(d.get('participantId') or '')
                 person=next((x for x in load_people() if str(x.get('id'))==pid),None)
@@ -1564,6 +1491,107 @@ class H(SimpleHTTPRequestHandler):
                 if status=='paid':
                     row['paidAt']=datetime.datetime.now().isoformat(); order=create_order_for_due(row); update_order_status(order,'paid','تم اعتماد السداد من المستحقات'); orders=load_orders(); orders=[order if str(x.get('id'))==str(order.get('id')) else x for x in orders]; save_json(ORDERS,{'orders':orders}); add_notification('participant',row.get('participantId'),'finance','✅ تم اعتماد السداد',f"تم اعتماد سداد مستحق مزاد {row.get('itemTitle') or ''}. أصبحت المشاركة متاحة ما لم يوجد مستحق متأخر آخر.",row.get('itemId'),'/account')
                 save_json(AUCTION_DUES,{'dues':rows}); append_operation('تحديث حالة مستحق مزاد',{'dueId':did,'status':status}); self.sendj({'ok':True,'due':row}); return
+            if p=='/api/owner/item/update':
+                pid=str(d.get('participantId') or ''); iid=str(d.get('itemId') or '')
+                person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+                if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+                items=load(); item=next((x for x in items if str(x.get('id'))==iid and str(x.get('ownerParticipantId') or '')==pid),None)
+                if not item: self.sendj({'error':'المقتنى غير موجود أو لا تملك صلاحية تعديله'},404); return
+                if item.get('auctionSold'): self.sendj({'error':'المقتنى مباع ولا يمكن تعديل بياناته الأساسية'},409); return
+                for k in ('country','denomination','issueEdition','year','type','condition','notes','frontImg','backImg'):
+                    if k in d: item[k]=str(d.get(k) or '').strip()
+                # الكمية لا تتغير مع التزامات قائمة.
+                if 'inventoryUnitCount' in d or 'piecesPerUnit' in d:
+                    round_no=int(item.get('auctionRound') or 1)
+                    has_bids=any(str(b.get('itemId'))==iid and int(b.get('auctionRound') or 1)==round_no for b in load_bids())
+                    has_market=any(str(r.get('itemId'))==iid and str(r.get('status') or 'new') not in ('completed','cancelled','rejected') for r in load_market_requests())
+                    if item.get('forMarket') or item.get('forAuction') or has_bids or has_market:
+                        self.sendj({'error':'لا يمكن تغيير الكمية أثناء وجود عرض أو مزاد أو طلب قائم'},409); return
+                    units=max(1,int(float(d.get('inventoryUnitCount') or item.get('inventoryUnitCount') or 1)))
+                    pieces=max(1,int(float(d.get('piecesPerUnit') or item.get('piecesPerUnit') or 1)))
+                    item['inventoryUnitCount']=units; item['piecesPerUnit']=pieces; item['quantity']=units*pieces; item['availableQuantity']=units*pieces
+                item['updated']=int(time.time()*1000); save(items)
+                append_operation('تعديل المقتنى بواسطة المالك',{'itemId':iid,'participantId':pid},actor='العميل')
+                add_notification('admin','','approval','✏️ عدّل المالك بيانات مقتناه',f"{item.get('country','')} — {item.get('denomination','')}",iid,'/admin')
+                self.sendj({'ok':True}); return
+
+            if p=='/api/owner/market/update':
+                pid=str(d.get('participantId') or ''); iid=str(d.get('itemId') or '')
+                person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+                if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+                items=load(); item=next((x for x in items if str(x.get('id'))==iid and str(x.get('ownerParticipantId') or '')==pid),None)
+                if not item: self.sendj({'error':'المقتنى غير موجود أو لا تملك صلاحية إدارته'},404); return
+                active_requests=[r for r in load_market_requests() if str(r.get('itemId'))==iid and str(r.get('status') or 'new') not in ('completed','cancelled','rejected')]
+                enable=bool(d.get('enable',True))
+                if not enable:
+                    if active_requests: self.sendj({'error':'لا يمكن سحب العرض لوجود طلب شراء أو تفاوض قائم'},409); return
+                    item['forMarket']=False; item['marketApproved']=False; item['updated']=int(time.time()*1000); save(items)
+                    append_operation('سحب عرض السوق بواسطة المالك',{'itemId':iid,'participantId':pid},actor='العميل')
+                    self.sendj({'ok':True}); return
+                price=max(0,float(d.get('marketSalePrice') or item.get('marketSalePrice') or 0))
+                qty=max(1,int(float(d.get('availableQuantity') or item.get('availableQuantity') or 1)))
+                max_qty=max(1,int(item.get('quantity') or item.get('availableQuantity') or qty))
+                item['marketSalePrice']=price; item['availableQuantity']=min(qty,max_qty)
+                item['marketNegotiationEnabled']=bool(d.get('marketNegotiationEnabled',item.get('marketNegotiationEnabled',False)))
+                item['marketNegotiationPercent']=max(0,min(50,float(d.get('marketNegotiationPercent') or item.get('marketNegotiationPercent') or 0)))
+                was_approved=bool(item.get('marketApproved'))
+                item['forMarket']=True
+                if not was_approved:
+                    item['marketApproved']=False
+                    add_notification('admin','','approval','🛒 طلب عرض مقتنى في السوق',f"{item.get('country','')} — {item.get('denomination','')} بسعر {price:g} ر.س",iid,'/admin')
+                item['updated']=int(time.time()*1000); save(items)
+                append_operation('إدارة السوق بواسطة المالك',{'itemId':iid,'participantId':pid,'price':price,'approved':was_approved},actor='العميل')
+                self.sendj({'ok':True,'pendingApproval':not was_approved}); return
+
+            if p=='/api/owner/auction/update':
+                pid=str(d.get('participantId') or ''); iid=str(d.get('itemId') or '')
+                person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+                if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+                items=load(); item=next((x for x in items if str(x.get('id'))==iid and str(x.get('ownerParticipantId') or '')==pid),None)
+                if not item: self.sendj({'error':'المقتنى غير موجود أو لا تملك صلاحية إدارته'},404); return
+                if item.get('auctionSold') or str(item.get('auctionOutcome') or '')=='sold':
+                    self.sendj({'error':'المزاد مباع ومغلق نهائيًا'},409); return
+                round_no=int(item.get('auctionRound') or 1)
+                bids=[b for b in load_bids() if str(b.get('itemId'))==iid and int(b.get('auctionRound') or 1)==round_no]
+                if not bids:
+                    opening=max(0,float(d.get('auctionOpeningPrice') or item.get('auctionOpeningPrice') or item.get('auctionStartPrice') or 0))
+                    item['auctionOpeningPrice']=opening; item['auctionStartPrice']=opening
+                    if not item.get('auctionCurrentPrice'): item['auctionCurrentPrice']=opening
+                item['auctionBidStep']=max(.01,float(d.get('auctionBidStep') or item.get('auctionBidStep') or 1))
+                item['auctionTargetPrice']=max(0,float(d.get('auctionTargetPrice') or item.get('auctionTargetPrice') or 0))
+                item['auctionAdditionalTerms']=str(d.get('auctionAdditionalTerms') or item.get('auctionAdditionalTerms') or '').strip()[:1000]
+                if d.get('auctionEnd'): item['auctionEnd']=str(d.get('auctionEnd')).strip()
+                was_approved=bool(item.get('auctionApproved'))
+                item['forAuction']=True
+                if not was_approved:
+                    item['auctionApproved']=False
+                    add_notification('admin','','approval','⚖ طلب إدخال مقتنى للمزاد',f"{item.get('country','')} — {item.get('denomination','')}",iid,'/admin')
+                item['updated']=int(time.time()*1000); save(items)
+                append_operation('إدارة المزاد بواسطة المالك',{'itemId':iid,'participantId':pid,'bidCount':len(bids),'approved':was_approved},actor='العميل')
+                self.sendj({'ok':True,'openingLocked':bool(bids),'pendingApproval':not was_approved}); return
+
+            if p=='/api/owner/auction/cancel':
+                pid=str(d.get('participantId') or ''); iid=str(d.get('itemId') or ''); reason=str(d.get('reason') or '').strip()
+                person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
+                if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
+                items=load(); item=next((x for x in items if str(x.get('id'))==iid and str(x.get('ownerParticipantId') or '')==pid),None)
+                if not item: self.sendj({'error':'المقتنى غير موجود أو لا تملك صلاحية إدارته'},404); return
+                if item.get('auctionSold') or str(item.get('auctionOutcome') or '')=='sold':
+                    self.sendj({'error':'المزاد الناجح مغلق ولا يمكن إلغاؤه'},409); return
+                round_no=int(item.get('auctionRound') or 1)
+                bids=[b for b in load_bids() if str(b.get('itemId'))==iid and int(b.get('auctionRound') or 1)==round_no]
+                if bids and not reason: self.sendj({'error':'سبب الإلغاء إلزامي لوجود مزايدات'},400); return
+                item['forAuction']=False; item['auctionApproved']=False; item['auctionCancelledAt']=datetime.datetime.now().isoformat(); item['auctionCancelReason']=reason or 'إلغاء بواسطة المالك'
+                item['updated']=int(time.time()*1000); save(items)
+                seen=set()
+                for b in bids:
+                    bidder=str(b.get('participantId') or '')
+                    if bidder and bidder not in seen:
+                        seen.add(bidder); add_notification('participant',bidder,'auction','تم إلغاء المزاد',f"أُلغي مزاد {item.get('country','')} — {item.get('denomination','')}. السبب: {reason or 'إلغاء بواسطة المالك'}",iid,'/auction')
+                add_notification('admin','','auction','⛔ ألغى المالك مزاده',f"{item.get('country','')} — {item.get('denomination','')}. {reason}",iid,'/admin')
+                append_operation('إلغاء المزاد بواسطة المالك',{'itemId':iid,'participantId':pid,'reason':reason,'bidCount':len(bids)},actor='العميل')
+                self.sendj({'ok':True}); return
+
             if p=='/api/notifications/read':
                 pid=str(d.get('participantId') or ''); nid=str(d.get('id') or ''); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
                 if not person: self.sendj({'error':'الحساب غير مفعل أو موقوف'},403); return
