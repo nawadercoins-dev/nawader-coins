@@ -1,3 +1,4 @@
+// V4.6.7 — seller identity is rendered in every auction card.
 const $=x=>document.getElementById(x),esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])),money=x=>Number(x||0).toLocaleString('ar-SA')+' ر.س';
 async function api(path,opt={}){let r=await fetch(path,{...opt,headers:{'Content-Type':'application/json',...(opt.headers||{})},cache:'no-store'});let j={};try{j=await r.json()}catch{}if(!r.ok)throw new Error(j.error||'تعذر الاتصال');return j}
 function clock(end){if(!end)return'بدون وقت انتهاء';let d=new Date(end).getTime()-Date.now();if(d<=0)return'انتهى المزاد';let days=Math.floor(d/86400000);d%=86400000;let h=Math.floor(d/3600000);d%=3600000;let m=Math.floor(d/60000),s=Math.floor((d%60000)/1000);return`${days} يوم، ${h} ساعة، ${m} دقيقة، ${s} ثانية`}
@@ -39,6 +40,7 @@ function card(i){
   auctionImageGroups[i.id]=[i.frontImg,i.backImg,i.gradingCertImage,...(i.additionalImages||[])].filter(Boolean);
 
   return `<article class="auction-public-card two-column-auction-card" id="${i.id}" data-current="${current}" data-opening="${opening}" data-step="${step}" data-bids="${bids}">
+    ${sellerIdentity(i)}
     <div class="auction-top-grid">
       <div class="auction-image-column">
         ${(i.frontImg||i.backImg)?`<div class="auction-cover" data-cover-id="${esc(i.id)}">

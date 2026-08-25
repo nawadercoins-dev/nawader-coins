@@ -924,6 +924,46 @@
   .seller-flag{min-width:29px;height:25px;font-size:1.2rem}
 }
 </style>
+
+<style id="seller-identity-auction-v467">
+.auction-public-card .seller-identity{
+  min-height:42px!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:7px!important;
+  padding:5px 9px!important;
+  direction:rtl!important;
+  background:linear-gradient(90deg,#fffdf8,#fff)!important;
+  border-bottom:1px solid #e6d8b5!important;
+  overflow:hidden!important;
+  white-space:nowrap!important;
+}
+.auction-public-card .seller-avatar{
+  width:30px!important;height:30px!important;flex:0 0 30px!important;
+  display:grid!important;place-items:center!important;overflow:hidden!important;
+  border-radius:50%!important;background:#0b2a55!important;color:#fff!important;
+  border:1px solid #d8a33b!important;font-weight:900!important;
+}
+.auction-public-card .seller-avatar img{width:100%!important;height:100%!important;object-fit:cover!important}
+.auction-public-card .seller-name{
+  min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;
+  color:#102747!important;font-weight:900!important;
+}
+.auction-public-card .seller-check{
+  display:inline-grid!important;place-items:center!important;width:15px!important;height:15px!important;
+  border-radius:50%!important;background:#2879d8!important;color:#fff!important;font-size:10px!important;
+}
+.auction-public-card .seller-flag{
+  margin-inline-start:auto!important;flex:0 0 auto!important;display:grid!important;place-items:center!important;
+  min-width:31px!important;height:27px!important;padding:0 4px!important;border-radius:8px!important;
+  border:1px solid #e1d3ad!important;background:#fffaf0!important;font-size:1.35rem!important;line-height:1!important;
+}
+@media(max-width:650px){
+  .auction-public-card .seller-identity{min-height:38px!important;padding:4px 7px!important}
+  .auction-public-card .seller-avatar{width:27px!important;height:27px!important;flex-basis:27px!important}
+  .auction-public-card .seller-flag{min-width:29px!important;height:25px!important;font-size:1.2rem!important}
+}
+</style>
 </head>
 <body>
 <div class="public-hero"><div class="public-wrap hero-row"><div class="brand"><img class="brand-logo" src="/assets/nawader-logo.jpg" alt="شعار نوادر العملات"><div><h1>نوادر العملات</h1><p>المزادات — تصفح مفتوح ومزايدة للمشاركين المعتمدين</p></div></div><div class="hero-actions visitor-nav"><a class="home primary" href="/home">⌂ الرئيسية</a><button data-back>↩ رجوع</button><a href="/market">🛍 السوق العام</a><a href="/special-numbers">✦ الأرقام المميزة</a><a href="/announcements">📣 الإعلانات</a><a href="/account">👤 حسابي</a><a href="/notifications">🔔 <span data-notification-count>0</span></a><button data-logout hidden>خروج</button><div class="hero-badge">◆ نوادر العملات</div></div></div></div>
@@ -932,5 +972,5 @@
 <section class="panel auction-discovery"><div class="auction-search-row"><input id="auctionSearch" type="search" placeholder="🔎 ابحث بالدولة أو الفئة أو السنة أو الوصف"><button id="endingSoonBtn" type="button" class="ending-soon-btn">⏳ مزادات قاربت على الانتهاء</button><button id="allAuctionsBtn" type="button" class="all-auctions-btn">كل المزادات</button></div><div id="endingSoonStrip" class="ending-soon-strip" hidden></div></section>
 <div id="publicAuctions"></div>
 </main>
-<dialog id="auctionLightbox" class="auction-lightbox" aria-label="عارض صور المزاد"><button id="auctionLightboxClose" class="auction-lightbox-close" aria-label="إغلاق العارض">×</button><div class="auction-lightbox-toolbar"><button data-alb="prev">‹ السابق</button><button data-alb="zin">＋ تكبير</button><button data-alb="zout">− تصغير</button><button data-alb="rl">↺ تدوير</button><button data-alb="rr">↻ تدوير</button><button data-alb="center">◎ توسيط</button><button data-alb="reset">100%</button><button data-alb="full">⛶ ملء الشاشة</button><button data-alb="next">التالي ›</button></div><div id="auctionLightboxStage" class="auction-lightbox-stage"><img id="auctionLightboxImg" alt="صورة المقتنى في المزاد"></div><div id="auctionLightboxCount" class="auction-lightbox-count"></div></dialog><script src="/visitor.js?v=4.0.25.4"></script><script src="public_auction.js?v=4.4.6-title-marquee"></script>
+<dialog id="auctionLightbox" class="auction-lightbox" aria-label="عارض صور المزاد"><button id="auctionLightboxClose" class="auction-lightbox-close" aria-label="إغلاق العارض">×</button><div class="auction-lightbox-toolbar"><button data-alb="prev">‹ السابق</button><button data-alb="zin">＋ تكبير</button><button data-alb="zout">− تصغير</button><button data-alb="rl">↺ تدوير</button><button data-alb="rr">↻ تدوير</button><button data-alb="center">◎ توسيط</button><button data-alb="reset">100%</button><button data-alb="full">⛶ ملء الشاشة</button><button data-alb="next">التالي ›</button></div><div id="auctionLightboxStage" class="auction-lightbox-stage"><img id="auctionLightboxImg" alt="صورة المقتنى في المزاد"></div><div id="auctionLightboxCount" class="auction-lightbox-count"></div></dialog><script src="/visitor.js?v=4.0.25.4"></script><script src="public_auction.js?v=4.6.7-owner-identity"></script>
 </body></html>
