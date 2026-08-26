@@ -1538,7 +1538,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'4.9.4','channel':'ORDER-ADMIN-RESET','marketFirstLaunch':False}); return
+            self.sendj({'version':'4.9.9','channel':'CONSOLIDATED-SESSION-SYNC','marketFirstLaunch':False}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
