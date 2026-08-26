@@ -641,7 +641,22 @@ def create_order_for_due(due):
 
 def create_order_for_market(req):
     orders=load_orders(); existing=next((o for o in orders if o.get('source')=='market' and str(o.get('sourceId'))==str(req.get('id'))),None)
-    if existing: return existing
+    if existing:
+        if bool(existing.get('archived')) or str(existing.get('status') or '') in ('cancelled','returned'):
+            now=datetime.datetime.now().isoformat()
+            existing['archived']=False
+            existing['archivedAt']=''
+            existing['archiveReason']=''
+            existing['status']='awaiting_payment'
+            existing['paymentStatus']='unpaid'
+            existing['shippingCompany']=''
+            existing['trackingNumber']=''
+            existing['updated']=now
+            hist=list(existing.get('history') or [])
+            hist.append({'status':'awaiting_payment','at':now,'note':'إعادة تفعيل الطلب إداريًا من طلب السوق'})
+            existing['history']=hist
+            save_json(ORDERS,{'orders':orders})
+        return existing
     item=next((i for i in load() if str(i.get('id'))==str(req.get('itemId'))),{})
     subtotal=float(req.get('offeredAmount') or req.get('listedAmount') or 0); fee=float(req.get('buyerFeeAmount') or 0)
     units=max(1,inventory_int(req.get('quantity'),1)); physical=units*market_physical_per_unit(item)
@@ -1523,7 +1538,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'4.9.3','channel':'FULL-SECTIONS','marketFirstLaunch':False}); return
+            self.sendj({'version':'4.9.4','channel':'ORDER-ADMIN-RESET','marketFirstLaunch':False}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1750,6 +1765,7 @@ class H(SimpleHTTPRequestHandler):
             ensure_auction_outcomes(); reconcile_direct_market_buy_orders(pid); phone=str(person.get('phone') or '').replace(' ',''); labels={'new':'طلب جديد','awaiting_payment':'بانتظار السداد','paid':'تم السداد','preparing':'قيد التجهيز','ready_to_ship':'جاهز للشحن','shipped':'تم الشحن','received':'تم الاستلام','completed':'مكتمل','stalled':'متعثر','cancelled':'ملغي','returned':'مرتجع'}
             rows=[]
             for o in load_orders():
+                if bool(o.get('archived')): continue
                 if str(o.get('participantId') or '')!=pid and str(o.get('customerPhone') or '').replace(' ','')!=phone: continue
                 first=(o.get('items') or [{}])[0]
                 rows.append({'id':o.get('id'),'orderNumber':o.get('orderNumber'),'source':o.get('source'),'itemTitle':first.get('title','مقتنى'),'quantity':sum(int(x.get('quantity') or 1) for x in o.get('items') or []),'buyerTotal':o.get('total',0),'status':o.get('status'),'statusLabel':labels.get(o.get('status'),o.get('status')),'created':o.get('created'),'shippingCompany':o.get('shippingCompany'),'trackingNumber':o.get('trackingNumber'),'archived':o.get('archived',False)})
@@ -1791,7 +1807,11 @@ class H(SimpleHTTPRequestHandler):
                 self.sendj({'items':items}); return
         if p=='/api/market/requests':
             with LOCK:
-                req=load_market_requests(); req.sort(key=lambda x:x.get('created',''),reverse=True); self.sendj({'requests':req}); return
+                all_req=load_market_requests()
+                req=[x for x in all_req if not bool(x.get('archived'))]
+                req.sort(key=lambda x:x.get('created',''),reverse=True)
+                archived=sum(1 for x in all_req if bool(x.get('archived')))
+                self.sendj({'requests':req,'archivedCount':archived}); return
         if p=='/api/subscriptions':
             with LOCK:
                 a=load_subscriptions(); a.sort(key=lambda x:x.get('created',''),reverse=True); self.sendj({'subscriptions':a}); return
@@ -2450,6 +2470,65 @@ class H(SimpleHTTPRequestHandler):
                 chk=next((x for x in load_market_requests() if x.get('id')==row['id']),None)
                 if not chk: self.sendj({'error':'تعذر التحقق من تسجيل طلب السوق'},500); return
                 self.sendj({'ok':True,'request':chk,'orderId':row.get('orderId')}); return
+            if p=='/api/market/request/reset':
+                rid=str(d.get('id','')).strip()
+                a=load_market_requests(); row=next((x for x in a if str(x.get('id'))==rid),None)
+                if not row: self.sendj({'error':'الطلب غير موجود'},404); return
+                now=datetime.datetime.now().isoformat()
+                previous=str(row.get('status') or '')
+                row['archived']=False; row['archivedAt']=''; row['archiveReason']=''
+                row['shippingCompany']=''; row['trackingNumber']=''; row['shippedAt']=''
+                row['completedAt']=''; row['rejectedAt']=''; row['cancelledAt']=''
+                if str(row.get('action') or '')=='buy':
+                    row['status']='accepted'; row['acceptedAt']=now
+                    order=create_order_for_market(row)
+                    if order:
+                        orders=load_orders(); target=next((o for o in orders if str(o.get('id'))==str(order.get('id'))),None)
+                        if target:
+                            target['archived']=False; target['archivedAt']=''; target['archiveReason']=''
+                            target['status']='awaiting_payment'; target['paymentStatus']='unpaid'
+                            target['shippingCompany']=''; target['trackingNumber']=''; target['updated']=now
+                            hist=list(target.get('history') or [])
+                            hist.append({'status':'awaiting_payment','at':now,'note':'إعادة الطلب إداريًا إلى بداية مسار الشراء'})
+                            target['history']=hist
+                            save_json(ORDERS,{'orders':orders})
+                else:
+                    row['status']='pending'; row['acceptedAt']=''
+                    orders=load_orders()
+                    target=next((o for o in orders if o.get('source')=='market' and str(o.get('sourceId'))==rid),None)
+                    if target:
+                        target['archived']=True; target['archivedAt']=now
+                        target['archiveReason']='إعادة عرض التفاوض للمراجعة'
+                        target['status']='cancelled'; target['updated']=now
+                        hist=list(target.get('history') or [])
+                        hist.append({'status':'cancelled','at':now,'note':'إعادة طلب التفاوض للمراجعة الإدارية'})
+                        target['history']=hist
+                        save_json(ORDERS,{'orders':orders})
+                row['updated']=now
+                save_json(MARKET_REQUESTS,{'requests':a})
+                append_operation('إعادة طلب سوق',{'requestId':rid,'previousStatus':previous,'newStatus':row.get('status')},actor='الإدارة')
+                self.sendj({'ok':True,'request':row}); return
+
+            if p=='/api/market/request/archive':
+                rid=str(d.get('id','')).strip(); reason=str(d.get('reason') or '').strip()
+                a=load_market_requests(); row=next((x for x in a if str(x.get('id'))==rid),None)
+                if not row: self.sendj({'error':'الطلب غير موجود'},404); return
+                now=datetime.datetime.now().isoformat()
+                row['archived']=True; row['archivedAt']=now; row['archiveReason']=reason or 'إزالة من قائمة الطلبات النشطة'
+                row['updated']=now
+                orders=load_orders()
+                target=next((o for o in orders if o.get('source')=='market' and str(o.get('sourceId'))==rid),None)
+                if target:
+                    target['archived']=True; target['archivedAt']=now
+                    target['archiveReason']=row['archiveReason']; target['updated']=now
+                    hist=list(target.get('history') or [])
+                    hist.append({'status':target.get('status') or 'archived','at':now,'note':'أرشفة الطلب إداريًا دون حذف السجل المالي'})
+                    target['history']=hist
+                    save_json(ORDERS,{'orders':orders})
+                save_json(MARKET_REQUESTS,{'requests':a})
+                append_operation('أرشفة طلب سوق',{'requestId':rid,'reason':row['archiveReason'],'linkedOrderId':row.get('orderId') or ''},actor='الإدارة')
+                self.sendj({'ok':True,'archived':True,'request':row}); return
+
             if p=='/api/market/request/respond':
                 rid=str(d.get('id','')); status=str(d.get('status','')).strip(); allowed={'accepted','rejected','shipped','completed','pending'}
                 if status not in allowed: self.sendj({'error':'حالة الطلب غير صالحة'},400); return
