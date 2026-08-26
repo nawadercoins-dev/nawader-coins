@@ -36,7 +36,7 @@ ADMIN_CREDENTIALS=''
 ADMIN_SESSIONS={}
 PARTICIPANT_SESSIONS={}
 SESSION_TTL_SECONDS=12*60*60
-PARTICIPANT_SESSION_TTL_SECONDS=30*24*60*60
+PARTICIPANT_SESSION_TTL_SECONDS=90*24*60*60
 MARKET_FIRST_LAUNCH=False
 LOCK=threading.Lock()
 BACKUP_DIR=os.path.join(DATA_ROOT,'backups')
@@ -1492,7 +1492,7 @@ class H(SimpleHTTPRequestHandler):
         b=json.dumps(obj,ensure_ascii=False).encode('utf-8')
         self.send_response(status); self.send_header('Content-Type','application/json; charset=utf-8')
         self.send_header('Content-Length',str(len(b))); self.send_header('Cache-Control','no-store')
-        self.send_header('Set-Cookie',f'NawaderParticipant={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={PARTICIPANT_SESSION_TTL_SECONDS}{secure}')
+        self.send_header('Set-Cookie',f'NawaderParticipant={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={PARTICIPANT_SESSION_TTL_SECONDS}{secure}')
         self.end_headers(); self.wfile.write(b)
     def require_admin(self,api=False):
         if self.is_admin(): return True
@@ -1541,14 +1541,14 @@ class H(SimpleHTTPRequestHandler):
             self.sendj({'version':'4.9.4','channel':'ORDER-ADMIN-RESET','marketFirstLaunch':False}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
-            self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict'); self.send_header('Location','/account'); self.end_headers(); return
+            self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
         if p=='/admin-login':
             if self.is_admin():
                 self.send_response(302); self.send_header('Location','/admin'); self.end_headers(); return
             self.login_page(); return
         if p=='/admin-logout':
             token=self.cookie_value('KhazinaAdmin'); ADMIN_SESSIONS.pop(token,None)
-            self.send_response(302); self.send_header('Set-Cookie','KhazinaAdmin=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict'); self.send_header('Location','/'); self.end_headers(); return
+            self.send_response(302); self.send_header('Set-Cookie','KhazinaAdmin=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/'); self.end_headers(); return
         # The root URL is the permanent public homepage. Keep /home as a
         # compatibility alias so old bookmarks and printed links never 404.
         if p in ('/','/home','/home/','/public_home.html'):
@@ -1710,6 +1710,10 @@ class H(SimpleHTTPRequestHandler):
             with LOCK:
                 people=load_people(); counts={s:sum(1 for x in people if participant_approval_status(x)==s) for s in APPROVAL_STATUSES}; active=len(people)-counts['cancelled']
                 self.sendj({'total':active,'pending':counts['new']+counts['preliminary'],'approved':counts['final'],'archived':counts['cancelled'],'counts':counts}); return
+        if p=='/api/participant/me':
+            person=self.require_participant('')
+            if not person: return
+            self.sendj({'ok':True,'participant':participant_public(person)}); return
         if p=='/api/participant/status':
             q=urlparse(self.path).query
             pid=(parse_qs(q).get('id') or [''])[0]
@@ -1904,7 +1908,7 @@ class H(SimpleHTTPRequestHandler):
                 time.sleep(0.35); self.login_page('اسم المستخدم أو كلمة المرور غير صحيحة.'); return
             token=secrets.token_urlsafe(32); ADMIN_SESSIONS[token]={'created':time.time(),'last':time.time()}
             secure='; Secure' if (self.headers.get('X-Forwarded-Proto') or '').lower()=='https' else ''
-            self.send_response(302); self.send_header('Set-Cookie',f'KhazinaAdmin={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={SESSION_TTL_SECONDS}{secure}'); self.send_header('Location','/admin'); self.end_headers(); return
+            self.send_response(302); self.send_header('Set-Cookie',f'KhazinaAdmin={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={SESSION_TTL_SECONDS}{secure}'); self.send_header('Location','/admin'); self.end_headers(); return
         if not self.same_origin_ok():
             self.sendj({'error':'تم رفض الطلب لأسباب أمنية.'},403); return
         if p not in PUBLIC_POST_API:
