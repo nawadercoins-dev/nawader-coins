@@ -382,7 +382,6 @@ def order_line_physical(line,item=None):
 def item_order_quantities(item_id,orders=None,item=None):
     reserved=returned=0; by_source={'market':0,'auction':0}
     for order in orders if orders is not None else load_orders():
-        if bool(order.get('archived')): continue
         status=str(order.get('status') or '')
         for line in order.get('items') or []:
             if str(line.get('itemId'))!=str(item_id): continue
@@ -1539,7 +1538,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'4.9.5','channel':'RETURN-TO-OWNER','marketFirstLaunch':False}); return
+            self.sendj({'version':'4.9.4','channel':'ORDER-ADMIN-RESET','marketFirstLaunch':False}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict'); self.send_header('Location','/account'); self.end_headers(); return
@@ -2477,56 +2476,38 @@ class H(SimpleHTTPRequestHandler):
                 if not row: self.sendj({'error':'الطلب غير موجود'},404); return
                 now=datetime.datetime.now().isoformat()
                 previous=str(row.get('status') or '')
-                item_id=str(row.get('itemId') or '')
-                # "إعادة" تعني إعادة المقتنى إلى سجل صاحبه، وليس إعادة فتح طلب الشراء.
-                row['status']='returned_to_owner'
-                row['returnedToOwnerAt']=now
-                row['archived']=True
-                row['archivedAt']=now
-                row['archiveReason']='أعيد المقتنى إلى سجل صاحبه'
+                row['archived']=False; row['archivedAt']=''; row['archiveReason']=''
                 row['shippingCompany']=''; row['trackingNumber']=''; row['shippedAt']=''
+                row['completedAt']=''; row['rejectedAt']=''; row['cancelledAt']=''
+                if str(row.get('action') or '')=='buy':
+                    row['status']='accepted'; row['acceptedAt']=now
+                    order=create_order_for_market(row)
+                    if order:
+                        orders=load_orders(); target=next((o for o in orders if str(o.get('id'))==str(order.get('id'))),None)
+                        if target:
+                            target['archived']=False; target['archivedAt']=''; target['archiveReason']=''
+                            target['status']='awaiting_payment'; target['paymentStatus']='unpaid'
+                            target['shippingCompany']=''; target['trackingNumber']=''; target['updated']=now
+                            hist=list(target.get('history') or [])
+                            hist.append({'status':'awaiting_payment','at':now,'note':'إعادة الطلب إداريًا إلى بداية مسار الشراء'})
+                            target['history']=hist
+                            save_json(ORDERS,{'orders':orders})
+                else:
+                    row['status']='pending'; row['acceptedAt']=''
+                    orders=load_orders()
+                    target=next((o for o in orders if o.get('source')=='market' and str(o.get('sourceId'))==rid),None)
+                    if target:
+                        target['archived']=True; target['archivedAt']=now
+                        target['archiveReason']='إعادة عرض التفاوض للمراجعة'
+                        target['status']='cancelled'; target['updated']=now
+                        hist=list(target.get('history') or [])
+                        hist.append({'status':'cancelled','at':now,'note':'إعادة طلب التفاوض للمراجعة الإدارية'})
+                        target['history']=hist
+                        save_json(ORDERS,{'orders':orders})
                 row['updated']=now
-
-                orders=load_orders()
-                target=next((o for o in orders if o.get('source')=='market' and str(o.get('sourceId'))==rid),None)
-                if target:
-                    # إذا كان المخزون قد خُصم نهائيًا بالفعل، نعكسه قبل الإغلاق.
-                    if target.get('inventoryFinalized') and not target.get('inventoryReversed'):
-                        finalize_order_inventory(target,True)
-                        target['inventoryReversed']=True
-                        target['inventoryReversedAt']=now
-                    target['status']='returned' if target.get('inventoryFinalized') else 'cancelled'
-                    target['archived']=True
-                    target['archivedAt']=now
-                    target['archiveReason']='إعادة المقتنى إلى سجل صاحبه'
-                    target['updated']=now
-                    hist=list(target.get('history') or [])
-                    hist.append({'status':target['status'],'at':now,'note':'أعيد المقتنى إلى سجل صاحبه وأُغلق الطلب'})
-                    target['history']=hist
-                    save_json(ORDERS,{'orders':orders})
-
-                items=load()
-                item=next((x for x in items if str(x.get('id'))==item_id),None)
-                owner_pid=''
-                if item:
-                    owner_pid=str(item.get('ownerParticipantId') or '')
-                    item['ownerArchived']=False
-                    item['ownerArchivedAt']=''
-                    # لا نعيد العرض تلقائيًا؛ يعود لسجل المالك أولًا ويقرر هو إعادة عرضه.
-                    item['forMarket']=False
-                    item['marketApproved']=False
-                    item['forAuction']=False
-                    item['auctionApproved']=False
-                    item['returnedToOwnerAt']=now
-                    item['returnedFromRequestId']=rid
-                    item['updated']=int(datetime.datetime.now().timestamp()*1000)
-                    save(items)
-
                 save_json(MARKET_REQUESTS,{'requests':a})
-                append_operation('إعادة المقتنى إلى سجل صاحبه',{'requestId':rid,'itemId':item_id,'ownerParticipantId':owner_pid,'previousStatus':previous},actor='الإدارة')
-                if owner_pid:
-                    add_notification('participant',owner_pid,'inventory','↩️ تمت إعادة المقتنى إلى سجلك',f"تمت إعادة {row.get('itemTitle') or 'المقتنى'} إلى سجلك ويمكنك إعادة عرضه لاحقًا.",item_id,'/account')
-                self.sendj({'ok':True,'returnedToOwner':True,'ownerParticipantId':owner_pid,'request':row}); return
+                append_operation('إعادة طلب سوق',{'requestId':rid,'previousStatus':previous,'newStatus':row.get('status')},actor='الإدارة')
+                self.sendj({'ok':True,'request':row}); return
 
             if p=='/api/market/request/archive':
                 rid=str(d.get('id','')).strip(); reason=str(d.get('reason') or '').strip()
@@ -2571,6 +2552,38 @@ class H(SimpleHTTPRequestHandler):
                             if sn not in done: done.append(sn)
                         item['marketSoldSerials']=done; item['updated']=int(datetime.datetime.now().timestamp()*1000); save(items)
                 save_json(MARKET_REQUESTS,{'requests':a}); self.sendj({'ok':True,'request':row}); return
+            if p=='/api/auction/return-owner':
+                iid=str(d.get('id') or '').strip(); items=load(); item=next((x for x in items if str(x.get('id'))==iid),None)
+                if not item: self.sendj({'ok':False,'error':'المقتنى غير موجود'},404); return
+                if not (item.get('forAuction') or item.get('auctionOutcome') or item.get('auctionApproved')):
+                    self.sendj({'ok':False,'error':'المقتنى غير مرتبط بمزاد'},409); return
+                now=datetime.datetime.now(); nowiso=now.isoformat(); rnd=int(item.get('auctionRound') or 1)
+                outcome=str(item.get('auctionOutcome') or '')
+                dues=load_auction_dues(); due=next((x for x in dues if str(x.get('itemId'))==iid and int(x.get('auctionRound') or 1)==rnd and str(x.get('status') or '')!='cancelled'),None)
+                orders=load_orders(); order=None
+                if due and due.get('orderId'): order=next((x for x in orders if str(x.get('id'))==str(due.get('orderId'))),None)
+                if not order and item.get('auctionOrderId'): order=next((x for x in orders if str(x.get('id'))==str(item.get('auctionOrderId'))),None)
+                if outcome=='sold':
+                    if due and str(due.get('status') or '')=='paid': self.sendj({'ok':False,'error':'تم سداد المزاد؛ استخدم مسار المرتجع/الإلغاء المالي قبل إعادة المقتنى.'},409); return
+                    if order:
+                        st=str(order.get('status') or '')
+                        if order.get('paymentStatus')=='paid' or st in ('paid','preparing','ready_to_ship','shipped','received','completed','returned'):
+                            self.sendj({'ok':False,'error':'بدأ السداد أو تنفيذ الطلب؛ لا يمكن إعادة المقتنى مباشرة. استخدم مسار المرتجع/الإلغاء المالي.'},409); return
+                    if due:
+                        due['status']='cancelled'; due['cancelledAt']=nowiso; due['cancelReason']='إعادة المقتنى إلى صاحبه من إدارة المزادات'; due['updated']=nowiso
+                        save_json(AUCTION_DUES,{'dues':dues})
+                    if order:
+                        order['status']='cancelled'; order['archived']=True; order['archivedAt']=nowiso; order['updated']=nowiso
+                        order.setdefault('history',[]).append({'status':'cancelled','at':nowiso,'note':'إلغاء نتيجة المزاد وإعادة المقتنى إلى صاحبه الأصلي'})
+                        save_json(ORDERS,{'orders':orders})
+                history=list(item.get('auctionHistory') or [])
+                history.append({'round':rnd,'event':'returned_to_owner','previousOutcome':outcome,'winnerParticipantId':item.get('auctionWinnerParticipantId'),'winningAmount':item.get('auctionWinningAmount',item.get('auctionCurrentPrice',0)),'at':nowiso,'actor':'admin'})
+                item['auctionHistory']=history; item['auctionOutcome']='returned_to_owner'; item['auctionReturnedToOwnerAt']=nowiso
+                item['auctionApproved']=False; item['forAuction']=False; item['forMarket']=False; item['marketApproved']=False
+                item['adminLocation']='owner'; item['inWarehouse']=False; item['warehouseAvailable']=False; item['storageStatus']='owner_record'; item['locationUpdatedAt']=nowiso; item['updated']=int(now.timestamp()*1000)
+                save(items); append_operation('إعادة مقتنى مزاد إلى صاحبه',{'itemId':iid,'auctionRound':rnd,'previousOutcome':outcome,'orderId':order.get('id') if order else '','dueId':due.get('id') if due else ''},actor='الإدارة')
+                add_notification('admin','','auction','↩ إعادة مقتنى لصاحبه',f"{item_title(item)} — تم إخراجه من المزاد وإعادته إلى سجل صاحبه مع حفظ سجل الجولة.",iid,'/admin')
+                self.sendj({'ok':True,'item':item,'message':'تمت إعادة المقتنى إلى سجل صاحبه الأصلي وحفظ سجل المزاد.'}); return
             if p=='/api/auction/cancel':
                 iid=str(d.get('id') or '').strip(); reason=str(d.get('reason') or '').strip()
                 items=load(); item=next((x for x in items if str(x.get('id'))==iid),None)
@@ -3149,7 +3162,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='4.9.0-LAUNCH-CANDIDATE'
+VERSION='4.9.6-AUCTION-RETURN-TO-OWNER'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
