@@ -3195,7 +3195,7 @@ async function renderMarketAdmin(items) {
               ...(it.additionalImages || []),
             ].filter(Boolean),
             thumb = imgs[0] || "";
-          return `<div class="market-request-card ${x.status === "rejected" ? "request-rejected" : ""}">${thumb ? `<div class="market-request-image"><img src="${esc(thumb)}" alt="${esc(title)}" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})'></div>` : `<div class="market-request-image no-request-image">لا توجد صورة</div>`}<div class="market-request-main"><div class="market-request-title"><b>${esc(title)}</b> <span class="status-ar ${marketStatusClass(x.status)}">${marketStatusLabel(x.status)}</span></div><div class="market-request-meta"><span>البائع / المالك: <b>${esc(owner)}</b></span><span>المشتري: <b>${esc(x.name)}</b> — ${esc(x.phone)}</span><span>نوع الطلب: <b>${action}</b></span><span>الكمية: <b>${Number(x.quantity || 1)}</b></span><span>السعر المعلن: <b>${money(listed)}</b></span><span class="market-request-money">${x.action === "offer" ? "عرض العميل" : "قيمة الطلب"}: ${money(offered)}</span><span>رسوم المشتري: <b>${money(Number(x.buyerFeeAmount || 0))}</b> (${Number(x.buyerFeePercent || 0)}%)</span><span>إجمالي المطلوب من المشتري: <b>${money(Number(x.buyerTotal || offered))}</b></span><span>التاريخ: ${new Date(x.created).toLocaleString("ar-SA")}</span></div></div><div class="actions"><button onclick="marketRequestStatus('${x.id}','accepted')">قبول</button><button class="ghost" onclick="marketRequestShip('${x.id}')">تم الشحن</button><button class="danger" onclick="marketRequestStatus('${x.id}','rejected')">رفض</button></div></div>`;
+          return `<div class="market-request-card ${x.status === "rejected" ? "request-rejected" : ""}">${thumb ? `<div class="market-request-image"><img src="${esc(thumb)}" alt="${esc(title)}" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})'></div>` : `<div class="market-request-image no-request-image">لا توجد صورة</div>`}<div class="market-request-main"><div class="market-request-title"><b>${esc(title)}</b> <span class="status-ar ${marketStatusClass(x.status)}">${marketStatusLabel(x.status)}</span></div><div class="market-request-meta"><span>البائع / المالك: <b>${esc(owner)}</b></span><span>المشتري: <b>${esc(x.name)}</b> — ${esc(x.phone)}</span><span>نوع الطلب: <b>${action}</b></span><span>الكمية: <b>${Number(x.quantity || 1)}</b></span><span>السعر المعلن: <b>${money(listed)}</b></span><span class="market-request-money">${x.action === "offer" ? "عرض العميل" : "قيمة الطلب"}: ${money(offered)}</span><span>رسوم المشتري: <b>${money(Number(x.buyerFeeAmount || 0))}</b> (${Number(x.buyerFeePercent || 0)}%)</span><span>إجمالي المطلوب من المشتري: <b>${money(Number(x.buyerTotal || offered))}</b></span><span>التاريخ: ${new Date(x.created).toLocaleString("ar-SA")}</span></div></div><div class="actions"><button onclick="marketRequestStatus('${x.id}','accepted')">قبول</button><button class="ghost" onclick="marketRequestShip('${x.id}')">تم الشحن</button><button class="danger" onclick="marketRequestStatus('${x.id}','rejected')">رفض</button><button class="ghost" onclick="marketRequestReset('${x.id}')">↺ إعادة</button><button class="danger" onclick="marketRequestArchive('${x.id}')">إزالة</button></div></div>`;
         })
         .join("") || "<p>لا توجد طلبات شراء أو تفاوض حتى الآن.</p>";
   } catch (e) {
@@ -3225,6 +3225,32 @@ window.marketRequestStatus = async (id, status) => {
     await api("/api/market/request/respond", {
       method: "POST",
       body: JSON.stringify({ id, status }),
+    });
+    await renderMarketAdmin();
+  } catch (e) {
+    alert(e.message);
+  }
+};
+
+window.marketRequestReset = async (id) => {
+  if (!confirm("إعادة هذا الطلب إلى بداية مساره؟\nالشراء المباشر يعود إلى بانتظار السداد، والتفاوض يعود للمراجعة.")) return;
+  try {
+    await api("/api/market/request/reset", {
+      method: "POST",
+      body: JSON.stringify({ id }),
+    });
+    await renderMarketAdmin();
+  } catch (e) {
+    alert(e.message);
+  }
+};
+window.marketRequestArchive = async (id) => {
+  let reason = prompt("سبب الإزالة / الأرشفة (اختياري):", "") || "";
+  if (!confirm("سيختفي الطلب من القائمة النشطة، لكن الفاتورة والسجل المالي لن يُحذفا. متابعة؟")) return;
+  try {
+    await api("/api/market/request/archive", {
+      method: "POST",
+      body: JSON.stringify({ id, reason }),
     });
     await renderMarketAdmin();
   } catch (e) {
