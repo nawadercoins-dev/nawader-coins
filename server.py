@@ -1540,7 +1540,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.0.0','channel':'CLEAN-BASELINE','marketFirstLaunch':False}); return
+            self.sendj({'version':'5.0.1','channel':'CUSTOMER-LOGIN-SEPARATION','marketFirstLaunch':False}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -2790,8 +2790,8 @@ class H(SimpleHTTPRequestHandler):
                 phone=''.join(ch for ch in raw_phone if ch.isdigit() or ch=='+')
                 pin=str(d.get('pin') or '')
                 claim_id=str(d.get('claimId') or '').strip()
-                if not name or not phone or not pin:
-                    self.sendj({'error':'الاسم والجوال ورمز الدخول مطلوبة'},400); return
+                if not phone or not pin:
+                    self.sendj({'error':'رقم الجوال ورمز الدخول مطلوبان'},400); return
                 if len(''.join(ch for ch in phone if ch.isdigit())) < 7:
                     self.sendj({'error':'رقم الجوال غير مكتمل'},400); return
                 if len(pin)<4 or len(pin)>32:
@@ -2825,6 +2825,10 @@ class H(SimpleHTTPRequestHandler):
                     apply_approval_status(existing,existing_status or 'final')
                     x=existing
                 else:
+                    if not name:
+                        self.sendj({'error':'هذا الرقم غير مسجل. لإنشاء حساب جديد اكتب الاسم الكامل.'},400); return
+                    if not reg_country:
+                        self.sendj({'error':'اختر دولة الحساب والشحن لإنشاء الحساب الجديد.'},400); return
                     x={'id':'p-'+secrets.token_hex(6),'name':name,'phone':phone,'country':reg_country,'approved':True,'verified':True,'blocked':False,'archived':False,'approvalStatus':'final','created':nowiso,'lastSeen':nowiso,'verifiedAt':nowiso,'approvedAt':nowiso,'finalApprovedAt':nowiso,'verificationMode':'pin-session','otp':'','otpExpires':'','otpAttempts':0,'approvalHistory':[{'status':'final','previousStatus':'new','reason':'تفعيل الحساب مباشرة بعد تسجيل الدخول المحمي','actor':'النظام','at':nowiso}]}
                     set_participant_pin(x,pin); a.append(x)
 
