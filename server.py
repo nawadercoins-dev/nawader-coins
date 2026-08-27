@@ -106,25 +106,27 @@ def add_notification(recipient_type, recipient_id, category, title, message, ite
     row={'id':'nt-'+secrets.token_hex(6),'recipientType':recipient_type,'recipientId':str(recipient_id or ''),'category':category,'title':title,'message':message,'itemId':str(item_id or ''),'actionUrl':action_url,'read':False,'created':datetime.datetime.now().isoformat()}
     rows.append(row); rows=rows[-4000:]; save_json(NOTIFICATIONS,{'notifications':rows}); return row
 
-APPROVAL_STATUSES=('new','preliminary','final','suspended','stopped','cancelled')
-APPROVAL_LABELS={'new':'طلب جديد','preliminary':'اعتماد مبدئي','final':'اعتماد نهائي','suspended':'معلّق','stopped':'موقوف','cancelled':'ملغى'}
+APPROVAL_STATUSES=('new','final','suspended','stopped','cancelled')
+APPROVAL_LABELS={'new':'طلب جديد','final':'توثيق كامل','suspended':'معلّق','stopped':'موقوف','cancelled':'ملغى'}
 
 def participant_approval_status(person):
     status=str((person or {}).get('approvalStatus') or '').strip().lower()
+    # V5.0: التوثيق المبدئي أُلغي نهائيًا؛ أي سجل قديم مبدئي يرحّل إلى توثيق كامل.
+    if status=='preliminary': return 'final'
     if status in APPROVAL_STATUSES: return status
     if (person or {}).get('archived'): return 'cancelled'
     if (person or {}).get('blocked'): return 'stopped'
-    if (person or {}).get('approved') and (person or {}).get('verified'): return 'final'
-    if (person or {}).get('verified'): return 'preliminary'
+    if (person or {}).get('verified') or (person or {}).get('approved'): return 'final'
     return 'new'
 
 def apply_approval_status(person,status):
+    if status=='preliminary': status='final'
     status=status if status in APPROVAL_STATUSES else 'new'; person['approvalStatus']=status
     person['verified']=status!='new'; person['approved']=status=='final'; person['blocked']=status in ('stopped','cancelled'); person['archived']=status=='cancelled'
     if status!='cancelled': person['archivedAt']=''; person['archiveReason']=''
     return person
 
-def participant_can_access(person): return participant_approval_status(person) in ('preliminary','final','suspended','stopped')
+def participant_can_access(person): return participant_approval_status(person) in ('final','suspended','stopped')
 def participant_can_transact(person): return participant_approval_status(person)=='final'
 def participant_public(person):
     blocked={'otp','otpExpires','otpAttempts','pinHash','pinSalt','pinIterations','authUpdatedAt'}
@@ -1538,7 +1540,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'4.9.9','channel':'CONSOLIDATED-SESSION-SYNC','marketFirstLaunch':False}); return
+            self.sendj({'version':'5.0.0','channel':'CLEAN-BASELINE','marketFirstLaunch':False}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1564,8 +1566,6 @@ class H(SimpleHTTPRequestHandler):
         if p in ADMIN_GET_API and not self.require_admin(api=True): return
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
-        if p=='/api/version':
-            self.sendj({'version':'4.8.2','name':'Nawader Coins Archive','port':getattr(self.server,'server_port',None)}); return
         if p=='/api/settings/public':
             st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'visitorSections':effective_visitor_sections(st),'marketFirstLaunch':MARKET_FIRST_LAUNCH}); return
         if p=='/api/settings/admin':
@@ -1705,11 +1705,11 @@ class H(SimpleHTTPRequestHandler):
             with LOCK:
                 people=load_people(); rows=[participant_public(x) for x in people]; active=[x for x in rows if x['approvalStatus']!='cancelled']; archived=[x for x in rows if x['approvalStatus']=='cancelled']
                 active.sort(key=lambda x:(APPROVAL_STATUSES.index(x['approvalStatus']),x.get('created',''))); archived.sort(key=lambda x:x.get('archivedAt',''),reverse=True); counts={s:sum(1 for x in rows if x['approvalStatus']==s) for s in APPROVAL_STATUSES}
-                self.sendj({'participants':active,'archive':archived,'total':len(active),'pending':counts['new']+counts['preliminary'],'archived':len(archived),'counts':counts}); return
+                self.sendj({'participants':active,'archive':archived,'total':len(active),'pending':counts['new'],'archived':len(archived),'counts':counts}); return
         if p=='/api/participants/summary':
             with LOCK:
                 people=load_people(); counts={s:sum(1 for x in people if participant_approval_status(x)==s) for s in APPROVAL_STATUSES}; active=len(people)-counts['cancelled']
-                self.sendj({'total':active,'pending':counts['new']+counts['preliminary'],'approved':counts['final'],'archived':counts['cancelled'],'counts':counts}); return
+                self.sendj({'total':active,'pending':counts['new'],'approved':counts['final'],'archived':counts['cancelled'],'counts':counts}); return
         if p=='/api/participant/me':
             person=self.require_participant('')
             if not person: return
@@ -2822,10 +2822,10 @@ class H(SimpleHTTPRequestHandler):
                             self.sendj({'error':'هذا حساب قديم يحتاج تفعيل رمز دخول من الجهاز الذي سبق استخدامه، أو مراجعة الإدارة.'},409); return
                         set_participant_pin(existing,pin)
                     existing.update({'name':name or existing.get('name',''),'country':reg_country or existing.get('country',''),'lastSeen':nowiso,'verifiedAt':existing.get('verifiedAt') or nowiso,'otp':'','otpExpires':'','otpAttempts':0})
-                    apply_approval_status(existing,existing_status or 'preliminary')
+                    apply_approval_status(existing,existing_status or 'final')
                     x=existing
                 else:
-                    x={'id':'p-'+secrets.token_hex(6),'name':name,'phone':phone,'country':reg_country,'approved':False,'verified':True,'blocked':False,'archived':False,'approvalStatus':'preliminary','created':nowiso,'lastSeen':nowiso,'verifiedAt':nowiso,'preliminaryApprovedAt':nowiso,'verificationMode':'pin-session','otp':'','otpExpires':'','otpAttempts':0,'approvalHistory':[{'status':'preliminary','previousStatus':'new','reason':'إنشاء حساب مع رمز دخول محمي','actor':'النظام','at':nowiso}]}
+                    x={'id':'p-'+secrets.token_hex(6),'name':name,'phone':phone,'country':reg_country,'approved':True,'verified':True,'blocked':False,'archived':False,'approvalStatus':'final','created':nowiso,'lastSeen':nowiso,'verifiedAt':nowiso,'approvedAt':nowiso,'finalApprovedAt':nowiso,'verificationMode':'pin-session','otp':'','otpExpires':'','otpAttempts':0,'approvalHistory':[{'status':'final','previousStatus':'new','reason':'تفعيل الحساب مباشرة بعد تسجيل الدخول المحمي','actor':'النظام','at':nowiso}]}
                     set_participant_pin(x,pin); a.append(x)
 
                 # منع استمرار نسخ هوية متفرقة لنفس الجوال: نزامن بيانات الهوية فقط، ولا ندمج السجلات تلقائيًا.
@@ -2949,48 +2949,23 @@ class H(SimpleHTTPRequestHandler):
 
             if p=='/api/participant/approval-status':
                 a=load_people(); iid=str(d.get('id') or ''); status=str(d.get('status') or '').strip().lower(); reason=str(d.get('reason') or '').strip()
-                if status not in APPROVAL_STATUSES or status=='new': self.sendj({'error':'حالة الاعتماد غير صالحة'},400); return
+                if status not in APPROVAL_STATUSES or status=='new': self.sendj({'error':'حالة التوثيق غير صالحة'},400); return
                 if status in ('suspended','stopped','cancelled') and not reason: self.sendj({'error':'كتابة السبب إلزامية لهذا القرار'},400); return
                 person=next((x for x in a if str(x.get('id'))==iid),None)
                 if not person: self.sendj({'error':'المشارك غير موجود'},404); return
                 previous=participant_approval_status(person)
                 if previous=='cancelled': self.sendj({'error':'الإلغاء نهائي ولا يمكن إعادة تفعيل الحساب'},409); return
                 nowiso=datetime.datetime.now().isoformat(); apply_approval_status(person,status); person['approvalUpdatedAt']=nowiso; person['approvalUpdatedBy']='الإدارة'
-                if status=='preliminary': person['preliminaryApprovedAt']=nowiso
                 if status=='final': person['approvedAt']=nowiso; person['finalApprovedAt']=nowiso
                 if status=='cancelled': person['archivedAt']=nowiso; person['archiveReason']=reason
                 history=person.get('approvalHistory') if isinstance(person.get('approvalHistory'),list) else []; history.append({'status':status,'previousStatus':previous,'reason':reason or 'قرار اعتماد إداري','actor':'الإدارة','at':nowiso}); person['approvalHistory']=history[-200:]
-                save_json(PEOPLE,{'participants':a}); messages={'preliminary':'تم تحديث حسابك إلى اعتماد مبدئي. يمكنك الدخول والتصفح حتى اكتمال المراجعة.','final':'تم منح حسابك الاعتماد النهائي، ويمكنك استخدام خدمات المزاد والسوق وفق الأنظمة.','suspended':'تم تعليق اعتماد حسابك مؤقتًا. يمكنك الدخول والتصفح، بينما أوقفت العمليات حتى المراجعة.','stopped':'تم إيقاف اعتماد حسابك وعملياته. تواصل مع الإدارة للمراجعة.','cancelled':'تم إلغاء اعتماد الحساب نهائيًا. تواصل مع الإدارة عند الحاجة.'}
+                save_json(PEOPLE,{'participants':a}); messages={'final':'تم توثيق حسابك بالكامل، ويمكنك استخدام خدمات المزاد والسوق وفق الأنظمة.','suspended':'تم تعليق حسابك مؤقتًا. يمكنك الدخول والتصفح، بينما أوقفت العمليات حتى المراجعة.','stopped':'تم إيقاف حسابك وعملياته. تواصل مع الإدارة للمراجعة.','cancelled':'تم إلغاء الحساب نهائيًا. تواصل مع الإدارة عند الحاجة.'}
                 add_notification('participant',iid,'approval','تحديث حالة الاعتماد: '+APPROVAL_LABELS[status],messages[status],'','/account'); append_operation('تغيير حالة اعتماد مشارك',{'participantId':iid,'previousStatus':previous,'status':status,'statusLabel':APPROVAL_LABELS[status],'reason':reason},actor='الإدارة')
                 self.sendj({'ok':True,'participant':participant_public(person)}); return
             if p=='/api/participant/approve':
-                self.sendj({'error':'تم استبدال الاعتماد المباشر بنظام حالات الاعتماد الجديد'},410); return
-                a=load_people(); iid=d.get('id'); approved=bool(d.get('approved')); direct=bool(d.get('direct')); found=False
-                for x in a:
-                    if x.get('id')==iid:
-                        nowiso=datetime.datetime.now().isoformat()
-                        x['approved']=approved; x['approvedAt']=nowiso if approved else ''
-                        if approved and direct:
-                            x['verified']=True; x['verifiedAt']=nowiso; x['otp']=''; x['otpExpires']=''; x['otpAttempts']=0; x['archived']=False; x['archivedAt']=''; x['archiveReason']=''
-                        elif not approved:
-                            x['archived']=True; x['archivedAt']=nowiso; x['archiveReason']='إلغاء أو رفض الاعتماد'
-                        found=True
-                save_json(PEOPLE,{'participants':a})
-                if found:
-                    add_notification('participant',iid,'approval','✅ تم اعتماد حسابك' if approved else 'تم إيقاف اعتماد المشاركة','يمكنك الآن المشاركة في المزادات.' if approved else 'تم إيقاف صلاحية المشاركة من الإدارة.','','/account')
-                    append_operation('تحديث اعتماد مشارك',{'participantId':iid,'approved':approved,'direct':direct})
-                self.sendj({'ok':found,'approved':approved,'direct':direct}); return
+                self.sendj({'error':'تم إيقاف مسار الاعتماد القديم؛ استخدم التوثيق الكامل أو التعليق/الإيقاف.'},410); return
             if p=='/api/participant/restore':
-                self.sendj({'error':'تم إلغاء الاستعادة القديمة؛ استخدم قرار حالة الاعتماد'},410); return
-                a=load_people(); iid=d.get('id'); approve=bool(d.get('approve')); found=False
-                for x in a:
-                    if x.get('id')==iid:
-                        nowiso=datetime.datetime.now().isoformat(); x['archived']=False; x['archivedAt']=''; x['archiveReason']=''; x['approved']=approve; x['approvedAt']=nowiso if approve else ''
-                        if approve: x['verified']=True; x['verifiedAt']=nowiso; x['otp']=''; x['otpExpires']=''; x['otpAttempts']=0
-                        found=True; break
-                if found:
-                    save_json(PEOPLE,{'participants':a}); append_operation('استعادة مشارك من الأرشيف',{'participantId':iid,'approved':approve})
-                self.sendj({'ok':found,'approved':approve}); return
+                self.sendj({'error':'تم إلغاء مسار الاستعادة القديم؛ استخدم حالات الحساب الحالية.'},410); return
             if p=='/api/participant/delete':
                 self.sendj({'error':'الحذف النهائي معطّل لحماية سجل المستخدم والمزايدات والطلبات والمستحقات'},409); return
             if p=='/api/bid':
