@@ -1548,22 +1548,11 @@ let participantFilter = "all";
 const approvalMeta = {new:["طلب جديد","new"],final:["توثيق كامل","final"],suspended:["معلّق","suspended"],stopped:["موقوف","stopped"],cancelled:["ملغى","cancelled"]};
 function approvalBadge(x){let s=(x.approvalStatus==="preliminary"?"final":(x.approvalStatus||"new")),m=approvalMeta[s]||approvalMeta.new;return `<span class="approval-badge ${m[1]}">${m[0]}</span>`}
 function participantActions(x){
-  if((x.approvalStatus||"")==="cancelled")
-    return `<button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`;
-  return `<button class="approval-final" onclick="participantSetStatus('${x.id}','final')">توثيق كامل</button>
-  <button class="approval-suspended" onclick="participantSetStatus('${x.id}','suspended')">تعليق الحساب</button>
-  <button class="approval-stopped" onclick="participantSetStatus('${x.id}','stopped')">إيقاف الحساب</button>
-  <button class="approval-cancelled" onclick="participantSetStatus('${x.id}','cancelled')">إلغاء الحساب</button>
-  <button class="ghost" onclick="resetParticipantPin('${x.id}')">🔑 رمز الدخول</button>
-  <button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`;
+  if((x.approvalStatus||"")==="cancelled")return `<button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`;
+  let wa=x.whatsappPending&&x.whatsappPendingRequestId?`<button class="approval-final" onclick="participantWhatsAppDecision('${x.id}','${x.whatsappPendingRequestId}','approve')">✅ توثيق كامل عبر واتساب</button><button class="danger-outline" onclick="participantWhatsAppDecision('${x.id}','${x.whatsappPendingRequestId}','reject')">رفض طلب واتساب</button>`:'';
+  return `${wa}<button class="approval-suspended" onclick="participantSetStatus('${x.id}','suspended')">تعليق الحساب</button><button class="approval-stopped" onclick="participantSetStatus('${x.id}','stopped')">إيقاف الحساب</button><button class="approval-cancelled" onclick="participantSetStatus('${x.id}','cancelled')">إلغاء الحساب</button><button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`;
 }
-window.resetParticipantPin=async id=>{
-  let pin=(prompt("اكتب رمز دخول جديد للحساب (4 خانات أو أكثر):","")||"").trim();
-  if(!pin)return;
-  if(pin.length<4){alert("الرمز قصير جدًا");return}
-  if(!confirm("سيتم إنهاء أي جلسة دخول قديمة لهذا الحساب. متابعة؟"))return;
-  try{await api("/api/participant/reset-pin",{method:"POST",body:JSON.stringify({id,pin})});alert("تم تحديث رمز الدخول. أعطه لصاحب الحساب بطريقة آمنة.")}catch(e){alert(e.message)}
-};
+window.participantWhatsAppDecision=async(id,requestId,action)=>{let label=action==='approve'?'اعتماد التوثيق الكامل بعد مطابقة رقم واتساب ورمز الطلب':'رفض طلب التوثيق عبر واتساب';if(!confirm(label+'؟'))return;try{await api('/api/participant/whatsapp-decision',{method:'POST',body:JSON.stringify({id,requestId,action})});await renderParticipants();await renderAdminNotifications()}catch(e){alert('تعذر تنفيذ القرار: '+e.message)}};
 async function renderParticipants() {
   try {
     let r = await api("/api/participants");
@@ -1576,7 +1565,7 @@ async function renderParticipants() {
     if ($("participantsArchiveCount"))
       $("participantsArchiveCount").textContent = Number(r.archived || 0);
     document.querySelectorAll("[data-count]").forEach(el=>el.textContent=counts[el.dataset.count]||0);
-    $("participantsList").innerHTML=a.map(x=>`<div class="participant status-${esc(x.approvalStatus||'new')}"><div class="participant-head"><b>${esc(x.name||"")}</b>${approvalBadge(x)}</div><div>${esc(x.phone||"")}</div><small class="muted">رمز المشاركة: ${esc(x.id||"")} ${x.created?"— التسجيل: "+new Date(x.created).toLocaleString("ar-SA"):""}</small>${x.archiveReason?`<p class="participant-reason">السبب: ${esc(x.archiveReason)}</p>`:""}<div class="actions participant-approval-actions">${participantActions(x)}</div></div>`).join("")||"<p>لا يوجد مشاركون في هذا التصنيف.</p>";
+    $("participantsList").innerHTML=a.map(x=>`<div class="participant status-${esc(x.approvalStatus||'new')}"><div class="participant-head"><b>${esc(x.name||"")}</b>${approvalBadge(x)}</div><div>${esc(x.phone||"")}</div><small class="muted">رمز المشاركة: ${esc(x.id||"")} ${x.created?"— التسجيل: "+new Date(x.created).toLocaleString("ar-SA"):""}</small>${x.whatsappPending?`<p class="participant-reason" style="background:#e9f7ee;color:#155c34">📱 طلب واتساب بانتظار المطابقة — الرمز: <b>${esc(x.whatsappPendingCode||"")}</b></p>`:""}${x.archiveReason?`<p class="participant-reason">السبب: ${esc(x.archiveReason)}</p>`:""}<div class="actions participant-approval-actions">${participantActions(x)}</div></div>`).join("")||"<p>لا يوجد مشاركون في هذا التصنيف.</p>";
     window.__participantRows=all;
     await refreshParticipantBadge();
   } catch (e) {
@@ -3472,6 +3461,7 @@ async function loadAdminSettingsPanel() {
     if ($("visitorSectionTransitional")) $("visitorSectionTransitional").checked = vs.transitionalIssues !== false;
     $("platformName").value = st.platformName || "نوادر العملات";
     $("adminEmail").value = st.adminEmail || "";
+    if ($("whatsappVerificationNumber")) $("whatsappVerificationNumber").value = st.whatsappVerificationNumber || "966551892409";
     if ($("ocrTesseractPath"))
       $("ocrTesseractPath").value = st.ocrTesseractPath || "";
   } catch (e) {
@@ -3498,6 +3488,7 @@ if ($("saveSettings"))
           },
           platformName: $("platformName").value.trim() || "نوادر العملات",
           adminEmail: $("adminEmail").value.trim(),
+          whatsappVerificationNumber: $("whatsappVerificationNumber") ? $("whatsappVerificationNumber").value.trim() : "966551892409",
           ocrTesseractPath: $("ocrTesseractPath")
             ? $("ocrTesseractPath").value.trim()
             : "",
