@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#071b35" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="/admin/styles.css?v=4.3.5-final" />
-    <title>نوادر العملات — الإدارة V4.8.2</title>
+    <title>نوادر العملات — الإدارة V5.0.0</title>
   </head>
   <body>
     <header>
@@ -1304,13 +1304,13 @@
         <div class="panel">
           <h2>إدارة توثيق الحسابات</h2>
           <div class="participant-summary">
-            <span>مبدئي/جديد: <b id="pendingParticipantsCount">0</b></span><span>النشطون: <b id="participantsTotalCount">0</b></span><span>الملغون: <b id="participantsArchiveCount">0</b></span>
+            <span>جديد يحتاج مراجعة: <b id="pendingParticipantsCount">0</b></span><span>النشطون: <b id="participantsTotalCount">0</b></span><span>الملغون: <b id="participantsArchiveCount">0</b></span>
           </div>
           <p class="muted">
             توثيق الحساب منفصل عن نشر المقتنيات. المقتنيات تنشر مباشرة، بينما الشراء والمزايدة والعمليات المالية يمكن أن تبقى مقيدة حسب حالة الحساب.
           </p>
           <div class="participant-filters" id="participantFilters">
-            <button class="active" data-participant-filter="all">الكل</button><button data-participant-filter="preliminary">مبدئي <b data-count="preliminary">0</b></button><button data-participant-filter="final">نهائي <b data-count="final">0</b></button><button data-participant-filter="suspended">معلّق <b data-count="suspended">0</b></button><button data-participant-filter="stopped">موقوف <b data-count="stopped">0</b></button><button data-participant-filter="cancelled">ملغى <b data-count="cancelled">0</b></button>
+            <button class="active" data-participant-filter="all">الكل</button><button data-participant-filter="new">جديد <b data-count="new">0</b></button><button data-participant-filter="final">توثيق كامل <b data-count="final">0</b></button><button data-participant-filter="suspended">معلّق <b data-count="suspended">0</b></button><button data-participant-filter="stopped">موقوف <b data-count="stopped">0</b></button><button data-participant-filter="cancelled">ملغى <b data-count="cancelled">0</b></button>
           </div>
           <div id="participantsList" class="participants-list"></div>
         </div>
@@ -1765,6 +1765,6 @@
       <div id="quickResults"></div>
       <div id="recent"></div>
     </div>
-    <script src="/admin/app.js?v=4.8.2-archive"></script>
+    <script src="/admin/app.js?v=5.0.0-clean"></script>
   </body>
 </html>

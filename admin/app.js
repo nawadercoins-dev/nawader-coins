@@ -1,4 +1,4 @@
-// V4.8.2 ARCHIVE — moderation and integrity UI.
+// V5.0.0 CLEAN BASELINE — moderation and integrity UI.
 const DB = "khazina_db",
   STORE = "items";
 let db,
@@ -1545,13 +1545,12 @@ function initViewers() {
   });
 }
 let participantFilter = "all";
-const approvalMeta = {new:["طلب جديد","new"],preliminary:["اعتماد مبدئي","preliminary"],final:["اعتماد نهائي","final"],suspended:["معلّق","suspended"],stopped:["موقوف","stopped"],cancelled:["ملغى","cancelled"]};
-function approvalBadge(x){let s=x.approvalStatus||"new",m=approvalMeta[s]||approvalMeta.new;return `<span class="approval-badge ${m[1]}">${m[0]}</span>`}
+const approvalMeta = {new:["طلب جديد","new"],final:["توثيق كامل","final"],suspended:["معلّق","suspended"],stopped:["موقوف","stopped"],cancelled:["ملغى","cancelled"]};
+function approvalBadge(x){let s=(x.approvalStatus==="preliminary"?"final":(x.approvalStatus||"new")),m=approvalMeta[s]||approvalMeta.new;return `<span class="approval-badge ${m[1]}">${m[0]}</span>`}
 function participantActions(x){
   if((x.approvalStatus||"")==="cancelled")
     return `<button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`;
-  return `<button class="approval-preliminary" onclick="participantSetStatus('${x.id}','preliminary')">توثيق مبدئي</button>
-  <button class="approval-final" onclick="participantSetStatus('${x.id}','final')">توثيق كامل</button>
+  return `<button class="approval-final" onclick="participantSetStatus('${x.id}','final')">توثيق كامل</button>
   <button class="approval-suspended" onclick="participantSetStatus('${x.id}','suspended')">تعليق الحساب</button>
   <button class="approval-stopped" onclick="participantSetStatus('${x.id}','stopped')">إيقاف الحساب</button>
   <button class="approval-cancelled" onclick="participantSetStatus('${x.id}','cancelled')">إلغاء الحساب</button>
@@ -1602,7 +1601,7 @@ async function refreshParticipantBadge() {
       $("dashboardParticipantsPending").textContent = r.pending || 0;
   } catch (e) {}
 }
-window.participantSetStatus=async(id,status)=>{let labels={preliminary:"التوثيق المبدئي",final:"التوثيق الكامل",suspended:"تعليق الحساب",stopped:"إيقاف الحساب",cancelled:"إلغاء الحساب نهائيًا"},reason="";if(["suspended","stopped","cancelled"].includes(status)){reason=prompt("اكتب سبب القرار (إلزامي):","")?.trim()||"";if(!reason){alert("لم ينفذ القرار: كتابة السبب إلزامية.");return}}if(!confirm(`تأكيد ${labels[status]} لهذا المستخدم؟${reason?"\nالسبب: "+reason:""}`))return;try{await api("/api/participant/approval-status",{method:"POST",body:JSON.stringify({id,status,reason})});await renderParticipants();await renderAdminNotifications()}catch(e){alert("تعذر تحديث حالة الحساب: "+e.message)}};
+window.participantSetStatus=async(id,status)=>{let labels={final:"التوثيق الكامل",suspended:"تعليق الحساب",stopped:"إيقاف الحساب",cancelled:"إلغاء الحساب نهائيًا"},reason="";if(["suspended","stopped","cancelled"].includes(status)){reason=prompt("اكتب سبب القرار (إلزامي):","")?.trim()||"";if(!reason){alert("لم ينفذ القرار: كتابة السبب إلزامية.");return}}if(!confirm(`تأكيد ${labels[status]} لهذا المستخدم؟${reason?"\nالسبب: "+reason:""}`))return;try{await api("/api/participant/approval-status",{method:"POST",body:JSON.stringify({id,status,reason})});await renderParticipants();await renderAdminNotifications()}catch(e){alert("تعذر تحديث حالة الحساب: "+e.message)}};
 window.showParticipantHistory=id=>{let x=(window.__participantRows||[]).find(p=>p.id===id),rows=x?.approvalHistory||[];let lines=rows.length?rows.slice().reverse().map(h=>`${new Date(h.at).toLocaleString("ar-SA")} — ${(approvalMeta[h.status]||[h.status])[0]} — ${h.actor||"الإدارة"}${h.reason?" — "+h.reason:""}`).join("\n"):"لا يوجد سجل سابق.";alert(`سجل المستخدم: ${x?.name||""}\n\n${lines}`)};
 document.querySelectorAll("[data-participant-filter]").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("[data-participant-filter]").forEach(x=>x.classList.remove("active"));b.classList.add("active");participantFilter=b.dataset.participantFilter;renderParticipants()}));
 async function loadAdminBids() {
@@ -4130,7 +4129,7 @@ document
     b.addEventListener("click", () => setTimeout(() => renderFinance(), 50)),
   );
 
-// V4.8.2 — direct publishing moderation workflow
+// V5.0.0 — direct publishing moderation workflow
 function moderationLabel(s){
   return ({active:"نشط",hidden:"مخفي",suspended:"موقوف",archived:"مؤرشف"})[s||"active"]||"نشط";
 }
