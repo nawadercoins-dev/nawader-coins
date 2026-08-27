@@ -70,7 +70,7 @@
   <section class="panel" id="favoritesPanel"><div class="section-title"><h2>❤️ المفضلة</h2><span class="status" id="likesCount"></span></div><div id="favoritesList" class="activity-list"><div class="empty">لم تضف مقتنيات إلى المفضلة بعد.</div></div></section>
   <section class="panel" id="activityPanel"><h2>سجل النشاط المختصر</h2><div id="activity" class="activity-list"><div class="empty">لا يوجد نشاط حتى الآن.</div></div></section>
 </section>
-</main><script src="/visitor.js?v=4.9.9-session-sync"></script><script>
+</main><script src="/visitor.js?v=5.0.0"></script><script>
 const $=x=>document.getElementById(x),esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function maskPhone(p){p=String(p||'').replace(/\s/g,'');if(p.length<6)return p;return p.slice(0,2)+'*****'+p.slice(-3)}
 function aliasKey(id){return 'nawaderAlias:'+id}function favoriteKey(id){return 'nawaderFavorites:'+id}
@@ -98,31 +98,24 @@ async function loadActivity(v,orders){
 async function loadPermissions(v){try{let r=await fetch('/api/permissions/me?participantId='+encodeURIComponent(v.id),{cache:'no-store'}),d=await r.json();if(r.ok){let p=d.permissions||{},seller=Object.values(p).some(Boolean);$('sellerCard').hidden=!seller;$('roleBadge').textContent=seller?'بائع / عميل':'عميل'}}catch(e){}}
 function renderFavorites(){let a=NawaderVisitor.favorites(),likes=NawaderVisitor.likes();$('favoritesCount').textContent=a.length;$('likesCount').textContent='الإعجابات: '+likes.length;$('favoritesList').innerHTML=a.length?a.map(x=>{let o=typeof x==='object'?x:{id:x,title:'مقتنى محفوظ',url:'#'};return `<a href="${o.url||'#'}" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;padding:10px;border-bottom:1px solid #eee">${o.image?`<img src="${o.image}" style="width:64px;height:52px;object-fit:contain;border-radius:8px;background:#eef1f4">`:''}<b>${o.title||'مقتنى محفوظ'}</b></a>`}).join(''):'<div class="empty">لم تضف مقتنيات إلى المفضلة بعد.</div>'}
 window.addEventListener('nawader-reaction-change',renderFavorites);
-function applyProfile(v){let alias=v.alias||localStorage.getItem(aliasKey(v.id))||'',s=v.approvalStatus||(v.approved?'final':'preliminary'),labels={new:'طلب جديد',preliminary:'اعتماد مبدئي',final:'اعتماد نهائي',suspended:'الاعتماد معلّق',stopped:'الاعتماد موقوف',cancelled:'الاعتماد ملغى'};$('displayName').textContent=alias||v.name||'عميل';$('realName').textContent=(alias?'الاسم الحقيقي: '+(v.name||'—'):'الاسم المسجل')+(v.country?' · '+v.country:'');$('maskedPhone').textContent=maskPhone(v.phone);$('accountState').textContent=labels[s]||'قيد المراجعة';$('aliasInput').value=alias;if($('profileCountry'))$('profileCountry').value=v.country||'';renderFavorites()}
+function applyProfile(v){let alias=v.alias||localStorage.getItem(aliasKey(v.id))||'',s=(v.approvalStatus==='preliminary'?'final':(v.approvalStatus||(v.approved?'final':'new'))),labels={new:'طلب جديد',final:'توثيق كامل',suspended:'الحساب معلّق',stopped:'الحساب موقوف',cancelled:'الحساب ملغى'};$('displayName').textContent=alias||v.name||'عميل';$('realName').textContent=(alias?'الاسم الحقيقي: '+(v.name||'—'):'الاسم المسجل')+(v.country?' · '+v.country:'');$('maskedPhone').textContent=maskPhone(v.phone);$('accountState').textContent=labels[s]||'قيد المراجعة';$('aliasInput').value=alias;if($('profileCountry'))$('profileCountry').value=v.country||'';renderFavorites()}
 async function sync(){
   let v=null;
   try{
     let r=await fetch('/api/participant/me',{cache:'no-store'});
     let d=await r.json().catch(()=>({}));
-    if(r.ok&&d.participant){
-      v=d.participant;
-      NawaderVisitor.set({...v,verified:true});
-    }
+    if(r.ok&&d.participant){v=d.participant;NawaderVisitor.set({...v,verified:true})}
   }catch(e){}
   if(!v){
+    $('loginBox').hidden=false;$('accountArea').hidden=true;
     let local=NawaderVisitor.get();
-    $('loginBox').hidden=false;
-    $('accountArea').hidden=true;
-    if(local)$('msg').textContent='جلسة الحساب تحتاج تسجيل دخول جديد. أدخل رقم الجوال ورمز الدخول؛ لن يتم إنشاء حساب مكرر.';
-    setTimeout(()=>{let p=$('phone');if(p&&String(p.value||'').trim().toLowerCase()==='admin')p.value='';},50);
-    return;
+    if(local)$('msg').textContent='جلسة الحساب تحتاج تسجيل دخول جديد. استخدم نفس رقم الجوال ورمز الدخول؛ لن يتم إنشاء حساب مكرر.';
+    setTimeout(()=>{let p=$('phone');if(p&&String(p.value||'').trim().toLowerCase()==='admin')p.value=''},50);
+    return
   }
-  $('loginBox').hidden=true;
-  $('accountArea').hidden=false;
-  $('msg').textContent='';
-  applyProfile(v);
-  let orders=await loadOrders(v);
-  await Promise.all([loadActivity(v,orders),loadPermissions(v),loadSubmissions(v),loadOwnedItems(v)]);
+  $('loginBox').hidden=true;$('accountArea').hidden=false;$('msg').textContent='';
+  applyProfile(v);let orders=await loadOrders(v);
+  await Promise.all([loadActivity(v,orders),loadPermissions(v),loadSubmissions(v),loadOwnedItems(v)])
 }
 $('toggleAlias').onclick=()=>$('aliasBox').hidden=!$('aliasBox').hidden;$('saveAlias').onclick=async()=>{let v=NawaderVisitor.get();if(!v)return;let a=$('aliasInput').value.trim(),country=$('profileCountry')?.value||'';try{let r=await fetch('/api/participant/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:v.id,alias:a,country})}),d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر حفظ الهوية');v={...v,...d.participant};NawaderVisitor.set(v);if(a)localStorage.setItem(aliasKey(v.id),a);else localStorage.removeItem(aliasKey(v.id));$('aliasBox').hidden=true;applyProfile(v)}catch(e){alert(e.message)}};
 async function confirmReceive(id){let v=NawaderVisitor.get();try{let r=await fetch('/api/visitor/receive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,participantId:v.id})}),d=await r.json();if(!r.ok)throw Error(d.error||'تعذر التأكيد');await sync()}catch(e){alert(e.message)}}
