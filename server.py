@@ -6,7 +6,7 @@
 # V4.6.4 — approved collectible lifecycle, owner records/actions, destination routing, clean activity feed.
 # V4.6.3 — public seller identity uses flag icon on cards; country retained in API for shipping/filtering.
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 import json, os, threading, shutil, datetime, atexit, re, secrets, mimetypes, socket, webbrowser, time, io, hashlib, hmac, zipfile, tempfile, subprocess, glob
 
 ROOT=os.path.dirname(os.path.abspath(__file__))
@@ -129,17 +129,25 @@ def apply_approval_status(person,status):
 def participant_can_access(person): return participant_approval_status(person) in ('final','suspended','stopped')
 def participant_can_transact(person): return participant_approval_status(person)=='final'
 def participant_public(person):
-    blocked={'otp','otpExpires','otpAttempts','pinHash','pinSalt','pinIterations','authUpdatedAt'}
+    blocked={'otp','otpExpires','otpAttempts','pinHash','pinSalt','pinIterations','authUpdatedAt','whatsappVerificationRequests'}
     safe={k:v for k,v in (person or {}).items() if k not in blocked}; status=participant_approval_status(person)
-    safe['approvalStatus']=status; safe['approvalLabel']=APPROVAL_LABELS[status]; safe['hasPin']=bool((person or {}).get('pinHash')); return safe
+    safe['approvalStatus']=status; safe['approvalLabel']=APPROVAL_LABELS[status]; safe['hasPin']=False
+    reqs=list((person or {}).get('whatsappVerificationRequests') or [])
+    pending=next((r for r in reversed(reqs) if str(r.get('status'))=='pending'),None)
+    safe['whatsappPending']=bool(pending)
+    safe['whatsappPendingCode']=str((pending or {}).get('code') or '')
+    safe['whatsappPendingRequestId']=str((pending or {}).get('id') or '')
+    safe['whatsappPendingCreated']=str((pending or {}).get('created') or '')
+    safe['whatsappPendingExpires']=str((pending or {}).get('expires') or '')
+    return safe
 
 def participant_public_safe(person):
     # لا نرسل أسرار تسجيل الدخول أو بيانات المصادقة إلى المتصفح.
-    blocked={'otp','otpExpires','otpAttempts','pinHash','pinSalt','pinIterations','authUpdatedAt'}
+    blocked={'otp','otpExpires','otpAttempts','pinHash','pinSalt','pinIterations','authUpdatedAt','whatsappVerificationRequests'}
     safe={k:v for k,v in (person or {}).items() if k not in blocked}
     status=participant_approval_status(person)
     safe['approvalStatus']=status; safe['approvalLabel']=APPROVAL_LABELS[status]
-    safe['hasPin']=bool((person or {}).get('pinHash'))
+    safe['hasPin']=False
     return safe
 
 def _pin_hash(pin,salt,iterations=180000):
@@ -791,7 +799,7 @@ def overdue_due_for(pid):
     return None
 
 def load_settings():
-    defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':True,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','duesTrackingStartedAt':'','visitorSections':{'market':True,'auction':True,'specialNumbers':True,'transitionalIssues':True},'fullPublicEnableV493':False}
+    defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':True,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','whatsappVerificationNumber':'966551892409','duesTrackingStartedAt':'','visitorSections':{'market':True,'auction':True,'specialNumbers':True,'transitionalIssues':True},'fullPublicEnableV493':False}
     x=load_json(SETTINGS,defaults.copy())
     defaults.update(x if isinstance(x,dict) else {})
     vis=defaults.get('visitorSections')
@@ -1540,7 +1548,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.0.1','channel':'CUSTOMER-LOGIN-SEPARATION','marketFirstLaunch':False}); return
+            self.sendj({'version':'5.1.0','channel':'WHATSAPP-FULL-VERIFY','marketFirstLaunch':False}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1567,7 +1575,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
         if p=='/api/settings/public':
-            st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'visitorSections':effective_visitor_sections(st),'marketFirstLaunch':MARKET_FIRST_LAUNCH}); return
+            st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'visitorSections':effective_visitor_sections(st),'marketFirstLaunch':MARKET_FIRST_LAUNCH,'whatsappVerificationNumber':st.get('whatsappVerificationNumber','966551892409')}); return
         if p=='/api/settings/admin':
             if not self.require_admin(api=True): return
             self.sendj({'settings':load_settings()}); return
@@ -2744,7 +2752,7 @@ class H(SimpleHTTPRequestHandler):
                 self.sendj({'ok':True,'request':row}); return
             if p=='/api/settings':
                 st=load_settings()
-                for k in ('buyerFeePercent','charityProfitPercent','auctionEntryFee','entryFeeEnabled','negotiationPercents','negotiationHours','adminEmail','platformName','ocrTesseractPath'):
+                for k in ('buyerFeePercent','charityProfitPercent','auctionEntryFee','entryFeeEnabled','negotiationPercents','negotiationHours','adminEmail','platformName','ocrTesseractPath','whatsappVerificationNumber'):
                     if k in d: st[k]=d[k]
                 incoming=d.get('visitorSections')
                 if isinstance(incoming,dict):
@@ -2784,63 +2792,56 @@ class H(SimpleHTTPRequestHandler):
             if p=='/api/analyze':
                 ok,data,note=analyze_image(d.get('url','')); self.sendj({'ok':ok,'data':data,'note':note}); return
             if p=='/api/participant/register':
-                name=str(d.get('name','')).strip()
+                name=str(d.get('name','')).strip()[:120]
                 reg_country=str(d.get('country','')).strip()[:80]
                 raw_phone=str(d.get('phone','')).strip()
                 phone=''.join(ch for ch in raw_phone if ch.isdigit() or ch=='+')
-                pin=str(d.get('pin') or '')
-                claim_id=str(d.get('claimId') or '').strip()
-                if not phone or not pin:
-                    self.sendj({'error':'رقم الجوال ورمز الدخول مطلوبان'},400); return
                 if len(''.join(ch for ch in phone if ch.isdigit())) < 7:
                     self.sendj({'error':'رقم الجوال غير مكتمل'},400); return
-                if len(pin)<4 or len(pin)>32:
-                    self.sendj({'error':'رمز الدخول يجب أن يكون بين 4 و32 خانة'},400); return
-
-                a=load_people()
                 phone_key=_norm_phone(phone)
-                matches=[x for x in a if _norm_phone(x.get('phone'))==phone_key]
-                # عند وجود حسابات قديمة مكررة نختار الحساب الذي يطابق claimId أولًا، وإلا الأحدث/الأغنى.
-                existing=next((x for x in matches if claim_id and str(x.get('id'))==claim_id),None)
-                if not existing and matches:
-                    with_pin=[x for x in matches if x.get('pinHash')]
-                    pool=with_pin or matches
-                    existing=max(pool,key=lambda x:str(x.get('lastSeen') or x.get('created') or ''))
-
+                people=load_people()
+                matches=[x for x in people if _norm_phone(x.get('phone'))==phone_key]
+                person=max(matches,key=lambda x:str(x.get('lastSeen') or x.get('created') or '')) if matches else None
                 now=datetime.datetime.now(); nowiso=now.isoformat()
-                existing_status=participant_approval_status(existing) if existing else ''
-                if existing_status in ('stopped','cancelled'):
+                if person and participant_approval_status(person) in ('stopped','cancelled'):
                     self.sendj({'error':'هذا الحساب موقوف أو ملغى. تواصل مع الإدارة.'},403); return
-
-                if existing:
-                    if existing.get('pinHash'):
-                        if not verify_participant_pin(existing,pin):
-                            self.sendj({'error':'رمز الدخول غير صحيح'},403); return
-                    else:
-                        # ترحيل آمن للحساب القديم: يجب أن يكون claimId محفوظًا في متصفح الحساب نفسه.
-                        if not claim_id or str(existing.get('id'))!=claim_id:
-                            self.sendj({'error':'هذا حساب قديم يحتاج تفعيل رمز دخول من الجهاز الذي سبق استخدامه، أو مراجعة الإدارة.'},409); return
-                        set_participant_pin(existing,pin)
-                    existing.update({'name':name or existing.get('name',''),'country':reg_country or existing.get('country',''),'lastSeen':nowiso,'verifiedAt':existing.get('verifiedAt') or nowiso,'otp':'','otpExpires':'','otpAttempts':0})
-                    apply_approval_status(existing,existing_status or 'final')
-                    x=existing
+                if not person:
+                    if not name: self.sendj({'error':'اكتب الاسم الكامل لإنشاء الحساب الجديد'},400); return
+                    if not reg_country: self.sendj({'error':'اختر دولة الحساب والشحن لإنشاء الحساب الجديد'},400); return
+                    person={'id':'p-'+secrets.token_hex(6),'name':name,'phone':phone,'country':reg_country,'approved':False,'verified':False,'blocked':False,'archived':False,'approvalStatus':'new','created':nowiso,'lastSeen':nowiso,'verificationMode':'whatsapp-admin','approvalHistory':[{'status':'new','previousStatus':'new','reason':'إنشاء طلب توثيق عبر واتساب','actor':'النظام','at':nowiso}]}
+                    people.append(person)
                 else:
-                    if not name:
-                        self.sendj({'error':'هذا الرقم غير مسجل. لإنشاء حساب جديد اكتب الاسم الكامل.'},400); return
-                    if not reg_country:
-                        self.sendj({'error':'اختر دولة الحساب والشحن لإنشاء الحساب الجديد.'},400); return
-                    x={'id':'p-'+secrets.token_hex(6),'name':name,'phone':phone,'country':reg_country,'approved':True,'verified':True,'blocked':False,'archived':False,'approvalStatus':'final','created':nowiso,'lastSeen':nowiso,'verifiedAt':nowiso,'approvedAt':nowiso,'finalApprovedAt':nowiso,'verificationMode':'pin-session','otp':'','otpExpires':'','otpAttempts':0,'approvalHistory':[{'status':'final','previousStatus':'new','reason':'تفعيل الحساب مباشرة بعد تسجيل الدخول المحمي','actor':'النظام','at':nowiso}]}
-                    set_participant_pin(x,pin); a.append(x)
+                    if name: person['name']=name
+                    if reg_country: person['country']=reg_country
+                    person['lastSeen']=nowiso
+                    person['verificationMode']='whatsapp-admin'
 
-                # منع استمرار نسخ هوية متفرقة لنفس الجوال: نزامن بيانات الهوية فقط، ولا ندمج السجلات تلقائيًا.
-                for other in a:
-                    if other is x: continue
-                    if _norm_phone(other.get('phone'))==phone_key:
-                        if reg_country: other['country']=reg_country
-                        if x.get('alias') and not other.get('alias'): other['alias']=x.get('alias')
-                save_json(PEOPLE,{'participants':a})
-                safe=participant_public(x)
-                self.sendj_participant({'ok':True,'participant':safe,'verified':True,'approved':bool(x.get('approved')),'approvalStatus':safe['approvalStatus'],'otpRequired':False,'message':'تم تسجيل الدخول بأمان.'},x); return
+                reqs=[]
+                for old_req in list(person.get('whatsappVerificationRequests') or []):
+                    try:
+                        exp=datetime.datetime.fromisoformat(str(old_req.get('expires') or ''))
+                        if exp>now-datetime.timedelta(days=7): reqs.append(old_req)
+                    except Exception:
+                        pass
+                request_id='wv-'+secrets.token_hex(8)
+                request_token=secrets.token_urlsafe(24)
+                request_code='NW-'+secrets.token_hex(3).upper()
+                expires=(now+datetime.timedelta(hours=24)).isoformat()
+                reqs.append({'id':request_id,'tokenHash':hashlib.sha256(request_token.encode()).hexdigest(),'code':request_code,'status':'pending','created':nowiso,'expires':expires,'approvedAt':'','rejectedAt':'','consumedAt':''})
+                person['whatsappVerificationRequests']=reqs[-12:]
+                save_json(PEOPLE,{'participants':people})
+
+                st=load_settings()
+                wa=''.join(ch for ch in str(st.get('whatsappVerificationNumber') or '966551892409') if ch.isdigit())
+                message=(f"طلب توثيق حساب نوادر العملات\n"
+                         f"الاسم: {person.get('name','')}\n"
+                         f"رقم الجوال المسجل: {person.get('phone','')}\n"
+                         f"رمز الطلب: {request_code}\n"
+                         f"أرجو اعتماد التوثيق الكامل لهذا الحساب.")
+                whatsapp_url='https://wa.me/'+wa+'?text='+quote(message,safe='')
+                append_operation('إنشاء طلب توثيق واتساب',{'participantId':person.get('id'),'requestId':request_id,'requestCode':request_code,'phone':person.get('phone')},actor='العميل')
+                add_notification('admin','admin','approval','طلب توثيق حساب عبر واتساب',f"{person.get('name','')} — {person.get('phone','')} — {request_code}",person.get('id'),'/admin')
+                self.sendj({'ok':True,'pending':True,'requestId':request_id,'requestToken':request_token,'requestCode':request_code,'expires':expires,'whatsappUrl':whatsapp_url,'whatsappNumber':wa,'message':'تم إنشاء طلب التوثيق. افتح واتساب وأرسل الرسالة الجاهزة ثم انتظر اعتماد الإدارة.'}); return
 
             if p=='/api/participant/profile':
                 pid=str(d.get('id') or '').strip()
@@ -2873,19 +2874,41 @@ class H(SimpleHTTPRequestHandler):
                 self.sendj({'ok':True,'participant':participant_public(person),'syncedDuplicateAccounts':synced}); return
 
             if p=='/api/participant/verify':
-                self.sendj({'error':'تم إلغاء مسار التحقق القديم. استخدم رقم الجوال ورمز الدخول من صفحة حسابي.'},410); return
+                request_id=str(d.get('requestId') or '').strip()
+                request_token=str(d.get('requestToken') or '').strip()
+                if not request_id or not request_token:
+                    self.sendj({'error':'بيانات طلب التوثيق غير مكتملة'},400); return
+                people=load_people(); person=None; req=None
+                token_hash=hashlib.sha256(request_token.encode()).hexdigest()
+                for candidate in people:
+                    for candidate_req in list(candidate.get('whatsappVerificationRequests') or []):
+                        if str(candidate_req.get('id'))==request_id:
+                            person=candidate; req=candidate_req; break
+                    if req: break
+                if not person or not req or not secrets.compare_digest(str(req.get('tokenHash') or ''),token_hash):
+                    self.sendj({'error':'طلب التوثيق غير موجود أو غير صالح'},404); return
+                try:
+                    expired=datetime.datetime.fromisoformat(str(req.get('expires') or '')) < datetime.datetime.now()
+                except Exception:
+                    expired=True
+                status=str(req.get('status') or 'pending')
+                if expired and status=='pending':
+                    req['status']='expired'; save_json(PEOPLE,{'participants':people})
+                    self.sendj({'ok':True,'status':'expired','message':'انتهت صلاحية طلب التوثيق. أنشئ طلبًا جديدًا.'}); return
+                if status=='rejected':
+                    self.sendj({'ok':True,'status':'rejected','message':'تم رفض طلب التوثيق. راجع البيانات وتواصل مع الإدارة.'}); return
+                if status=='consumed':
+                    self.sendj({'ok':True,'status':'consumed','message':'تم استخدام طلب التوثيق سابقًا. إذا لم يظهر حسابك فأعد فتح صفحة حسابي.'}); return
+                if status!='approved':
+                    self.sendj({'ok':True,'status':'pending','requestCode':req.get('code'),'message':'بانتظار اعتماد الإدارة بعد مطابقة رسالة واتساب.'}); return
+                if participant_approval_status(person)!='final':
+                    self.sendj({'error':'لم يكتمل التوثيق الكامل للحساب بعد'},403); return
+                req['status']='consumed'; req['consumedAt']=datetime.datetime.now().isoformat()
+                save_json(PEOPLE,{'participants':people})
+                self.sendj_participant({'ok':True,'status':'approved','verified':True,'approved':True,'participant':participant_public(person),'message':'تم التوثيق الكامل وتسجيل الدخول بنجاح.'},person); return
 
             if p=='/api/participant/reset-pin':
-                pid=str(d.get('id') or '').strip(); new_pin=str(d.get('pin') or '')
-                if len(new_pin)<4 or len(new_pin)>32:
-                    self.sendj({'error':'رمز الدخول يجب أن يكون بين 4 و32 خانة'},400); return
-                people=load_people(); person=next((x for x in people if str(x.get('id'))==pid),None)
-                if not person: self.sendj({'error':'الحساب غير موجود'},404); return
-                set_participant_pin(person,new_pin); save_json(PEOPLE,{'participants':people})
-                for token,meta in list(PARTICIPANT_SESSIONS.items()):
-                    if str(meta.get('participantId'))==pid: PARTICIPANT_SESSIONS.pop(token,None)
-                append_operation('إعادة ضبط رمز دخول عميل',{'participantId':pid},actor='الإدارة')
-                self.sendj({'ok':True}); return
+                self.sendj({'error':'تم إلغاء رمز الدخول. تسجيل العملاء يتم عبر توثيق واتساب واعتماد الإدارة.'},410); return
 
             if p=='/api/moderation/item':
                 iid=str(d.get('itemId') or ''); status=str(d.get('status') or '').strip().lower(); reason=str(d.get('reason') or '').strip()
@@ -2951,9 +2974,41 @@ class H(SimpleHTTPRequestHandler):
                 append_operation('إزالة مقتنى نهائيًا من الأرشيف',tomb,actor='الإدارة')
                 self.sendj({'ok':True,'purged':True,'itemId':iid,'historyPreserved':{'orders':order_refs,'bids':bid_refs,'marketRequests':market_refs}}); return
 
+            if p=='/api/participant/whatsapp-decision':
+                pid=str(d.get('id') or '').strip()
+                request_id=str(d.get('requestId') or '').strip()
+                action=str(d.get('action') or '').strip().lower()
+                if action not in ('approve','reject'):
+                    self.sendj({'error':'قرار التوثيق غير صالح'},400); return
+                people=load_people(); person=next((x for x in people if str(x.get('id'))==pid),None)
+                if not person: self.sendj({'error':'الحساب غير موجود'},404); return
+                req=next((x for x in reversed(list(person.get('whatsappVerificationRequests') or [])) if str(x.get('id'))==request_id),None)
+                if not req: self.sendj({'error':'طلب واتساب غير موجود'},404); return
+                if str(req.get('status'))!='pending':
+                    self.sendj({'error':'طلب التوثيق حُسم سابقًا أو انتهت صلاحيته'},409); return
+                nowiso=datetime.datetime.now().isoformat()
+                if action=='reject':
+                    req['status']='rejected'; req['rejectedAt']=nowiso
+                    save_json(PEOPLE,{'participants':people})
+                    append_operation('رفض طلب توثيق واتساب',{'participantId':pid,'requestId':request_id,'requestCode':req.get('code')},actor='الإدارة')
+                    self.sendj({'ok':True,'status':'rejected'}); return
+                previous=participant_approval_status(person)
+                req['status']='approved'; req['approvedAt']=nowiso
+                apply_approval_status(person,'final')
+                person['verified']=True; person['approved']=True
+                person['verifiedAt']=person.get('verifiedAt') or nowiso; person['approvedAt']=nowiso; person['finalApprovedAt']=nowiso
+                history=list(person.get('approvalHistory') or [])
+                history.append({'status':'final','previousStatus':previous,'reason':'توثيق كامل بعد مطابقة طلب واتساب','actor':'الإدارة','at':nowiso})
+                person['approvalHistory']=history
+                save_json(PEOPLE,{'participants':people})
+                append_operation('اعتماد توثيق واتساب',{'participantId':pid,'requestId':request_id,'requestCode':req.get('code')},actor='الإدارة')
+                add_notification('participant',pid,'approval','✅ تم التوثيق الكامل','تم اعتماد حسابك عبر واتساب. ستسجل صفحة حسابي دخولك تلقائيًا.',pid,'/account')
+                self.sendj({'ok':True,'status':'approved','participant':participant_public(person)}); return
+
             if p=='/api/participant/approval-status':
                 a=load_people(); iid=str(d.get('id') or ''); status=str(d.get('status') or '').strip().lower(); reason=str(d.get('reason') or '').strip()
                 if status not in APPROVAL_STATUSES or status=='new': self.sendj({'error':'حالة التوثيق غير صالحة'},400); return
+                if status=='final' and participant_approval_status(person)=='new': self.sendj({'error':'الحساب الجديد يحتاج اعتماد طلب واتساب.'},409); return
                 if status in ('suspended','stopped','cancelled') and not reason: self.sendj({'error':'كتابة السبب إلزامية لهذا القرار'},400); return
                 person=next((x for x in a if str(x.get('id'))==iid),None)
                 if not person: self.sendj({'error':'المشارك غير موجود'},404); return
