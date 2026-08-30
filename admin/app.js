@@ -1,4 +1,4 @@
-// V5.0.0 CLEAN BASELINE — moderation and integrity UI.
+// V4.8.2 ARCHIVE — moderation and integrity UI.
 const DB = "khazina_db",
   STORE = "items";
 let db,
@@ -216,21 +216,6 @@ function adminMoveButtons(i, current) {
   const targets = ["warehouse","market","auction","special","outside"].filter(x => x !== current);
   return `<details class="admin-move-menu"><summary>نقل إلى</summary><div class="admin-move-options">${targets.map(t=>`<button type="button" class="ghost" onclick="moveAdminItem('${id}','${t}')">${moveDestinationLabel(t)}</button>`).join("")}</div></details>`;
 }
-window.returnAuctionItemToOwner = async (id) => {
-  try {
-    const rows = await all(), item = rows.find(x => String(x.id) === String(id));
-    if (!item) throw new Error("المقتنى غير موجود");
-    const sold = String(item.auctionOutcome || "") === "sold";
-    const msg = sold
-      ? "إعادة هذا المقتنى إلى سجل صاحبه الأصلي؟\nسيتم إلغاء نتيجة المزاد والطلب/المستحق غير المسدد المرتبط بها، مع حفظ سجل الجولة. لا تتم الإعادة إذا بدأ السداد أو التنفيذ."
-      : "إعادة هذا المقتنى إلى سجل صاحبه الأصلي؟\nسيُغلق ارتباطه بالمزاد وتبقى الجولة محفوظة في السجل، ولن يُعرض تلقائيًا في السوق أو المزاد.";
-    if (!confirm(msg)) return;
-    const r = await api("/api/auction/return-owner", {method:"POST", body:JSON.stringify({id})});
-    await refresh(true);
-    adminMoveNotice(r.message || "تمت إعادة المقتنى إلى سجل صاحبه الأصلي.");
-  } catch(e) { alert("تعذر إعادة المقتنى لصاحبه: " + e.message); }
-};
-
 window.returnEndedAuctionToWarehouse = async (id) => {
   try {
     const rows = await all(), old = rows.find(x => String(x.id) === String(id));
@@ -696,7 +681,7 @@ document.querySelectorAll("nav button").forEach(
       if (b.dataset.v === "participants") await renderParticipants();
       if (b.dataset.v === "warehouse") await renderWarehouse();
       if (b.dataset.v === "special") await renderSpecialAdmin();
-      if (b.dataset.v === "transitional") await renderTransitionalAdmin();
+      if (b.dataset.v === "transitional") await renderTransitionalAdmin(); renderFantasiaAdmin();
       if (b.dataset.v === "ended-auctions") await renderEndedAuctions();
       if (b.dataset.v === "market") await renderMarketAdmin();
       if (b.dataset.v === "finance") await renderFinance();
@@ -725,7 +710,7 @@ document.querySelectorAll(".dashboard-go").forEach((b) =>
     if (vw === "participants") await renderParticipants();
     if (vw === "warehouse") await renderWarehouse();
     if (vw === "special") await renderSpecialAdmin();
-    if (vw === "transitional") await renderTransitionalAdmin();
+    if (vw === "transitional") await renderTransitionalAdmin(); renderFantasiaAdmin();
     if (vw === "ended-auctions") await renderEndedAuctions();
     if (vw === "market") await renderMarketAdmin();
     if (vw === "finance") await renderFinance();
@@ -750,7 +735,7 @@ function auctionCard(i) {
   let endedActions = successfulClosed
     ? `<button class="danger-outline" onclick="openAuctionException('${i.id}')">استثناء</button>`
     : `<button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة المزاد</button><button class="ghost" onclick="returnEndedAuctionToWarehouse('${i.id}')">إعادة للمستودع</button>`;
-  return `<article class="item auction-item ${successfulClosed ? "successful-locked" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="openAdminAuctionImages('${i.id}',0)" title="اضغط لفتح عارض الصور" style="cursor:zoom-in"><span class="auction-state ${successfulClosed ? "sold" : exception ? "exception" : ended ? "ended" : "live"}">${successfulClosed ? "ناجح — مغلق" : exception ? "استثناء" : ended ? "منتهي" : "نشط"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${successfulClosed ? "ok" : i.auctionApproved ? "ok" : "pending"}">${successfulClosed ? "🏆 مزاد ناجح" : i.auctionApproved ? "✓ نشط" : "موقوف/غير منشور"}</span></div><p class="auction-clock ${ended ? "ended" : ""}" data-end="${esc(i.auctionEnd || "")}">${esc(left || "بدون وقت انتهاء")}</p><div class="auction-admin-metrics"><div><span>السعر الحالي</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>قيمة الزيادة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع • إدارة فقط</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${successfulClosed ? '<p class="sold-order-note">🔒 أُغلق المزاد بنجاح؛ لا عودة ولا إعادة مزايدة إلا باستثناء موثق.</p>' : ""}<p class="round-chip">الجولة ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions">${!successfulClosed ? `<button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button>${!ended ? `<button class="ghost auction-quick-edit-btn" onclick="openAuctionQuickEdit('${i.id}')">⚙️ تعديل المزاد</button>` : ""}` : ""}<button onclick="detail('${i.id}')">عرض</button><button class="ghost" onclick="returnAuctionItemToOwner('${i.id}')">↩ إعادة المقتنى لصاحبه</button><button class="danger" onclick="removeItem('${i.id}')">إزالة</button>${!successfulClosed && !ended ? `<button class="danger" onclick="cancelActiveAuction('${i.id}')">⛔ إلغاء المزاد</button>` : ""}${ended ? endedActions : ""}</div><div class="bid-list" id="bids-${i.id}" data-round="${Number(i.auctionRound || 1)}"></div></div></article>`;
+  return `<article class="item auction-item ${successfulClosed ? "successful-locked" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="openAdminAuctionImages('${i.id}',0)" title="اضغط لفتح عارض الصور" style="cursor:zoom-in"><span class="auction-state ${successfulClosed ? "sold" : exception ? "exception" : ended ? "ended" : "live"}">${successfulClosed ? "ناجح — مغلق" : exception ? "استثناء" : ended ? "منتهي" : "نشط"}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${successfulClosed ? "ok" : i.auctionApproved ? "ok" : "pending"}">${successfulClosed ? "🏆 مزاد ناجح" : i.auctionApproved ? "✓ نشط" : "موقوف/غير منشور"}</span></div><p class="auction-clock ${ended ? "ended" : ""}" data-end="${esc(i.auctionEnd || "")}">${esc(left || "بدون وقت انتهاء")}</p><div class="auction-admin-metrics"><div><span>السعر الحالي</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>قيمة الزيادة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع • إدارة فقط</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${successfulClosed ? '<p class="sold-order-note">🔒 أُغلق المزاد بنجاح؛ لا عودة ولا إعادة مزايدة إلا باستثناء موثق.</p>' : ""}<p class="round-chip">الجولة ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions"><button onclick="detail('${i.id}')">عرض</button>${archiveButton(i.id)}${!successfulClosed ? `<button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button>${!ended ? `<button class="ghost auction-quick-edit-btn" onclick="openAuctionQuickEdit('${i.id}')">⚙️ تعديل المزاد</button><button class="danger" onclick="cancelActiveAuction('${i.id}')">⛔ إلغاء المزاد</button>` : ""}` : ""}${ended ? endedActions : ""}<a class="public-link" href="/auction#${i.id}" target="_blank">مشاركة</a></div><div class="bid-list" id="bids-${i.id}" data-round="${Number(i.auctionRound || 1)}"></div></div></article>`;
 }
 
 function endedReserveReached(i) {
@@ -790,8 +775,8 @@ function endedAuctionCard(i) {
   let cancelNote = cancelled ? `<p class="auction-exception-note"><b>سبب الإلغاء:</b> ${esc(i.auctionCancelReason || "إلغاء إداري")}${i.auctionCancelledAt ? `<br><small>${new Date(i.auctionCancelledAt).toLocaleString("ar-SA")}</small>` : ""}</p>` : "";
   let actions = sold
     ? `<button onclick="detail('${i.id}')">عرض السجل</button><button class="danger-outline" onclick="openAuctionException('${i.id}')">استثناء</button>`
-    : cancelled ? `<button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button><button class="gold-action" onclick="openRelaunch('${i.id}')">⚙️ تعديل المزاد وإعادة العرض</button><button onclick="detail('${i.id}')">عرض السجل</button>${archiveButton(i.id)}`
-    : `<button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button><button class="gold-action" onclick="openRelaunch('${i.id}')">⚙️ تعديل المزاد وإعادة العرض</button><button onclick="detail('${i.id}')">عرض السجل</button>${archiveButton(i.id)}`;
+    : cancelled ? `<button onclick="detail('${i.id}')">عرض السجل</button>`
+    : `<button onclick="detail('${i.id}')">عرض السجل</button><button class="ghost" onclick="editItem('${i.id}')">✎ تعديل المقتنى</button>${archiveButton(i.id)}<button class="gold-action" onclick="openRelaunch('${i.id}')">♻ إعادة إدراج</button>`;
   return `<article class="item auction-item ended-admin-card ${sold ? "sold-ended successful-locked" : exception ? "exception-ended" : ""}">${i.frontImg ? `<div class="auction-card-image"><img src="${i.frontImg}" onclick="detail('${i.id}')"><span class="auction-state ${stateClass}">${stateText}</span></div>` : '<div class="auction-card-image no-photo">لا توجد صورة</div>'}<div class="auction-card-body"><div class="auction-card-title"><h3>${esc(i.country)} — ${esc(i.denomination)} ${transitionalBadge(i)}</h3><span class="approval-chip ${sold ? "ok" : exception ? "warning" : "pending"}">${chipText}</span></div><p class="ended-date">انتهى: ${esc(i.auctionEnd || "—")}</p><div class="auction-admin-metrics"><div><span>آخر سعر</span><b>${money(i.auctionCurrentPrice || 0)}</b></div><div><span>سعر الفتح السابق</span><b>${money(i.auctionOpeningPrice || i.auctionStartPrice || 0)}</b></div><div><span>الزيادة السابقة</span><b>${money(i.auctionBidStep || 1)}</b></div><div class="private-metric"><span>حد البيع السابق</span><b>${money(i.auctionTargetPrice || Number(i.auctionStartPrice || 0) + 1)}</b></div></div>${sold ? '<p class="sold-order-note">🔒 مزاد ناجح نهائي — لا عودة للمستودع ولا إعادة مزايدة. الاستثناء فقط للحالات الموثقة قبل اكتمال البيع.</p>' : ""}${exceptionNote}${cancelNote}<p class="round-chip">الجولة المنتهية ${Number(i.auctionRound || 1)}</p><div class="actions auction-actions">${actions}</div></div></article>`;
 }
 async function renderEndedAuctions(a) {
@@ -1545,14 +1530,26 @@ function initViewers() {
   });
 }
 let participantFilter = "all";
-const approvalMeta = {new:["طلب جديد","new"],final:["توثيق كامل","final"],suspended:["معلّق","suspended"],stopped:["موقوف","stopped"],cancelled:["ملغى","cancelled"]};
-function approvalBadge(x){let s=(x.approvalStatus==="preliminary"?"final":(x.approvalStatus||"new")),m=approvalMeta[s]||approvalMeta.new;return `<span class="approval-badge ${m[1]}">${m[0]}</span>`}
+const approvalMeta = {new:["طلب جديد","new"],preliminary:["اعتماد مبدئي","preliminary"],final:["اعتماد نهائي","final"],suspended:["معلّق","suspended"],stopped:["موقوف","stopped"],cancelled:["ملغى","cancelled"]};
+function approvalBadge(x){let s=x.approvalStatus||"new",m=approvalMeta[s]||approvalMeta.new;return `<span class="approval-badge ${m[1]}">${m[0]}</span>`}
 function participantActions(x){
-  if((x.approvalStatus||"")==="cancelled")return `<button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`;
-  let wa=x.whatsappPending&&x.whatsappPendingRequestId?`<button class="approval-final" onclick="participantWhatsAppDecision('${x.id}','${x.whatsappPendingRequestId}','approve')">✅ توثيق كامل عبر واتساب</button><button class="danger-outline" onclick="participantWhatsAppDecision('${x.id}','${x.whatsappPendingRequestId}','reject')">رفض طلب واتساب</button>`:'';
-  return `${wa}<button class="approval-suspended" onclick="participantSetStatus('${x.id}','suspended')">تعليق الحساب</button><button class="approval-stopped" onclick="participantSetStatus('${x.id}','stopped')">إيقاف الحساب</button><button class="approval-cancelled" onclick="participantSetStatus('${x.id}','cancelled')">إلغاء الحساب</button><button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`;
+  if((x.approvalStatus||"")==="cancelled")
+    return `<button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`;
+  return `<button class="approval-preliminary" onclick="participantSetStatus('${x.id}','preliminary')">توثيق مبدئي</button>
+  <button class="approval-final" onclick="participantSetStatus('${x.id}','final')">توثيق كامل</button>
+  <button class="approval-suspended" onclick="participantSetStatus('${x.id}','suspended')">تعليق الحساب</button>
+  <button class="approval-stopped" onclick="participantSetStatus('${x.id}','stopped')">إيقاف الحساب</button>
+  <button class="approval-cancelled" onclick="participantSetStatus('${x.id}','cancelled')">إلغاء الحساب</button>
+  <button class="ghost" onclick="resetParticipantPin('${x.id}')">🔑 رمز الدخول</button>
+  <button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`;
 }
-window.participantWhatsAppDecision=async(id,requestId,action)=>{let label=action==='approve'?'اعتماد التوثيق الكامل بعد مطابقة رقم واتساب ورمز الطلب':'رفض طلب التوثيق عبر واتساب';if(!confirm(label+'؟'))return;try{await api('/api/participant/whatsapp-decision',{method:'POST',body:JSON.stringify({id,requestId,action})});await renderParticipants();await renderAdminNotifications()}catch(e){alert('تعذر تنفيذ القرار: '+e.message)}};
+window.resetParticipantPin=async id=>{
+  let pin=(prompt("اكتب رمز دخول جديد للحساب (4 خانات أو أكثر):","")||"").trim();
+  if(!pin)return;
+  if(pin.length<4){alert("الرمز قصير جدًا");return}
+  if(!confirm("سيتم إنهاء أي جلسة دخول قديمة لهذا الحساب. متابعة؟"))return;
+  try{await api("/api/participant/reset-pin",{method:"POST",body:JSON.stringify({id,pin})});alert("تم تحديث رمز الدخول. أعطه لصاحب الحساب بطريقة آمنة.")}catch(e){alert(e.message)}
+};
 async function renderParticipants() {
   try {
     let r = await api("/api/participants");
@@ -1565,7 +1562,7 @@ async function renderParticipants() {
     if ($("participantsArchiveCount"))
       $("participantsArchiveCount").textContent = Number(r.archived || 0);
     document.querySelectorAll("[data-count]").forEach(el=>el.textContent=counts[el.dataset.count]||0);
-    $("participantsList").innerHTML=a.map(x=>`<div class="participant status-${esc(x.approvalStatus||'new')}"><div class="participant-head"><b>${esc(x.name||"")}</b>${approvalBadge(x)}</div><div>${esc(x.phone||"")}</div><small class="muted">رمز المشاركة: ${esc(x.id||"")} ${x.created?"— التسجيل: "+new Date(x.created).toLocaleString("ar-SA"):""}</small>${x.whatsappPending?`<p class="participant-reason" style="background:#e9f7ee;color:#155c34">📱 طلب واتساب بانتظار المطابقة — الرمز: <b>${esc(x.whatsappPendingCode||"")}</b></p>`:""}${x.archiveReason?`<p class="participant-reason">السبب: ${esc(x.archiveReason)}</p>`:""}<div class="actions participant-approval-actions">${participantActions(x)}</div></div>`).join("")||"<p>لا يوجد مشاركون في هذا التصنيف.</p>";
+    $("participantsList").innerHTML=a.map(x=>`<div class="participant status-${esc(x.approvalStatus||'new')}"><div class="participant-head"><b>${esc(x.name||"")}</b>${approvalBadge(x)}</div><div>${esc(x.phone||"")}</div><small class="muted">رمز المشاركة: ${esc(x.id||"")} ${x.created?"— التسجيل: "+new Date(x.created).toLocaleString("ar-SA"):""}</small>${x.archiveReason?`<p class="participant-reason">السبب: ${esc(x.archiveReason)}</p>`:""}<div class="actions participant-approval-actions">${participantActions(x)}</div></div>`).join("")||"<p>لا يوجد مشاركون في هذا التصنيف.</p>";
     window.__participantRows=all;
     await refreshParticipantBadge();
   } catch (e) {
@@ -1590,7 +1587,7 @@ async function refreshParticipantBadge() {
       $("dashboardParticipantsPending").textContent = r.pending || 0;
   } catch (e) {}
 }
-window.participantSetStatus=async(id,status)=>{let labels={final:"التوثيق الكامل",suspended:"تعليق الحساب",stopped:"إيقاف الحساب",cancelled:"إلغاء الحساب نهائيًا"},reason="";if(["suspended","stopped","cancelled"].includes(status)){reason=prompt("اكتب سبب القرار (إلزامي):","")?.trim()||"";if(!reason){alert("لم ينفذ القرار: كتابة السبب إلزامية.");return}}if(!confirm(`تأكيد ${labels[status]} لهذا المستخدم؟${reason?"\nالسبب: "+reason:""}`))return;try{await api("/api/participant/approval-status",{method:"POST",body:JSON.stringify({id,status,reason})});await renderParticipants();await renderAdminNotifications()}catch(e){alert("تعذر تحديث حالة الحساب: "+e.message)}};
+window.participantSetStatus=async(id,status)=>{let labels={preliminary:"التوثيق المبدئي",final:"التوثيق الكامل",suspended:"تعليق الحساب",stopped:"إيقاف الحساب",cancelled:"إلغاء الحساب نهائيًا"},reason="";if(["suspended","stopped","cancelled"].includes(status)){reason=prompt("اكتب سبب القرار (إلزامي):","")?.trim()||"";if(!reason){alert("لم ينفذ القرار: كتابة السبب إلزامية.");return}}if(!confirm(`تأكيد ${labels[status]} لهذا المستخدم؟${reason?"\nالسبب: "+reason:""}`))return;try{await api("/api/participant/approval-status",{method:"POST",body:JSON.stringify({id,status,reason})});await renderParticipants();await renderAdminNotifications()}catch(e){alert("تعذر تحديث حالة الحساب: "+e.message)}};
 window.showParticipantHistory=id=>{let x=(window.__participantRows||[]).find(p=>p.id===id),rows=x?.approvalHistory||[];let lines=rows.length?rows.slice().reverse().map(h=>`${new Date(h.at).toLocaleString("ar-SA")} — ${(approvalMeta[h.status]||[h.status])[0]} — ${h.actor||"الإدارة"}${h.reason?" — "+h.reason:""}`).join("\n"):"لا يوجد سجل سابق.";alert(`سجل المستخدم: ${x?.name||""}\n\n${lines}`)};
 document.querySelectorAll("[data-participant-filter]").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("[data-participant-filter]").forEach(x=>x.classList.remove("active"));b.classList.add("active");participantFilter=b.dataset.participantFilter;renderParticipants()}));
 async function loadAdminBids() {
@@ -1828,6 +1825,11 @@ if (saveBtn) saveBtn.disabled = false;
     $("specialNumberReason").value = i.specialNumberReason || "";
   if ($("specialNumberFields"))
     $("specialNumberFields").hidden = !i.specialNumberEnabled;
+  if ($("fantasiaEnabled")) $("fantasiaEnabled").checked = !!i.fantasiaEnabled;
+  if ($("fantasiaType")) $("fantasiaType").value = i.fantasiaType || "banknote";
+  if ($("fantasiaIssuer")) $("fantasiaIssuer").value = i.fantasiaIssuer || "";
+  if ($("fantasiaNotes")) $("fantasiaNotes").value = i.fantasiaNotes || "";
+  if ($("fantasiaFields")) $("fantasiaFields").hidden = !i.fantasiaEnabled;
   if ($("transitionalIssueEnabled")) $("transitionalIssueEnabled").checked = !!i.transitionalIssueEnabled;
   ["transitionalIssueType","transitionalPreviousIssue","transitionalNextIssue","transitionalRarity","transitionalEstimatedPopulation","transitionalReferenceValue","transitionalReason","transitionalNotes"].forEach(k=>{ if ($(k)) $(k).value = i[k] ?? ""; });
   if ($("transitionalIssueFields")) $("transitionalIssueFields").hidden = !i.transitionalIssueEnabled;
@@ -1840,6 +1842,11 @@ if (saveBtn) saveBtn.disabled = false;
     $("marketPartialAllowed").checked = !!i.marketPartialAllowed;
   if ($("marketNegotiationEnabled"))
     $("marketNegotiationEnabled").checked = !!i.marketNegotiationEnabled;
+  if ($("homeFeatured")) $("homeFeatured").checked = !!i.homeFeatured;
+  if ($("homeQuickDeal")) $("homeQuickDeal").checked = !!i.homeQuickDeal;
+  if ($("homeDiscounted")) $("homeDiscounted").checked = !!i.homeDiscounted;
+  if ($("homeDiscountPercent")) $("homeDiscountPercent").value = Number(i.homeDiscountPercent || 0);
+  if ($("homePromoUntil")) $("homePromoUntil").value = String(i.homePromoUntil || "").slice(0,16);
   if ($("inventoryUnitType")) $("inventoryUnitType").value = i.inventoryUnitType || "piece";
   if ($("inventoryUnitCount")) $("inventoryUnitCount").value = Number(i.inventoryUnitCount || i.quantity || 1);
   if ($("piecesPerUnit")) $("piecesPerUnit").value = Number(i.piecesPerUnit || 1);
@@ -2050,6 +2057,10 @@ $("form").onsubmit = async (e) => {
       specialNumberReason: $("specialNumberEnabled")?.checked
         ? v("specialNumberReason")
         : "",
+      fantasiaEnabled: !!$("fantasiaEnabled")?.checked,
+      fantasiaType: $("fantasiaEnabled")?.checked ? v("fantasiaType") : "",
+      fantasiaIssuer: $("fantasiaEnabled")?.checked ? v("fantasiaIssuer") : "",
+      fantasiaNotes: $("fantasiaEnabled")?.checked ? v("fantasiaNotes") : "",
       transitionalIssueEnabled: !!$("transitionalIssueEnabled")?.checked,
       transitionalIssueType: $("transitionalIssueEnabled")?.checked ? v("transitionalIssueType") : "",
       transitionalPreviousIssue: $("transitionalIssueEnabled")?.checked ? v("transitionalPreviousIssue") : "",
@@ -2086,6 +2097,11 @@ $("form").onsubmit = async (e) => {
       marketNegotiationEnabled:
         wantsMarket && $("marketNegotiationEnabled")?.checked,
       marketNegotiationPercent: n("marketNegotiationPercent") || 5,
+      homeFeatured: wantsMarket && !!$("homeFeatured")?.checked,
+      homeQuickDeal: wantsMarket && !!$("homeQuickDeal")?.checked,
+      homeDiscounted: wantsMarket && !!$("homeDiscounted")?.checked,
+      homeDiscountPercent: wantsMarket ? Math.max(0, Math.min(100, n("homeDiscountPercent"))) : 0,
+      homePromoUntil: wantsMarket ? v("homePromoUntil") : "",
       frontImg: frontImageRemoved ? "" : frontImg || old?.frontImg || "",
       backImg: backImageRemoved ? "" : backImg || old?.backImg || "",
       warehouse: v("warehouse"),
@@ -2222,6 +2238,11 @@ editingItemId = "";
   if ($("yearTo")) $("yearTo").value = "";
   if ($("isGraded")) $("isGraded").checked = false;
   if ($("specialNumberEnabled")) $("specialNumberEnabled").checked = false;
+  if ($("fantasiaEnabled")) $("fantasiaEnabled").checked = false;
+  if ($("fantasiaFields")) $("fantasiaFields").hidden = true;
+  if ($("fantasiaType")) $("fantasiaType").value = "banknote";
+  if ($("fantasiaIssuer")) $("fantasiaIssuer").value = "";
+  if ($("fantasiaNotes")) $("fantasiaNotes").value = "";
   if ($("transitionalIssueEnabled")) $("transitionalIssueEnabled").checked = false;
   if ($("transitionalIssueFields")) $("transitionalIssueFields").hidden = true;
   ["transitionalPreviousIssue","transitionalNextIssue","transitionalEstimatedPopulation","transitionalReferenceValue","transitionalReason","transitionalNotes"].forEach(k=>{if($(k))$(k).value="";});
@@ -2246,6 +2267,11 @@ editingItemId = "";
   if ($("marketNegotiationEnabled"))
     $("marketNegotiationEnabled").checked = false;
   if ($("marketPartialAllowed")) $("marketPartialAllowed").checked = false;
+  if ($("homeFeatured")) $("homeFeatured").checked = false;
+  if ($("homeQuickDeal")) $("homeQuickDeal").checked = false;
+  if ($("homeDiscounted")) $("homeDiscounted").checked = false;
+  if ($("homeDiscountPercent")) $("homeDiscountPercent").value = "0";
+  if ($("homePromoUntil")) $("homePromoUntil").value = "";
   renderStorageSelectors({ warehouse: "", cabinet: "", shelf: "", box: "", album: "", pocket: "" });
   updateEditionUI();
   updateYearUI();
@@ -3198,7 +3224,7 @@ async function renderMarketAdmin(items) {
               ...(it.additionalImages || []),
             ].filter(Boolean),
             thumb = imgs[0] || "";
-          return `<div class="market-request-card ${x.status === "rejected" ? "request-rejected" : ""}">${thumb ? `<div class="market-request-image"><img src="${esc(thumb)}" alt="${esc(title)}" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})'></div>` : `<div class="market-request-image no-request-image">لا توجد صورة</div>`}<div class="market-request-main"><div class="market-request-title"><b>${esc(title)}</b> <span class="status-ar ${marketStatusClass(x.status)}">${marketStatusLabel(x.status)}</span></div><div class="market-request-meta"><span>البائع / المالك: <b>${esc(owner)}</b></span><span>المشتري: <b>${esc(x.name)}</b> — ${esc(x.phone)}</span><span>نوع الطلب: <b>${action}</b></span><span>الكمية: <b>${Number(x.quantity || 1)}</b></span><span>السعر المعلن: <b>${money(listed)}</b></span><span class="market-request-money">${x.action === "offer" ? "عرض العميل" : "قيمة الطلب"}: ${money(offered)}</span><span>رسوم المشتري: <b>${money(Number(x.buyerFeeAmount || 0))}</b> (${Number(x.buyerFeePercent || 0)}%)</span><span>إجمالي المطلوب من المشتري: <b>${money(Number(x.buyerTotal || offered))}</b></span><span>التاريخ: ${new Date(x.created).toLocaleString("ar-SA")}</span></div></div><div class="actions"><button onclick="marketRequestStatus('${x.id}','accepted')">قبول</button><button class="ghost" onclick="marketRequestShip('${x.id}')">تم الشحن</button><button class="danger" onclick="marketRequestStatus('${x.id}','rejected')">رفض</button><button class="ghost" onclick="marketRequestReset('${x.id}')">↺ إعادة</button><button class="danger" onclick="marketRequestArchive('${x.id}')">إزالة</button></div></div>`;
+          return `<div class="market-request-card ${x.status === "rejected" ? "request-rejected" : ""}">${thumb ? `<div class="market-request-image"><img src="${esc(thumb)}" alt="${esc(title)}" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})'></div>` : `<div class="market-request-image no-request-image">لا توجد صورة</div>`}<div class="market-request-main"><div class="market-request-title"><b>${esc(title)}</b> <span class="status-ar ${marketStatusClass(x.status)}">${marketStatusLabel(x.status)}</span></div><div class="market-request-meta"><span>البائع / المالك: <b>${esc(owner)}</b></span><span>المشتري: <b>${esc(x.name)}</b> — ${esc(x.phone)}</span><span>نوع الطلب: <b>${action}</b></span><span>الكمية: <b>${Number(x.quantity || 1)}</b></span><span>السعر المعلن: <b>${money(listed)}</b></span><span class="market-request-money">${x.action === "offer" ? "عرض العميل" : "قيمة الطلب"}: ${money(offered)}</span><span>رسوم المشتري: <b>${money(Number(x.buyerFeeAmount || 0))}</b> (${Number(x.buyerFeePercent || 0)}%)</span><span>إجمالي المطلوب من المشتري: <b>${money(Number(x.buyerTotal || offered))}</b></span><span>التاريخ: ${new Date(x.created).toLocaleString("ar-SA")}</span></div></div><div class="actions"><button onclick="marketRequestStatus('${x.id}','accepted')">قبول</button><button class="ghost" onclick="marketRequestShip('${x.id}')">تم الشحن</button><button class="danger" onclick="marketRequestStatus('${x.id}','rejected')">رفض</button></div></div>`;
         })
         .join("") || "<p>لا توجد طلبات شراء أو تفاوض حتى الآن.</p>";
   } catch (e) {
@@ -3228,32 +3254,6 @@ window.marketRequestStatus = async (id, status) => {
     await api("/api/market/request/respond", {
       method: "POST",
       body: JSON.stringify({ id, status }),
-    });
-    await renderMarketAdmin();
-  } catch (e) {
-    alert(e.message);
-  }
-};
-
-window.marketRequestReset = async (id) => {
-  if (!confirm("إعادة هذا الطلب إلى بداية مساره؟\nالشراء المباشر يعود إلى بانتظار السداد، والتفاوض يعود للمراجعة.")) return;
-  try {
-    await api("/api/market/request/reset", {
-      method: "POST",
-      body: JSON.stringify({ id }),
-    });
-    await renderMarketAdmin();
-  } catch (e) {
-    alert(e.message);
-  }
-};
-window.marketRequestArchive = async (id) => {
-  let reason = prompt("سبب الإزالة / الأرشفة (اختياري):", "") || "";
-  if (!confirm("سيختفي الطلب من القائمة النشطة، لكن الفاتورة والسجل المالي لن يُحذفا. متابعة؟")) return;
-  try {
-    await api("/api/market/request/archive", {
-      method: "POST",
-      body: JSON.stringify({ id, reason }),
     });
     await renderMarketAdmin();
   } catch (e) {
@@ -3459,9 +3459,9 @@ async function loadAdminSettingsPanel() {
     if ($("visitorSectionAuction")) $("visitorSectionAuction").checked = vs.auction !== false;
     if ($("visitorSectionSpecialNumbers")) $("visitorSectionSpecialNumbers").checked = vs.specialNumbers !== false;
     if ($("visitorSectionTransitional")) $("visitorSectionTransitional").checked = vs.transitionalIssues !== false;
+    if ($("visitorSectionFantasia")) $("visitorSectionFantasia").checked = vs.fantasia !== false;
     $("platformName").value = st.platformName || "نوادر العملات";
     $("adminEmail").value = st.adminEmail || "";
-    if ($("whatsappVerificationNumber")) $("whatsappVerificationNumber").value = st.whatsappVerificationNumber || "966551892409";
     if ($("ocrTesseractPath"))
       $("ocrTesseractPath").value = st.ocrTesseractPath || "";
   } catch (e) {
@@ -3485,10 +3485,10 @@ if ($("saveSettings"))
             auction: $("visitorSectionAuction") ? !!$("visitorSectionAuction").checked : true,
             specialNumbers: $("visitorSectionSpecialNumbers") ? !!$("visitorSectionSpecialNumbers").checked : true,
             transitionalIssues: $("visitorSectionTransitional") ? !!$("visitorSectionTransitional").checked : true,
+            fantasia: $("visitorSectionFantasia") ? !!$("visitorSectionFantasia").checked : true,
           },
           platformName: $("platformName").value.trim() || "نوادر العملات",
           adminEmail: $("adminEmail").value.trim(),
-          whatsappVerificationNumber: $("whatsappVerificationNumber") ? $("whatsappVerificationNumber").value.trim() : "966551892409",
           ocrTesseractPath: $("ocrTesseractPath")
             ? $("ocrTesseractPath").value.trim()
             : "",
@@ -3499,6 +3499,7 @@ if ($("saveSettings"))
       if ($("visitorSectionAuction")) $("visitorSectionAuction").checked = savedVs.auction !== false;
       if ($("visitorSectionSpecialNumbers")) $("visitorSectionSpecialNumbers").checked = savedVs.specialNumbers !== false;
       if ($("visitorSectionTransitional")) $("visitorSectionTransitional").checked = savedVs.transitionalIssues !== false;
+      if ($("visitorSectionFantasia")) $("visitorSectionFantasia").checked = savedVs.fantasia !== false;
       st.textContent = "✅ تم حفظ الإعدادات وتأكيدها من الخادم.";
     } catch (e) {
       st.textContent = "⚠️ " + e.message;
@@ -4120,7 +4121,7 @@ document
     b.addEventListener("click", () => setTimeout(() => renderFinance(), 50)),
   );
 
-// V5.0.0 — direct publishing moderation workflow
+// V4.8.2 — direct publishing moderation workflow
 function moderationLabel(s){
   return ({active:"نشط",hidden:"مخفي",suspended:"موقوف",archived:"مؤرشف"})[s||"active"]||"نشط";
 }
@@ -4341,11 +4342,23 @@ document.addEventListener("click", (e) => {
   alert(btn.dataset.help || "تفاصيل إضافية عند الحاجة.");
 });
 
+// V5.2.0 — قسم فانتازيا
+function renderFantasiaAdmin(){
+  const box=$("fantasiaAdminItems"); if(!box)return;
+  const q=($("fantasiaSearch")?.value||"").trim().toLowerCase();
+  const rows=(state.items||[]).filter(i=>i.fantasiaEnabled).filter(i=>!q||[i.country,i.denomination,i.year,i.fantasiaIssuer,i.fantasiaType,i.fantasiaNotes].join(" ").toLowerCase().includes(q));
+  box.innerHTML=rows.map(i=>`<article class="item"><div><h3>🎭 ${esc(i.country||"—")} — ${esc(i.denomination||"—")}</h3><p>${esc(i.year||"")} ${i.fantasiaIssuer?"— "+esc(i.fantasiaIssuer):""}</p><p class="muted">${esc(i.fantasiaNotes||"")}</p><div class="actions"><button onclick="editItem('${i.id}')">تعديل</button>${archiveButton(i.id)}${adminMoveButtons(i,"warehouse")}<a class="public-link" href="/fantasia#item-${i.id}" target="_blank">عرض للزوار</a></div></div></article>`).join("")||'<div class="empty">لا توجد مقتنيات فانتازيا حاليًا.</div>';
+}
+if ($("fantasiaEnabled")) $("fantasiaEnabled").addEventListener("change",()=>{if($("fantasiaFields"))$("fantasiaFields").hidden=!$("fantasiaEnabled").checked;});
+if ($("fantasiaSearch")) $("fantasiaSearch").addEventListener("input",renderFantasiaAdmin);
+if ($("refreshFantasia")) $("refreshFantasia").onclick=async()=>{await refresh(true);renderFantasiaAdmin();};
+if ($("fantasiaAddNew")) $("fantasiaAddNew").onclick=()=>{show("add");setTimeout(()=>$('fantasiaEnabled')?.scrollIntoView({behavior:"smooth",block:"center"}),80);};
+
 // V4.3.1 — الإصدارات الانتقالية: صفة للمقتنى نفسه دون إنشاء مخزون جديد.
 if ($("transitionalIssueEnabled")) $("transitionalIssueEnabled").addEventListener("change",()=>{
   if ($("transitionalIssueFields")) $("transitionalIssueFields").hidden=!$("transitionalIssueEnabled").checked;
 });
 if ($("transitionalSearch")) $("transitionalSearch").addEventListener("input",renderTransitionalAdmin);
 if ($("transitionalTypeFilter")) $("transitionalTypeFilter").addEventListener("change",renderTransitionalAdmin);
-if ($("refreshTransitional")) $("refreshTransitional").onclick=async()=>{await refresh(true);await renderTransitionalAdmin();};
+if ($("refreshTransitional")) $("refreshTransitional").onclick=async()=>{await refresh(true);await renderTransitionalAdmin(); renderFantasiaAdmin();};
 if ($("transitionalAddNew")) $("transitionalAddNew").onclick=()=>{show("add");setTimeout(()=>$("transitionalIssueEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}),80);};

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#071b35" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="/admin/styles.css?v=4.3.5-final" />
-    <title>نوادر العملات — الإدارة V5.0.0</title>
+    <title>نوادر العملات — الإدارة V4.8.2</title>
   </head>
   <body>
     <header>
@@ -22,7 +22,7 @@
     <nav>
       <a class="site-home-link" href="/home" target="_blank">⌂ واجهة الموقع</a
       ><button data-v="home" class="active">لوحة التحكم</button
-      ><button data-v="add">إضافة</button><button data-v="warehouse">المستودع</button><button data-v="special">المميزة والنادرة</button><button data-v="transitional">الإصدارات الانتقالية</button><button data-v="list">السجل</button
+      ><button data-v="add">إضافة</button><button data-v="warehouse">المستودع</button><button data-v="special">المميزة والنادرة</button><button data-v="transitional">الإصدارات الانتقالية</button><button data-v="fantasia">فانتازيا</button><button data-v="list">السجل</button
       ><button data-v="auction">المزاد</button
       ><button data-v="ended-auctions">
         المزادات المنتهية
@@ -151,6 +151,7 @@
               <span class="module-icon">⌂</span><b>المستودع</b
               ><small>الكميات والمواقع والحجز والسوق والمزاد</small>
             </button>
+            <button type="button" class="module-card dashboard-go" data-go="fantasia"><span class="module-icon">🎭</span><b>فانتازيا</b><small>الإصدارات الخيالية والتذكارية غير الرسمية</small></button>
             <button type="button" class="module-card dashboard-go" data-go="transitional">
               <span class="module-icon">⇄</span><b>الإصدارات الانتقالية</b
               ><small>انتقال توقيع وآخر إصدار قبل التغيير وأول إصدار بعده</small>
@@ -704,6 +705,13 @@
                 placeholder="مثال: رقم منخفض جدًا أو نمط متكرر لافت"
             /></label>
           </div>
+          <div class="wide form-section-title"><h3>🎭 فانتازيا</h3><p class="muted">تصنيف المقتنيات الفانتازية مع بقائها مرتبطة بالمستودع والسوق والطلبات.</p></div>
+          <label class="wide fantasia-toggle"><input id="fantasiaEnabled" type="checkbox" /> إضافة هذا المقتنى إلى قسم «فانتازيا»</label>
+          <div id="fantasiaFields" class="wide transitional-fields" hidden><div class="transitional-grid">
+            <label>نوع الفانتازيا<select id="fantasiaType"><option value="banknote">ورقة فانتازيا</option><option value="coin">عملة / توكن فانتازيا</option><option value="fictional-state">دولة / مملكة خيالية</option><option value="private-issue">إصدار خاص</option><option value="specimen">نموذج / Specimen</option><option value="set">مجموعة</option><option value="other">أخرى</option></select></label>
+            <label>الجهة / الاسم المُصدر<input id="fantasiaIssuer" placeholder="مثال: اسم المملكة أو الجهة الخيالية" /></label>
+            <label class="wide">ملاحظات الفانتازيا<input id="fantasiaNotes" placeholder="وصف أو معلومات إضافية" /></label>
+          </div></div>
           <div class="wide form-section-title transitional-section-title">
             <h3>⇄ الإصدارات الانتقالية <button type="button" class="mini-help" data-help="تصنيف بحثي اختياري للمقتنيات التي تمثل مرحلة انتقال بين إصدارين أو توقيعين. لا ينشئ مخزونًا جديدًا ولا يغيّر الكميات.">؟</button></h3>
             <p class="muted">فعّل التصنيف فقط عندما يكون للمقتنى سبب انتقالي واضح وموثق.</p>
@@ -894,6 +902,17 @@
               ><label class="check"
                 ><input id="marketApproved" type="checkbox" /> نشر العرض في السوق العام</label
               >
+              <div class="wide" style="border-top:1px dashed #c9ad67;margin-top:8px;padding-top:10px">
+                <b>⚡ الظهور في شريط العروض بالصفحة الرئيسية</b>
+                <div class="grid" style="margin-top:8px">
+                  <label class="check"><input id="homeFeatured" type="checkbox" /> عرض مميز</label>
+                  <label class="check"><input id="homeQuickDeal" type="checkbox" /> صفقة سريعة</label>
+                  <label class="check"><input id="homeDiscounted" type="checkbox" /> عرض مخفض</label>
+                  <label>نسبة الخصم %<input id="homeDiscountPercent" type="number" min="0" max="100" step="1" value="0" /></label>
+                  <label>انتهاء العرض (اختياري)<input id="homePromoUntil" type="datetime-local" /></label>
+                </div>
+                <p class="muted">لا يظهر المقتنى في شريط العروض إلا إذا كان منشورًا فعليًا ومفعّلًا بأحد الخيارات أعلاه. بعد انتهاء المدة يختفي من شريط العروض تلقائيًا.</p>
+              </div>
               <p class="muted wide">
                 سعر الشراء يبقى في الدفتر المالي السري ولا يظهر للمشتري. يمكن
                 توزيع الرصيد بين السوق والمزاد، ويمنع النظام تجاوز الكمية الفعلية.
@@ -1304,13 +1323,13 @@
         <div class="panel">
           <h2>إدارة توثيق الحسابات</h2>
           <div class="participant-summary">
-            <span>جديد يحتاج مراجعة: <b id="pendingParticipantsCount">0</b></span><span>النشطون: <b id="participantsTotalCount">0</b></span><span>الملغون: <b id="participantsArchiveCount">0</b></span>
+            <span>مبدئي/جديد: <b id="pendingParticipantsCount">0</b></span><span>النشطون: <b id="participantsTotalCount">0</b></span><span>الملغون: <b id="participantsArchiveCount">0</b></span>
           </div>
           <p class="muted">
             توثيق الحساب منفصل عن نشر المقتنيات. المقتنيات تنشر مباشرة، بينما الشراء والمزايدة والعمليات المالية يمكن أن تبقى مقيدة حسب حالة الحساب.
           </p>
           <div class="participant-filters" id="participantFilters">
-            <button class="active" data-participant-filter="all">الكل</button><button data-participant-filter="new">جديد <b data-count="new">0</b></button><button data-participant-filter="final">توثيق كامل <b data-count="final">0</b></button><button data-participant-filter="suspended">معلّق <b data-count="suspended">0</b></button><button data-participant-filter="stopped">موقوف <b data-count="stopped">0</b></button><button data-participant-filter="cancelled">ملغى <b data-count="cancelled">0</b></button>
+            <button class="active" data-participant-filter="all">الكل</button><button data-participant-filter="preliminary">مبدئي <b data-count="preliminary">0</b></button><button data-participant-filter="final">نهائي <b data-count="final">0</b></button><button data-participant-filter="suspended">معلّق <b data-count="suspended">0</b></button><button data-participant-filter="stopped">موقوف <b data-count="stopped">0</b></button><button data-participant-filter="cancelled">ملغى <b data-count="cancelled">0</b></button>
           </div>
           <div id="participantsList" class="participants-list"></div>
         </div>
@@ -1388,6 +1407,7 @@
           <div id="specialAdminItems" class="special-admin-list"></div>
         </div>
       </section>
+      <section id="fantasia" class="view transitional-admin-view"><div class="panel transitional-admin-panel"><div class="special-admin-head"><div><span class="dashboard-kicker">قسم كامل مرتبط بالمقتنى الأصلي</span><h2>🎭 فانتازيا</h2><p class="muted">إدارة مقتنيات الفانتازيا وربطها بالمستودع والسوق والطلبات.</p></div><div class="actions"><button type="button" class="gold-action" id="fantasiaAddNew">＋ إضافة / تصنيف مقتنى</button></div></div><div class="transitional-admin-tools"><input id="fantasiaSearch" placeholder="بحث بالدولة أو الفئة أو السنة أو الجهة" /><button type="button" class="ghost" id="refreshFantasia">↻ تحديث</button></div><div class="special-admin-note"><b>مسار الربط:</b> المستودع ← فانتازيا ← صفحة العملاء ← السوق/السلة والطلب ← الطلبات والشحن ← المالية.</div><div id="fantasiaAdminItems" class="transitional-admin-list"></div></div></section>
       <section id="transitional" class="view transitional-admin-view">
         <div class="panel transitional-admin-panel">
           <div class="special-admin-head">
@@ -1551,7 +1571,7 @@
               >اسم المنصة<input
                 id="platformName"
                 value="نوادر العملات" /></label
-            ><label>رقم واتساب استقبال طلبات التوثيق<input id="whatsappVerificationNumber" inputmode="tel" dir="ltr" placeholder="966551892409" /><small class="muted">بالصيغة الدولية دون علامة +</small></label><label
+            ><label
               >مسار Tesseract OCR على ويندوز<input
                 id="ocrTesseractPath"
                 dir="ltr"
@@ -1587,6 +1607,7 @@
               <label class="check"><input id="visitorSectionAuction" type="checkbox" /> إظهار المزادات</label>
               <label class="check"><input id="visitorSectionSpecialNumbers" type="checkbox" /> إظهار الأرقام المميزة والأخطاء النادرة</label>
               <label class="check"><input id="visitorSectionTransitional" type="checkbox" /> إظهار الإصدارات الانتقالية</label>
+              <label class="check"><input id="visitorSectionFantasia" type="checkbox" /> إظهار قسم فانتازيا</label>
             </div>
           </div>
           <div class="actions">
@@ -1765,6 +1786,6 @@
       <div id="quickResults"></div>
       <div id="recent"></div>
     </div>
-    <script src="/admin/app.js?v=5.1.0-whatsapp"></script>
+    <script src="/admin/app.js?v=4.8.2-archive"></script>
   </body>
 </html>
