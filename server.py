@@ -930,12 +930,22 @@ def auction_target(i):
     return old+1 if old>0 else 0
 
 def public_item(i):
-    # The reserve amount remains confidential. Public UI receives only a coarse state
-    # (below/met/none) so the current-price card can change color without exposing the target.
-    round_no=int(i.get('auctionRound') or 1)
-    bids=[b for b in load_bids() if b.get('itemId')==i.get('id') and int(b.get('auctionRound') or 1)==round_no]
-    top=max([float(b.get('amount') or 0) for b in bids]+[0.0])
-    target=auction_target(i)
+    # Public auction serialization must never fail the whole auction feed because of one legacy value.
+    try: round_no=max(1,int(float(i.get('auctionRound') or 1)))
+    except Exception: round_no=1
+    bids=[]
+    for b in load_bids():
+        try: br=max(1,int(float(b.get('auctionRound') or 1)))
+        except Exception: br=1
+        if str(b.get('itemId') or '')==str(i.get('id') or '') and br==round_no:
+            bids.append(b)
+    amounts=[]
+    for b in bids:
+        try: amounts.append(float(b.get('amount') or 0))
+        except Exception: amounts.append(0.0)
+    top=max(amounts+[0.0])
+    try: target=auction_target(i)
+    except Exception: target=0.0
     reserve_state='none' if target<=0 else ('met' if top>=target else 'below')
     ended=False
     end=str(i.get('auctionEnd') or '').strip()
@@ -944,7 +954,10 @@ def public_item(i):
         except Exception: ended=False
     sold=bool(ended and bids and (target<=0 or top>=target))
     public_keys=['id','country','denomination','year','type','condition','quantity','serials','frontImg','backImg','auctionEnd','auctionOpeningPrice','auctionBidStep','auctionAdditionalTerms','notes','negotiationEnabled','negotiationPercent','auctionRound','issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason','homeFeatured','homeQuickDeal','homeDiscounted','homeDiscountPercent','homePromoUntil','updated']
-    return {k:i.get(k) for k in public_keys} | public_seller_identity(i) | {'auctionCurrentPrice':top,'bidCount':len(bids),'reserveState':reserve_state,'auctionEnded':ended,'auctionSold':sold}
+    out={k:i.get(k) for k in public_keys}
+    out.update(public_seller_identity(i))
+    out.update({'auctionCurrentPrice':top,'bidCount':len(bids),'reserveState':reserve_state,'auctionEnded':ended,'auctionSold':sold})
+    return out
 
 
 
@@ -1574,7 +1587,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.2.3-r1','channel':'WHATSAPP-FULL-VERIFY','marketFirstLaunch':False}); return
+            self.sendj({'version':'5.2.3-r2','channel':'STABILITY-AUCTION-SESSION','marketFirstLaunch':False}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1794,17 +1807,20 @@ class H(SimpleHTTPRequestHandler):
             if not effective_visitor_sections()['auction']:
                 self.sendj({'items':[],'hidden':True,'launchMode':True}); return
             with LOCK:
-                ensure_auction_outcomes()
-                items=[]
-                now=datetime.datetime.now()
+                try: ensure_auction_outcomes()
+                except Exception as e: print('تنبيه تسوية المزادات العامة:',e)
+                items=[]; skipped=0
                 for i in load():
                     if not (i.get('forAuction') and i.get('auctionApproved') and item_is_public(i)): continue
-                    public=public_item(i)
-                    # V4.0.20: المزادات المنتهية تُفصل عن صفحة المزادات النشطة العامة.
-                    if public.get('auctionEnded'): continue
-                    items.append(public)
+                    try:
+                        public=public_item(i)
+                        # المزادات المنتهية تُفصل عن صفحة المزادات النشطة العامة.
+                        if public.get('auctionEnded'): continue
+                        items.append(public)
+                    except Exception as e:
+                        skipped+=1; print('تنبيه مقتنى مزاد عام غير صالح:',i.get('id'),e)
                 items.sort(key=lambda x:str(x.get('auctionEnd') or ''))
-                self.sendj({'items':items}); return
+                self.sendj({'items':items,'skipped':skipped}); return
         if p=='/api/visitor/auction-activity':
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
             person=self.require_participant(pid)
