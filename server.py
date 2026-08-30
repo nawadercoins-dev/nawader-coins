@@ -799,7 +799,8 @@ def overdue_due_for(pid):
     return None
 
 def load_settings():
-    defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':True,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','whatsappVerificationNumber':'966551892409','duesTrackingStartedAt':'','visitorSections':{'market':True,'auction':True,'specialNumbers':True,'transitionalIssues':True},'fullPublicEnableV493':False}
+    defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':True,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','whatsappVerificationNumber':'966551892409','duesTrackingStartedAt':'','visitorSections':{'market':True,'auction':True,'specialNumbers':True,'transitionalIssues':True,
+            'fantasia':True},'fullPublicEnableV493':False}
     x=load_json(SETTINGS,defaults.copy())
     defaults.update(x if isinstance(x,dict) else {})
     vis=defaults.get('visitorSections')
@@ -809,6 +810,7 @@ def load_settings():
         'auction': bool(vis.get('auction',True)),
         'specialNumbers': bool(vis.get('specialNumbers',True)),
         'transitionalIssues': bool(vis.get('transitionalIssues',True)),
+        'fantasia': bool(vis.get('fantasia',True)),
     }
     # V4.9.3 one-time corrective migration:
     # previous market-first launch mode may have left public sections/auction fee disabled.
@@ -819,6 +821,7 @@ def load_settings():
             'auction':True,
             'specialNumbers':True,
             'transitionalIssues':True,
+            'fantasia':True,
         }
         defaults['entryFeeEnabled']=True
         defaults['fullPublicEnableV493']=True
@@ -832,6 +835,7 @@ def effective_visitor_sections(settings=None):
         'auction':vs.get('auction',True) is not False,
         'specialNumbers':vs.get('specialNumbers',True) is not False,
         'transitionalIssues':vs.get('transitionalIssues',True) is not False,
+        'fantasia':vs.get('fantasia',True) is not False,
     }
 
 BACKUP_FILES=[
@@ -917,7 +921,7 @@ def public_item(i):
         try: ended=datetime.datetime.fromisoformat(end) <= auction_local_now()
         except Exception: ended=False
     sold=bool(ended and bids and (target<=0 or top>=target))
-    public_keys=['id','country','denomination','year','type','condition','quantity','serials','frontImg','backImg','auctionEnd','auctionOpeningPrice','auctionBidStep','auctionAdditionalTerms','notes','negotiationEnabled','negotiationPercent','auctionRound','issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason','updated']
+    public_keys=['id','country','denomination','year','type','condition','quantity','serials','frontImg','backImg','auctionEnd','auctionOpeningPrice','auctionBidStep','auctionAdditionalTerms','notes','negotiationEnabled','negotiationPercent','auctionRound','issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason','homeFeatured','homeQuickDeal','homeDiscounted','homeDiscountPercent','homePromoUntil','updated']
     return {k:i.get(k) for k in public_keys} | public_seller_identity(i) | {'auctionCurrentPrice':top,'bidCount':len(bids),'reserveState':reserve_state,'auctionEnded':ended,'auctionSold':sold}
 
 
@@ -927,7 +931,7 @@ def public_market_item(i):
     keys=['id','country','denomination','year','type','condition','quantity','frontImg','backImg','notes',
           'issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','gradingVerificationStatus','gradingNotes',
           'marketOfferType','marketSalePrice','marketUnitPrice','marketQuantity','marketSetPieces','marketSetSize','marketSetCurrencyMode','marketPriceUnit',
-          'marketPartialAllowed','marketNegotiationEnabled','marketNegotiationPercent','marketTitle','updated','specialNumberEnabled']
+          'marketPartialAllowed','marketNegotiationEnabled','marketNegotiationPercent','marketTitle','homeFeatured','homeQuickDeal','homeDiscounted','homeDiscountPercent','homePromoUntil','updated','specialNumberEnabled']
     out={k:i.get(k) for k in keys}
     out.update(public_seller_identity(i))
     _,_,reserved=item_order_quantities(i.get('id'),item=i)
@@ -978,7 +982,7 @@ def public_special_item(item):
     if serials and not available and reserved and len(sold)<len(serials): status="reserved"
     elif qty<=0: status="sold"
     else: status="available" if sale else "display"
-    keys=("id","country","denomination","year","condition","serial","serials","frontImg","backImg","specialNumberType","specialNumberTypes","specialNumberReason","marketSalePrice","marketUnitPrice","marketNegotiationEnabled","marketNegotiationPercent","marketOfferType","marketTitle","quantity")
+    keys=("id","country","denomination","year","condition","serial","serials","frontImg","backImg","specialNumberType","specialNumberTypes","specialNumberReason","marketSalePrice","marketUnitPrice","marketNegotiationEnabled","marketNegotiationPercent","marketOfferType","marketTitle","homeFeatured","homeQuickDeal","homeDiscounted","homeDiscountPercent","homePromoUntil","quantity")
     out={k:item.get(k) for k in keys}; out.update(public_seller_identity(item)); out.update({"availableSerials":available,"availableQuantity":qty,"unitPrice":price,"saleEnabled":sale,"soldOut":status=="sold","availabilityStatus":status}); return out
 
 def public_portal_url(host):
@@ -1459,7 +1463,7 @@ ADMIN_GET_API={
     '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity','/api/archive/items'
 }
 PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel'}
-PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/invoice.html'}
+PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/invoice.html'}
 
 class H(SimpleHTTPRequestHandler):
     def cookie_value(self,name):
@@ -1548,7 +1552,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.1.0','channel':'WHATSAPP-FULL-VERIFY','marketFirstLaunch':False}); return
+            self.sendj({'version':'5.2.2','channel':'WHATSAPP-FULL-VERIFY','marketFirstLaunch':False}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1599,6 +1603,7 @@ class H(SimpleHTTPRequestHandler):
                     'forAuction','auctionApproved','auctionEnd','auctionOpeningPrice','auctionStartPrice','auctionCurrentPrice',
                     'auctionBidStep','auctionTargetPrice','auctionAdditionalTerms','auctionRound','auctionOutcome','auctionSold',
                     'specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason',
+                    'fantasiaEnabled','fantasiaType','fantasiaIssuer','fantasiaNotes',
                     'transitionalIssueEnabled','transitionalIssueType','transitionalPreviousIssue','transitionalNextIssue','transitionalRarity','transitionalReason','transitionalNotes','moderationStatus','moderationReason'
                 )}
                 sub=submissions.get(str(i.get('id') or '')) or {}
@@ -1739,6 +1744,14 @@ class H(SimpleHTTPRequestHandler):
                 self.sendj({'items':[],'hidden':True,'launchMode':True}); return
             rows=[public_special_item(i) for i in load() if i.get('specialNumberEnabled') and item_is_public(i)]
             self.sendj({'items':rows}); return
+        if p=='/api/public/fantasia':
+            if not effective_visitor_sections()['fantasia']:
+                self.sendj({'items':[],'hidden':True,'launchMode':True}); return
+            rows=[public_special_item(i) for i in load() if i.get('fantasiaEnabled') and item_is_public(i)]
+            for row in rows:
+                src=next((x for x in load() if str(x.get('id'))==str(row.get('id'))),{})
+                row['fantasiaType']=src.get('fantasiaType') or 'other'; row['fantasiaIssuer']=src.get('fantasiaIssuer') or ''; row['fantasiaNotes']=src.get('fantasiaNotes') or ''
+            self.sendj({'items':rows}); return
         if p=='/api/public/transitional-issues':
             if not effective_visitor_sections()['transitionalIssues']:
                 self.sendj({'items':[],'hidden':True,'launchMode':True}); return
@@ -1876,6 +1889,10 @@ class H(SimpleHTTPRequestHandler):
             if not effective_visitor_sections()['specialNumbers']:
                 self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'special_numbers.html'),'text/html; charset=utf-8'); return
+        if p in ('/fantasia','/fantasia/','/fantasia.html'):
+            if not effective_visitor_sections()['fantasia']:
+                self.sendj({'error':'قسم فانتازيا غير متاح حاليًا'},404); return
+            self.send_file(os.path.join(PUBLIC_DIR,'fantasia.html'),'text/html; charset=utf-8'); return
         if p in ('/transitional-issues','/transitional-issues/','/transitional_issues.html'):
             if not effective_visitor_sections()['transitionalIssues']:
                 self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
@@ -2053,6 +2070,11 @@ class H(SimpleHTTPRequestHandler):
                 special_types=[str(x).strip() for x in special_types if str(x).strip()]
                 special_reason=str(d.get('specialNumberReason') or '').strip()[:1000]
 
+                fantasia_enabled=bool(d.get('fantasiaEnabled'))
+                fantasia_type=str(d.get('fantasiaType') or '').strip()
+                fantasia_issuer=str(d.get('fantasiaIssuer') or '').strip()[:300]
+                fantasia_notes=str(d.get('fantasiaNotes') or '').strip()[:1000]
+
                 transitional_enabled=bool(d.get('transitionalIssueEnabled'))
                 transitional_type=str(d.get('transitionalIssueType') or '').strip()
                 transitional_prev=str(d.get('transitionalPreviousIssue') or '').strip()
@@ -2096,6 +2118,10 @@ class H(SimpleHTTPRequestHandler):
                     'specialNumberTypes':special_types,
                     'specialNumberType':special_types[0] if special_types else '',
                     'specialNumberReason':special_reason,
+                    'fantasiaEnabled':fantasia_enabled,
+                    'fantasiaType':fantasia_type,
+                    'fantasiaIssuer':fantasia_issuer,
+                    'fantasiaNotes':fantasia_notes,
                     'transitionalIssueEnabled':transitional_enabled,
                     'transitionalIssueType':transitional_type,
                     'transitionalPreviousIssue':transitional_prev,
@@ -2220,6 +2246,11 @@ class H(SimpleHTTPRequestHandler):
                     item['specialNumberReason']=str(d.get('specialNumberReason') or '').strip()[:1000]
                     if item['specialNumberEnabled'] and not types:
                         self.sendj({'error':'اختر نوع الرقم المميز أو النادر'},400); return
+                if 'fantasiaEnabled' in d:
+                    item['fantasiaEnabled']=bool(d.get('fantasiaEnabled'))
+                    item['fantasiaType']=str(d.get('fantasiaType') or '').strip()
+                    item['fantasiaIssuer']=str(d.get('fantasiaIssuer') or '').strip()[:300]
+                    item['fantasiaNotes']=str(d.get('fantasiaNotes') or '').strip()[:1000]
                 if 'transitionalIssueEnabled' in d:
                     item['transitionalIssueEnabled']=bool(d.get('transitionalIssueEnabled'))
                     item['transitionalIssueType']=str(d.get('transitionalIssueType') or '').strip()
@@ -2438,6 +2469,35 @@ class H(SimpleHTTPRequestHandler):
                 fee_pct=float(load_settings().get('buyerFeePercent') or 0); fee=round((offered if action=='offer' else base)*fee_pct/100,2); total=round((offered if action=='offer' else base)+fee,2); now=datetime.datetime.now(); reserve_until=now+datetime.timedelta(minutes=30)
                 row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or item_title(item),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':price,'name':person.get('name',''),'phone':person.get('phone',''),'action':action,'quantity':qty,'selectedSerials':selected,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':fee,'buyerTotal':total,'status':'pending','sourcePage':'special_numbers','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'reservedUntil':reserve_until.isoformat(),'created':now.isoformat()}
                 a=load_market_requests(); a.append(row); save_json(MARKET_REQUESTS,{'requests':a}); add_notification('admin','','market','🛒 طلب من صفحة الأرقام المميزة',f"{person.get('name','عميل')} طلب {item_title(item)}"+((' — الأرقام: '+', '.join(selected)) if selected else f' — الكمية: {qty}'),'','/admin'); add_notification('participant',pid,'order','تم تسجيل طلبك',f"تم حجز اختيارك من {item_title(item)} مؤقتًا وإرسال الطلب للإدارة.",item_id,'/account'); self.sendj({'ok':True,'request':row}); return
+            if p=='/api/fantasia/request':
+                pid=str(d.get('participantId') or ''); person=next((x for x in load_people() if str(x.get('id'))==pid),None)
+                person_session=self.require_participant(pid)
+                if not person_session: return
+                if not participant_can_transact(person): self.sendj({'error':'الشراء والتفاوض يتطلبان الاعتماد النهائي من الإدارة'},403); return
+                item_id=str(d.get('itemId') or ''); action=str(d.get('action') or 'buy'); item=next((i for i in load() if str(i.get('id'))==item_id and i.get('fantasiaEnabled')),None)
+                if not item: self.sendj({'error':'المقتنى غير موجود أو لم يعد ضمن قسم فانتازيا'},404); return
+                price=special_sale_price(item)
+                if not (item.get('forMarket') and item.get('marketApproved') and price>0): self.sendj({'error':'هذا المقتنى معروض للتعريف حاليًا وليس للبيع'},409); return
+                pool=special_serial_pool(item); available=special_available_serials(item); selected=d.get('selectedSerials') or []
+                if not isinstance(selected,list): selected=[selected]
+                selected=list(dict.fromkeys(str(x).strip() for x in selected if str(x).strip()))
+                if pool:
+                    if not selected: self.sendj({'error':'اختر الرقم أو الأرقام التي ترغب في شرائها'},400); return
+                    bad=[x for x in selected if x not in available]
+                    if bad: self.sendj({'error':'بعض الأرقام المختارة لم تعد متاحة: '+', '.join(bad)},409); return
+                    qty=len(selected)
+                else:
+                    qty=max(1,int(d.get('quantity') or 1)); avail=max(0,int(item.get('marketQuantity') or item.get('quantity') or 1)-int(item.get('marketSoldQuantity') or 0))
+                    if qty>avail: self.sendj({'error':f'الكمية المتاحة حاليًا {avail}'},409); return
+                base=round(price*qty,2); offered=float(d.get('offeredAmount') or 0)
+                if action=='offer':
+                    if not item.get('marketNegotiationEnabled'): self.sendj({'error':'التفاوض غير مفعّل لهذا المقتنى'},409); return
+                    pct=float(item.get('marketNegotiationPercent') or 0); minimum=base*(1-pct/100)
+                    if offered<=0 or offered+1e-9<minimum: self.sendj({'error':f'أقل عرض تفاوض مسموح {minimum:.2f} ر.س'},409); return
+                else: offered=base
+                fee_pct=float(load_settings().get('buyerFeePercent') or 0); fee=round((offered if action=='offer' else base)*fee_pct/100,2); total=round((offered if action=='offer' else base)+fee,2); now=datetime.datetime.now(); reserve_until=now+datetime.timedelta(minutes=30)
+                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or item_title(item),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':price,'name':person.get('name',''),'phone':person.get('phone',''),'action':action,'quantity':qty,'selectedSerials':selected,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':fee,'buyerTotal':total,'status':'pending','sourcePage':'fantasia','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'reservedUntil':reserve_until.isoformat(),'created':now.isoformat()}
+                a=load_market_requests(); a.append(row); save_json(MARKET_REQUESTS,{'requests':a}); add_notification('admin','','market','🛒 طلب من قسم فانتازيا',f"{person.get('name','عميل')} طلب {item_title(item)}"+((' — الأرقام: '+', '.join(selected)) if selected else f' — الكمية: {qty}'),'','/admin'); add_notification('participant',pid,'order','تم تسجيل طلبك',f"تم حجز اختيارك من {item_title(item)} مؤقتًا وإرسال الطلب للإدارة.",item_id,'/account'); self.sendj({'ok':True,'request':row}); return
             if p=='/api/market/request':
                 item_id=str(d.get('itemId','')); name=str(d.get('name','')).strip(); phone=''.join(ch for ch in str(d.get('phone','')) if ch.isdigit() or ch=='+')
                 action=str(d.get('action','buy')); qty=max(1,int(d.get('quantity') or 1)); offered=float(d.get('offeredAmount') or 0)
@@ -2757,7 +2817,7 @@ class H(SimpleHTTPRequestHandler):
                 incoming=d.get('visitorSections')
                 if isinstance(incoming,dict):
                     current=dict(st.get('visitorSections') or {})
-                    for key in ('market','auction','specialNumbers','transitionalIssues'):
+                    for key in ('market','auction','specialNumbers','transitionalIssues','fantasia'):
                         if key in incoming: current[key]=bool(incoming[key])
                     st['visitorSections']=current
                 save_json(SETTINGS,st)

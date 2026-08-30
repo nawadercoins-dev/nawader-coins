@@ -681,7 +681,7 @@ document.querySelectorAll("nav button").forEach(
       if (b.dataset.v === "participants") await renderParticipants();
       if (b.dataset.v === "warehouse") await renderWarehouse();
       if (b.dataset.v === "special") await renderSpecialAdmin();
-      if (b.dataset.v === "transitional") await renderTransitionalAdmin();
+      if (b.dataset.v === "transitional") await renderTransitionalAdmin(); renderFantasiaAdmin();
       if (b.dataset.v === "ended-auctions") await renderEndedAuctions();
       if (b.dataset.v === "market") await renderMarketAdmin();
       if (b.dataset.v === "finance") await renderFinance();
@@ -710,7 +710,7 @@ document.querySelectorAll(".dashboard-go").forEach((b) =>
     if (vw === "participants") await renderParticipants();
     if (vw === "warehouse") await renderWarehouse();
     if (vw === "special") await renderSpecialAdmin();
-    if (vw === "transitional") await renderTransitionalAdmin();
+    if (vw === "transitional") await renderTransitionalAdmin(); renderFantasiaAdmin();
     if (vw === "ended-auctions") await renderEndedAuctions();
     if (vw === "market") await renderMarketAdmin();
     if (vw === "finance") await renderFinance();
@@ -1825,6 +1825,11 @@ if (saveBtn) saveBtn.disabled = false;
     $("specialNumberReason").value = i.specialNumberReason || "";
   if ($("specialNumberFields"))
     $("specialNumberFields").hidden = !i.specialNumberEnabled;
+  if ($("fantasiaEnabled")) $("fantasiaEnabled").checked = !!i.fantasiaEnabled;
+  if ($("fantasiaType")) $("fantasiaType").value = i.fantasiaType || "banknote";
+  if ($("fantasiaIssuer")) $("fantasiaIssuer").value = i.fantasiaIssuer || "";
+  if ($("fantasiaNotes")) $("fantasiaNotes").value = i.fantasiaNotes || "";
+  if ($("fantasiaFields")) $("fantasiaFields").hidden = !i.fantasiaEnabled;
   if ($("transitionalIssueEnabled")) $("transitionalIssueEnabled").checked = !!i.transitionalIssueEnabled;
   ["transitionalIssueType","transitionalPreviousIssue","transitionalNextIssue","transitionalRarity","transitionalEstimatedPopulation","transitionalReferenceValue","transitionalReason","transitionalNotes"].forEach(k=>{ if ($(k)) $(k).value = i[k] ?? ""; });
   if ($("transitionalIssueFields")) $("transitionalIssueFields").hidden = !i.transitionalIssueEnabled;
@@ -1837,6 +1842,11 @@ if (saveBtn) saveBtn.disabled = false;
     $("marketPartialAllowed").checked = !!i.marketPartialAllowed;
   if ($("marketNegotiationEnabled"))
     $("marketNegotiationEnabled").checked = !!i.marketNegotiationEnabled;
+  if ($("homeFeatured")) $("homeFeatured").checked = !!i.homeFeatured;
+  if ($("homeQuickDeal")) $("homeQuickDeal").checked = !!i.homeQuickDeal;
+  if ($("homeDiscounted")) $("homeDiscounted").checked = !!i.homeDiscounted;
+  if ($("homeDiscountPercent")) $("homeDiscountPercent").value = Number(i.homeDiscountPercent || 0);
+  if ($("homePromoUntil")) $("homePromoUntil").value = String(i.homePromoUntil || "").slice(0,16);
   if ($("inventoryUnitType")) $("inventoryUnitType").value = i.inventoryUnitType || "piece";
   if ($("inventoryUnitCount")) $("inventoryUnitCount").value = Number(i.inventoryUnitCount || i.quantity || 1);
   if ($("piecesPerUnit")) $("piecesPerUnit").value = Number(i.piecesPerUnit || 1);
@@ -2047,6 +2057,10 @@ $("form").onsubmit = async (e) => {
       specialNumberReason: $("specialNumberEnabled")?.checked
         ? v("specialNumberReason")
         : "",
+      fantasiaEnabled: !!$("fantasiaEnabled")?.checked,
+      fantasiaType: $("fantasiaEnabled")?.checked ? v("fantasiaType") : "",
+      fantasiaIssuer: $("fantasiaEnabled")?.checked ? v("fantasiaIssuer") : "",
+      fantasiaNotes: $("fantasiaEnabled")?.checked ? v("fantasiaNotes") : "",
       transitionalIssueEnabled: !!$("transitionalIssueEnabled")?.checked,
       transitionalIssueType: $("transitionalIssueEnabled")?.checked ? v("transitionalIssueType") : "",
       transitionalPreviousIssue: $("transitionalIssueEnabled")?.checked ? v("transitionalPreviousIssue") : "",
@@ -2083,6 +2097,11 @@ $("form").onsubmit = async (e) => {
       marketNegotiationEnabled:
         wantsMarket && $("marketNegotiationEnabled")?.checked,
       marketNegotiationPercent: n("marketNegotiationPercent") || 5,
+      homeFeatured: wantsMarket && !!$("homeFeatured")?.checked,
+      homeQuickDeal: wantsMarket && !!$("homeQuickDeal")?.checked,
+      homeDiscounted: wantsMarket && !!$("homeDiscounted")?.checked,
+      homeDiscountPercent: wantsMarket ? Math.max(0, Math.min(100, n("homeDiscountPercent"))) : 0,
+      homePromoUntil: wantsMarket ? v("homePromoUntil") : "",
       frontImg: frontImageRemoved ? "" : frontImg || old?.frontImg || "",
       backImg: backImageRemoved ? "" : backImg || old?.backImg || "",
       warehouse: v("warehouse"),
@@ -2219,6 +2238,11 @@ editingItemId = "";
   if ($("yearTo")) $("yearTo").value = "";
   if ($("isGraded")) $("isGraded").checked = false;
   if ($("specialNumberEnabled")) $("specialNumberEnabled").checked = false;
+  if ($("fantasiaEnabled")) $("fantasiaEnabled").checked = false;
+  if ($("fantasiaFields")) $("fantasiaFields").hidden = true;
+  if ($("fantasiaType")) $("fantasiaType").value = "banknote";
+  if ($("fantasiaIssuer")) $("fantasiaIssuer").value = "";
+  if ($("fantasiaNotes")) $("fantasiaNotes").value = "";
   if ($("transitionalIssueEnabled")) $("transitionalIssueEnabled").checked = false;
   if ($("transitionalIssueFields")) $("transitionalIssueFields").hidden = true;
   ["transitionalPreviousIssue","transitionalNextIssue","transitionalEstimatedPopulation","transitionalReferenceValue","transitionalReason","transitionalNotes"].forEach(k=>{if($(k))$(k).value="";});
@@ -2243,6 +2267,11 @@ editingItemId = "";
   if ($("marketNegotiationEnabled"))
     $("marketNegotiationEnabled").checked = false;
   if ($("marketPartialAllowed")) $("marketPartialAllowed").checked = false;
+  if ($("homeFeatured")) $("homeFeatured").checked = false;
+  if ($("homeQuickDeal")) $("homeQuickDeal").checked = false;
+  if ($("homeDiscounted")) $("homeDiscounted").checked = false;
+  if ($("homeDiscountPercent")) $("homeDiscountPercent").value = "0";
+  if ($("homePromoUntil")) $("homePromoUntil").value = "";
   renderStorageSelectors({ warehouse: "", cabinet: "", shelf: "", box: "", album: "", pocket: "" });
   updateEditionUI();
   updateYearUI();
@@ -3430,6 +3459,7 @@ async function loadAdminSettingsPanel() {
     if ($("visitorSectionAuction")) $("visitorSectionAuction").checked = vs.auction !== false;
     if ($("visitorSectionSpecialNumbers")) $("visitorSectionSpecialNumbers").checked = vs.specialNumbers !== false;
     if ($("visitorSectionTransitional")) $("visitorSectionTransitional").checked = vs.transitionalIssues !== false;
+    if ($("visitorSectionFantasia")) $("visitorSectionFantasia").checked = vs.fantasia !== false;
     $("platformName").value = st.platformName || "نوادر العملات";
     $("adminEmail").value = st.adminEmail || "";
     if ($("ocrTesseractPath"))
@@ -3455,6 +3485,7 @@ if ($("saveSettings"))
             auction: $("visitorSectionAuction") ? !!$("visitorSectionAuction").checked : true,
             specialNumbers: $("visitorSectionSpecialNumbers") ? !!$("visitorSectionSpecialNumbers").checked : true,
             transitionalIssues: $("visitorSectionTransitional") ? !!$("visitorSectionTransitional").checked : true,
+            fantasia: $("visitorSectionFantasia") ? !!$("visitorSectionFantasia").checked : true,
           },
           platformName: $("platformName").value.trim() || "نوادر العملات",
           adminEmail: $("adminEmail").value.trim(),
@@ -3468,6 +3499,7 @@ if ($("saveSettings"))
       if ($("visitorSectionAuction")) $("visitorSectionAuction").checked = savedVs.auction !== false;
       if ($("visitorSectionSpecialNumbers")) $("visitorSectionSpecialNumbers").checked = savedVs.specialNumbers !== false;
       if ($("visitorSectionTransitional")) $("visitorSectionTransitional").checked = savedVs.transitionalIssues !== false;
+      if ($("visitorSectionFantasia")) $("visitorSectionFantasia").checked = savedVs.fantasia !== false;
       st.textContent = "✅ تم حفظ الإعدادات وتأكيدها من الخادم.";
     } catch (e) {
       st.textContent = "⚠️ " + e.message;
@@ -4310,11 +4342,23 @@ document.addEventListener("click", (e) => {
   alert(btn.dataset.help || "تفاصيل إضافية عند الحاجة.");
 });
 
+// V5.2.0 — قسم فانتازيا
+function renderFantasiaAdmin(){
+  const box=$("fantasiaAdminItems"); if(!box)return;
+  const q=($("fantasiaSearch")?.value||"").trim().toLowerCase();
+  const rows=(state.items||[]).filter(i=>i.fantasiaEnabled).filter(i=>!q||[i.country,i.denomination,i.year,i.fantasiaIssuer,i.fantasiaType,i.fantasiaNotes].join(" ").toLowerCase().includes(q));
+  box.innerHTML=rows.map(i=>`<article class="item"><div><h3>🎭 ${esc(i.country||"—")} — ${esc(i.denomination||"—")}</h3><p>${esc(i.year||"")} ${i.fantasiaIssuer?"— "+esc(i.fantasiaIssuer):""}</p><p class="muted">${esc(i.fantasiaNotes||"")}</p><div class="actions"><button onclick="editItem('${i.id}')">تعديل</button>${archiveButton(i.id)}${adminMoveButtons(i,"warehouse")}<a class="public-link" href="/fantasia#item-${i.id}" target="_blank">عرض للزوار</a></div></div></article>`).join("")||'<div class="empty">لا توجد مقتنيات فانتازيا حاليًا.</div>';
+}
+if ($("fantasiaEnabled")) $("fantasiaEnabled").addEventListener("change",()=>{if($("fantasiaFields"))$("fantasiaFields").hidden=!$("fantasiaEnabled").checked;});
+if ($("fantasiaSearch")) $("fantasiaSearch").addEventListener("input",renderFantasiaAdmin);
+if ($("refreshFantasia")) $("refreshFantasia").onclick=async()=>{await refresh(true);renderFantasiaAdmin();};
+if ($("fantasiaAddNew")) $("fantasiaAddNew").onclick=()=>{show("add");setTimeout(()=>$('fantasiaEnabled')?.scrollIntoView({behavior:"smooth",block:"center"}),80);};
+
 // V4.3.1 — الإصدارات الانتقالية: صفة للمقتنى نفسه دون إنشاء مخزون جديد.
 if ($("transitionalIssueEnabled")) $("transitionalIssueEnabled").addEventListener("change",()=>{
   if ($("transitionalIssueFields")) $("transitionalIssueFields").hidden=!$("transitionalIssueEnabled").checked;
 });
 if ($("transitionalSearch")) $("transitionalSearch").addEventListener("input",renderTransitionalAdmin);
 if ($("transitionalTypeFilter")) $("transitionalTypeFilter").addEventListener("change",renderTransitionalAdmin);
-if ($("refreshTransitional")) $("refreshTransitional").onclick=async()=>{await refresh(true);await renderTransitionalAdmin();};
+if ($("refreshTransitional")) $("refreshTransitional").onclick=async()=>{await refresh(true);await renderTransitionalAdmin(); renderFantasiaAdmin();};
 if ($("transitionalAddNew")) $("transitionalAddNew").onclick=()=>{show("add");setTimeout(()=>$("transitionalIssueEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}),80);};
