@@ -1216,7 +1216,12 @@ document.querySelectorAll(".warehouse-metric").forEach((b) => b.addEventListener
   renderWarehouseRows();
 }));
 if ($("warehouseSearch")) $("warehouseSearch").oninput = renderWarehouseRows;
-if ($("refreshWarehouse")) $("refreshWarehouse").onclick = renderWarehouse;
+if ($("refreshWarehouse")) $("refreshWarehouse").onclick = async () => {
+  const b=$("refreshWarehouse"), old=b.textContent;
+  try{ b.disabled=true; b.textContent="جارٍ التحديث..."; await refresh(true); await renderWarehouse(); toast("تم تحديث مؤشرات المستودع."); }
+  catch(e){ alert("تعذر تحديث مؤشرات المستودع: "+e.message); }
+  finally{ b.disabled=false; b.textContent=old; }
+};
 if ($("repairWarehouseSubmissions")) $("repairWarehouseSubmissions").onclick = async () => {
   if (!confirm("فحص المقتنيات المعتمدة سابقًا وإصلاح ربطها بالمستودع؟ لن يتم نشر أي مقتنى في السوق أو المزاد.")) return;
   try {
@@ -1353,7 +1358,7 @@ document.querySelectorAll(".special-metric").forEach(b => b.addEventListener("cl
 }));
 if ($("specialSearch")) $("specialSearch").oninput = renderSpecialAdminRows;
 if ($("specialTypeFilter")) $("specialTypeFilter").onchange = renderSpecialAdminRows;
-if ($("refreshSpecial")) $("refreshSpecial").onclick = () => renderSpecialAdmin();
+if ($("refreshSpecial")) $("refreshSpecial").onclick = async () => { const b=$("refreshSpecial"),old=b.textContent; try{b.disabled=true;b.textContent="جارٍ التحديث...";await refresh(true);await renderSpecialAdmin();toast("تم تحديث قسم الأرقام المميزة.");}catch(e){alert(e.message)}finally{b.disabled=false;b.textContent=old;} };
 if ($("specialAddNew")) $("specialAddNew").onclick = () => { show("add"); setTimeout(() => $("specialNumberEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}), 80); };
 
 window.removeItem = async (id) => {
@@ -3854,7 +3859,7 @@ function orderCard(o) {
         `<div class="order-item">${(x.images || [])[0] ? `<img class="order-thumb" style="width:96px;height:72px;max-width:96px;max-height:72px;object-fit:contain" src="${esc((x.images || [])[0])}" onclick='openCoinLightbox(${JSON.stringify(x.images || [])},0,${JSON.stringify(x.title || "")})'>` : ""}<div><b>${esc(x.title || "مقتنى")}</b><div>الكمية: ${Number(x.quantity || 1)} • ${money(x.total || 0)}</div><div class="storage-path">${esc(storageText(x.storage || {}))}</div></div></div>`,
     )
     .join("");
-  return `<article class="order-card ${o.archived ? "archived-order" : ""}"><div class="order-head"><div><h3>${esc(o.orderNumber || o.id)}</h3><small>${new Date(o.created).toLocaleString("ar-SA")}</small></div><div><span class="source-chip">${o.source === "auction" ? "مزاد" : "السوق العام"}</span> <span class="order-status">${ORDER_LABELS[o.status] || esc(o.status)}</span></div></div><div class="order-body"><div class="order-grid"><div class="order-info"><span>العميل</span><b>${esc(o.customerName || "—")}</b><br>${esc(o.customerPhone || "")}</div><div class="order-info"><span>السداد</span><b>${o.paymentStatus === "paid" ? "تم السداد" : "غير مسدد"}</b></div><div class="order-info"><span>الإجمالي</span><b>${money(o.total || 0)}</b></div><div class="order-info"><span>الشحن</span><b>${esc(o.shippingCompany || "لم يسجل")}</b><br>${esc(o.trackingNumber || "")}</div></div>${itemHtml}<div class="order-shipping-fields"><input id="shipco-${o.id}" value="${esc(o.shippingCompany || "")}" placeholder="شركة الشحن"><input id="track-${o.id}" value="${esc(o.trackingNumber || "")}" placeholder="رقم التتبع"></div><div class="order-actions"><button class="ghost" onclick="saveShipping('${o.id}')">حفظ الشحن والتتبع</button>${orderNextButtons(o)}<button class="ghost" onclick="printOrder('${o.id}')">🖨 طباعة ملخص/فاتورة</button></div></div></article>`;
+  return `<article class="order-card ${o.archived ? "archived-order" : ""}"><div class="order-head"><div><h3>${esc(o.orderNumber || o.id)}</h3><small>${new Date(o.created).toLocaleString("ar-SA")}</small></div><div><span class="source-chip">${o.source === "auction" ? "مزاد" : "السوق العام"}</span> <span class="order-status">${ORDER_LABELS[o.status] || esc(o.status)}</span></div></div><div class="order-body"><div class="order-grid"><div class="order-info"><span>العميل</span><b>${esc(o.customerName || "—")}</b><br>${esc(o.customerPhone || "")}</div><div class="order-info"><span>السداد</span><b>${o.paymentStatus === "paid" ? "تم السداد" : "غير مسدد"}</b></div><div class="order-info"><span>الإجمالي</span><b>${money(o.total || 0)}</b><br><small>الشحن: ${o.shippingFeeConfirmed ? money(o.shippingFee || 0) : "غير محدد"}</small></div><div class="order-info"><span>الشحن</span><b>${esc(o.shippingCompany || "لم يسجل")}</b><br>${esc(o.trackingNumber || "")}</div><div class="order-info"><span>عنوان التسليم</span><b>${esc((o.shippingAddress||{}).city || "غير مكتمل")}</b><br><small>${esc([(o.shippingAddress||{}).district,(o.shippingAddress||{}).addressLine].filter(Boolean).join(' — '))}</small></div></div>${itemHtml}<div class="order-shipping-fields"><input id="shipfee-${o.id}" type="number" min="0" step="0.01" value="${Number(o.shippingFee || 0)}" placeholder="مبلغ الشحن (0 = مجاني)" ${o.paymentStatus === "paid" ? "disabled" : ""}><input id="shipco-${o.id}" value="${esc(o.shippingCompany || "")}" placeholder="شركة الشحن"><input id="track-${o.id}" value="${esc(o.trackingNumber || "")}" placeholder="رقم التتبع"></div><div class="order-actions"><button class="ghost" onclick="saveShipping('${o.id}')">اعتماد مبلغ الشحن وحفظ بياناته</button>${orderNextButtons(o)}<button class="ghost" onclick="printOrder('${o.id}')">🖨 طباعة ملخص/فاتورة</button></div></div></article>`;
 }
 async function renderOrders() {
   if (!$("ordersList")) return;
@@ -3922,15 +3927,18 @@ window.orderStatus = async (id, status) => {
 };
 window.saveShipping = async (id) => {
   try {
+    const fee = Number($("shipfee-" + id)?.value || 0);
     await api("/api/order/shipping", {
       method: "POST",
       body: JSON.stringify({
         id,
+        shippingFee: fee,
         shippingCompany: $("shipco-" + id)?.value || "",
         trackingNumber: $("track-" + id)?.value || "",
       }),
     });
     await renderOrders();
+    toast(`تم اعتماد مبلغ الشحن ${money(fee)} وحفظ بيانات الشحن.`);
   } catch (e) {
     alert(e.message);
   }
@@ -4351,7 +4359,7 @@ function renderFantasiaAdmin(){
 }
 if ($("fantasiaEnabled")) $("fantasiaEnabled").addEventListener("change",()=>{if($("fantasiaFields"))$("fantasiaFields").hidden=!$("fantasiaEnabled").checked;});
 if ($("fantasiaSearch")) $("fantasiaSearch").addEventListener("input",renderFantasiaAdmin);
-if ($("refreshFantasia")) $("refreshFantasia").onclick=async()=>{await refresh(true);renderFantasiaAdmin();};
+if ($("refreshFantasia")) $("refreshFantasia").onclick=async()=>{const b=$("refreshFantasia"),old=b.textContent;try{b.disabled=true;b.textContent="جارٍ التحديث...";await refresh(true);renderFantasiaAdmin();toast("تم تحديث فانتازيا.");}catch(e){alert(e.message)}finally{b.disabled=false;b.textContent=old;}};
 if ($("fantasiaAddNew")) $("fantasiaAddNew").onclick=()=>{show("add");setTimeout(()=>$('fantasiaEnabled')?.scrollIntoView({behavior:"smooth",block:"center"}),80);};
 
 // V4.3.1 — الإصدارات الانتقالية: صفة للمقتنى نفسه دون إنشاء مخزون جديد.
@@ -4360,5 +4368,5 @@ if ($("transitionalIssueEnabled")) $("transitionalIssueEnabled").addEventListene
 });
 if ($("transitionalSearch")) $("transitionalSearch").addEventListener("input",renderTransitionalAdmin);
 if ($("transitionalTypeFilter")) $("transitionalTypeFilter").addEventListener("change",renderTransitionalAdmin);
-if ($("refreshTransitional")) $("refreshTransitional").onclick=async()=>{await refresh(true);await renderTransitionalAdmin(); renderFantasiaAdmin();};
+if ($("refreshTransitional")) $("refreshTransitional").onclick=async()=>{const b=$("refreshTransitional"),old=b.textContent;try{b.disabled=true;b.textContent="جارٍ التحديث...";await refresh(true);await renderTransitionalAdmin();renderFantasiaAdmin();toast("تم تحديث الإصدارات الانتقالية.");}catch(e){alert(e.message)}finally{b.disabled=false;b.textContent=old;}};
 if ($("transitionalAddNew")) $("transitionalAddNew").onclick=()=>{show("add");setTimeout(()=>$("transitionalIssueEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}),80);};
