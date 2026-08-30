@@ -638,9 +638,23 @@ def repair_approved_submission_inventory():
 def storage_location(item):
     return {'warehouse':item.get('warehouse',''),'cabinet':item.get('cabinet',''),'shelf':item.get('shelf',''),'box':item.get('box',''),'album':item.get('album',''),'pocket':item.get('pocket','')}
 
+def participant_shipping_address(person):
+    person=person or {}
+    raw=person.get('shippingAddress') if isinstance(person.get('shippingAddress'),dict) else {}
+    return {
+        'recipientName':str(raw.get('recipientName') or person.get('name') or '').strip()[:120],
+        'recipientPhone':str(raw.get('recipientPhone') or person.get('phone') or '').strip()[:40],
+        'country':str(raw.get('country') or person.get('country') or '').strip()[:80],
+        'city':str(raw.get('city') or '').strip()[:100],
+        'district':str(raw.get('district') or '').strip()[:120],
+        'addressLine':str(raw.get('addressLine') or '').strip()[:240],
+        'postalCode':str(raw.get('postalCode') or '').strip()[:30],
+        'notes':str(raw.get('notes') or '').strip()[:240],
+    }
+
 def order_from_auction(due,item,person):
     physical=max(1,inventory_int(item.get('auctionQuantity'),1))
-    return {'id':'ord-'+secrets.token_hex(6),'orderNumber':'NW-'+datetime.datetime.now().strftime('%y%m%d')+'-'+secrets.token_hex(3).upper(),'source':'auction','sourceId':due.get('id'),'auctionRound':due.get('auctionRound'),'participantId':due.get('participantId'),'customerName':person.get('name',''),'customerPhone':person.get('phone',''),'status':'awaiting_payment','paymentStatus':'unpaid','created':datetime.datetime.now().isoformat(),'updated':datetime.datetime.now().isoformat(),'subtotal':float(due.get('amount') or 0),'buyerFee':0,'total':float(due.get('amount') or 0),'items':[{'itemId':item.get('id'),'title':item_title(item),'quantity':1,'physicalQuantity':physical,'unitPrice':float(due.get('amount') or 0),'total':float(due.get('amount') or 0),'images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'storage':storage_location(item)}],'shippingCompany':'','trackingNumber':'','history':[{'status':'awaiting_payment','at':datetime.datetime.now().isoformat(),'note':'تم إنشاء الطلب تلقائيًا من فوز المزاد'}],'archived':False}
+    return {'id':'ord-'+secrets.token_hex(6),'orderNumber':'NW-'+datetime.datetime.now().strftime('%y%m%d')+'-'+secrets.token_hex(3).upper(),'source':'auction','sourceId':due.get('id'),'auctionRound':due.get('auctionRound'),'participantId':due.get('participantId'),'customerName':person.get('name',''),'customerPhone':person.get('phone',''),'status':'awaiting_payment','paymentStatus':'unpaid','created':datetime.datetime.now().isoformat(),'updated':datetime.datetime.now().isoformat(),'subtotal':float(due.get('amount') or 0),'buyerFee':0,'total':float(due.get('amount') or 0),'items':[{'itemId':item.get('id'),'title':item_title(item),'quantity':1,'physicalQuantity':physical,'unitPrice':float(due.get('amount') or 0),'total':float(due.get('amount') or 0),'images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'storage':storage_location(item)}],'shippingFee':0,'shippingFeeConfirmed':False,'shippingCompany':'','trackingNumber':'','shippingAddress':participant_shipping_address(person),'history':[{'status':'awaiting_payment','at':datetime.datetime.now().isoformat(),'note':'تم إنشاء الطلب تلقائيًا من فوز المزاد'}],'archived':False}
 
 def create_order_for_due(due):
     orders=load_orders(); existing=next((o for o in orders if o.get('source')=='auction' and str(o.get('sourceId'))==str(due.get('id'))),None)
@@ -659,8 +673,15 @@ def create_order_for_market(req):
             existing['archiveReason']=''
             existing['status']='awaiting_payment'
             existing['paymentStatus']='unpaid'
+            existing['paidAt']=''
+            existing['paidAmount']=0
+            existing['shippingFee']=0
+            existing['shippingFeeConfirmed']=False
             existing['shippingCompany']=''
             existing['trackingNumber']=''
+            person=next((x for x in load_people() if str(x.get('id'))==str(req.get('participantId') or '')),{})
+            existing['shippingAddress']=participant_shipping_address(person)
+            existing['total']=float(existing.get('subtotal') or 0)+float(existing.get('buyerFee') or 0)
             existing['updated']=now
             hist=list(existing.get('history') or [])
             hist.append({'status':'awaiting_payment','at':now,'note':'إعادة تفعيل الطلب إداريًا من طلب السوق'})
@@ -670,7 +691,8 @@ def create_order_for_market(req):
     item=next((i for i in load() if str(i.get('id'))==str(req.get('itemId'))),{})
     subtotal=float(req.get('offeredAmount') or req.get('listedAmount') or 0); fee=float(req.get('buyerFeeAmount') or 0)
     units=max(1,inventory_int(req.get('quantity'),1)); physical=units*market_physical_per_unit(item)
-    row={'id':'ord-'+secrets.token_hex(6),'orderNumber':'NW-'+datetime.datetime.now().strftime('%y%m%d')+'-'+secrets.token_hex(3).upper(),'source':'market','sourceId':req.get('id'),'participantId':str(req.get('participantId') or ''),'customerName':req.get('name',''),'customerPhone':req.get('phone',''),'status':'awaiting_payment','paymentStatus':'unpaid','created':datetime.datetime.now().isoformat(),'updated':datetime.datetime.now().isoformat(),'subtotal':subtotal,'buyerFee':fee,'total':float(req.get('buyerTotal') or subtotal+fee),'items':[{'itemId':item.get('id'),'title':req.get('itemTitle') or item_title(item),'quantity':units,'physicalQuantity':physical,'unitPrice':float(req.get('unitPrice') or 0),'total':subtotal,'images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'storage':storage_location(item),'selectedSerials':list(req.get('selectedSerials') or [])}],'shippingCompany':'','trackingNumber':'','history':[{'status':'awaiting_payment','at':datetime.datetime.now().isoformat(),'note':'تم إنشاء الطلب من السوق العام'}],'archived':False}
+    person=next((x for x in load_people() if str(x.get('id'))==str(req.get('participantId') or '')),{})
+    row={'id':'ord-'+secrets.token_hex(6),'orderNumber':'NW-'+datetime.datetime.now().strftime('%y%m%d')+'-'+secrets.token_hex(3).upper(),'source':'market','sourceId':req.get('id'),'participantId':str(req.get('participantId') or ''),'customerName':req.get('name',''),'customerPhone':req.get('phone',''),'status':'awaiting_payment','paymentStatus':'unpaid','created':datetime.datetime.now().isoformat(),'updated':datetime.datetime.now().isoformat(),'subtotal':subtotal,'buyerFee':fee,'total':float(req.get('buyerTotal') or subtotal+fee),'items':[{'itemId':item.get('id'),'title':req.get('itemTitle') or item_title(item),'quantity':units,'physicalQuantity':physical,'unitPrice':float(req.get('unitPrice') or 0),'total':subtotal,'images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'storage':storage_location(item),'selectedSerials':list(req.get('selectedSerials') or [])}],'shippingFee':0,'shippingFeeConfirmed':False,'shippingCompany':'','trackingNumber':'','shippingAddress':participant_shipping_address(person),'history':[{'status':'awaiting_payment','at':datetime.datetime.now().isoformat(),'note':'تم إنشاء الطلب من السوق العام'}],'archived':False}
     orders.append(row); save_json(ORDERS,{'orders':orders}); req['orderId']=row['id']; return row
 
 def reconcile_direct_market_buy_orders(participant_id=''):
@@ -1552,7 +1574,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.2.2','channel':'WHATSAPP-FULL-VERIFY','marketFirstLaunch':False}); return
+            self.sendj({'version':'5.2.3-r1','channel':'WHATSAPP-FULL-VERIFY','marketFirstLaunch':False}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1783,6 +1805,31 @@ class H(SimpleHTTPRequestHandler):
                     items.append(public)
                 items.sort(key=lambda x:str(x.get('auctionEnd') or ''))
                 self.sendj({'items':items}); return
+        if p=='/api/visitor/auction-activity':
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
+            person=self.require_participant(pid)
+            if not person: return
+            now=auction_local_now(); bids=[b for b in load_bids() if str(b.get('participantId') or '')==pid]
+            items_by_id={str(i.get('id')):i for i in load()}
+            grouped={}
+            for b in bids:
+                iid=str(b.get('itemId') or ''); item=items_by_id.get(iid)
+                if not item or not (item.get('forAuction') and item.get('auctionApproved')): continue
+                rnd=int(item.get('auctionRound') or 1)
+                if int(b.get('auctionRound') or 1)!=rnd: continue
+                endraw=str(item.get('auctionEnd') or '').strip()
+                try: ended=bool(endraw and datetime.datetime.fromisoformat(endraw)<=now)
+                except Exception: ended=False
+                if ended: continue
+                row=grouped.setdefault(iid,{'itemId':iid,'title':item_title(item),'auctionEnd':endraw,'myHighestBid':0.0,'currentBid':0.0,'url':'/auction#'+iid})
+                row['myHighestBid']=max(float(row['myHighestBid'] or 0),float(b.get('amount') or 0))
+            all_bids=load_bids()
+            for iid,row in grouped.items():
+                item=items_by_id.get(iid) or {}; rnd=int(item.get('auctionRound') or 1)
+                rb=[x for x in all_bids if str(x.get('itemId') or '')==iid and int(x.get('auctionRound') or 1)==rnd]
+                row['currentBid']=max([float(x.get('amount') or 0) for x in rb] or [float(item.get('auctionStartPrice') or 0)])
+            out=list(grouped.values()); out.sort(key=lambda x:str(x.get('auctionEnd') or ''))
+            self.sendj({'items':out,'count':len(out)}); return
         if p=='/api/visitor/orders':
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
             person=self.require_participant(pid)
@@ -1790,10 +1837,9 @@ class H(SimpleHTTPRequestHandler):
             ensure_auction_outcomes(); reconcile_direct_market_buy_orders(pid); phone=str(person.get('phone') or '').replace(' ',''); labels={'new':'طلب جديد','awaiting_payment':'بانتظار السداد','paid':'تم السداد','preparing':'قيد التجهيز','ready_to_ship':'جاهز للشحن','shipped':'تم الشحن','received':'تم الاستلام','completed':'مكتمل','stalled':'متعثر','cancelled':'ملغي','returned':'مرتجع'}
             rows=[]
             for o in load_orders():
-                if bool(o.get('archived')): continue
                 if str(o.get('participantId') or '')!=pid and str(o.get('customerPhone') or '').replace(' ','')!=phone: continue
                 first=(o.get('items') or [{}])[0]
-                rows.append({'id':o.get('id'),'orderNumber':o.get('orderNumber'),'source':o.get('source'),'itemTitle':first.get('title','مقتنى'),'quantity':sum(int(x.get('quantity') or 1) for x in o.get('items') or []),'buyerTotal':o.get('total',0),'status':o.get('status'),'statusLabel':labels.get(o.get('status'),o.get('status')),'created':o.get('created'),'shippingCompany':o.get('shippingCompany'),'trackingNumber':o.get('trackingNumber'),'archived':o.get('archived',False)})
+                rows.append({'id':o.get('id'),'orderNumber':o.get('orderNumber'),'source':o.get('source'),'itemTitle':first.get('title','مقتنى'),'quantity':sum(int(x.get('quantity') or 1) for x in o.get('items') or []),'buyerTotal':o.get('total',0),'subtotal':o.get('subtotal',0),'buyerFee':o.get('buyerFee',0),'shippingFee':o.get('shippingFee',0),'shippingFeeConfirmed':bool(o.get('shippingFeeConfirmed')),'paymentStatus':o.get('paymentStatus','unpaid'),'paidAt':o.get('paidAt'),'status':o.get('status'),'statusLabel':labels.get(o.get('status'),o.get('status')),'created':o.get('created'),'shippingCompany':o.get('shippingCompany'),'trackingNumber':o.get('trackingNumber'),'shippingAddress':o.get('shippingAddress') or participant_shipping_address(person),'archived':o.get('archived',False)})
             rows.sort(key=lambda x:x.get('created') or '',reverse=True); self.sendj({'requests':rows}); return
         if p=='/api/visitor/invoice':
             qs=parse_qs(urlparse(self.path).query)
@@ -2399,6 +2445,18 @@ class H(SimpleHTTPRequestHandler):
                 if row.get('archived') and status not in ('completed','returned'): self.sendj({'error':'الطلب المكتمل مؤرشف ولا يعاد للخلف إلا كمرتجع'},409); return
                 if 'shippingCompany' in d: row['shippingCompany']=str(d.get('shippingCompany') or '').strip()
                 if 'trackingNumber' in d: row['trackingNumber']=str(d.get('trackingNumber') or '').strip()
+                if status=='paid' and not bool(row.get('shippingFeeConfirmed')):
+                    self.sendj({'error':'حدد واعتمد مبلغ الشحن أولًا (يمكن اعتماد 0 للشحن المجاني) قبل تأكيد السداد'},409); return
+                if status in ('preparing','ready_to_ship','shipped') and str(row.get('paymentStatus') or '')!='paid':
+                    self.sendj({'error':'لا يمكن تجهيز أو شحن الطلب قبل تأكيد السداد'},409); return
+                if status in ('ready_to_ship','shipped'):
+                    addr=row.get('shippingAddress') if isinstance(row.get('shippingAddress'),dict) else {}
+                    if not str(addr.get('country') or '').strip() or not str(addr.get('city') or '').strip() or not str(addr.get('addressLine') or '').strip():
+                        self.sendj({'error':'أكمل عنوان التسليم في حساب العميل قبل جعل الطلب جاهزًا للشحن'},409); return
+                    if not str(row.get('shippingCompany') or '').strip():
+                        self.sendj({'error':'حدد شركة الشحن قبل جعل الطلب جاهزًا للشحن'},409); return
+                if status=='shipped' and not str(row.get('trackingNumber') or '').strip():
+                    self.sendj({'error':'أدخل رقم التتبع أو مرجع الشحنة قبل اعتماد تم الشحن'},409); return
                 try: update_order_status(row,status,str(d.get('note') or ''))
                 except ValueError as e: self.sendj({'error':str(e)},400); return
                 if status=='paid' and row.get('source')=='auction':
@@ -2412,7 +2470,14 @@ class H(SimpleHTTPRequestHandler):
             if p=='/api/order/shipping':
                 oid=str(d.get('id') or ''); rows=load_orders(); row=next((x for x in rows if str(x.get('id'))==oid),None)
                 if not row: self.sendj({'error':'الطلب غير موجود'},404); return
-                row['shippingCompany']=str(d.get('shippingCompany') or '').strip(); row['trackingNumber']=str(d.get('trackingNumber') or '').strip(); row['updated']=datetime.datetime.now().isoformat(); save_json(ORDERS,{'orders':rows}); self.sendj({'ok':True,'order':row}); return
+                row['shippingCompany']=str(d.get('shippingCompany') or '').strip(); row['trackingNumber']=str(d.get('trackingNumber') or '').strip()
+                if 'shippingFee' in d:
+                    if str(row.get('paymentStatus') or '')=='paid': self.sendj({'error':'لا يمكن تغيير مبلغ الشحن بعد تأكيد السداد'},409); return
+                    try: fee=max(0,float(d.get('shippingFee') or 0))
+                    except Exception: self.sendj({'error':'مبلغ الشحن غير صالح'},400); return
+                    row['shippingFee']=fee; row['shippingFeeConfirmed']=True
+                    row['total']=float(row.get('subtotal') or 0)+float(row.get('buyerFee') or 0)+fee
+                row['updated']=datetime.datetime.now().isoformat(); save_json(ORDERS,{'orders':rows}); self.sendj({'ok':True,'order':row}); return
             if p=='/api/inventory/return-resolution':
                 iid=str(d.get('itemId') or ''); action=str(d.get('action') or '')
                 if action not in ('warehouse','damaged'): self.sendj({'error':'اختر إعادة المرتجع للمستودع أو تسجيله تالفًا'},400); return
@@ -2913,9 +2978,25 @@ class H(SimpleHTTPRequestHandler):
                 avatar=str(d.get('avatarUrl') or '').strip()[:500]
                 if avatar and not (avatar.startswith('/uploads/') or avatar.startswith('data:image/')):
                     self.sendj({'error':'مسار صورة الحساب غير صالح'},400); return
+                address_in=d.get('shippingAddress') if isinstance(d.get('shippingAddress'),dict) else None
+                shipping_address=None
+                if address_in is not None:
+                    shipping_address={
+                        'recipientName':str(address_in.get('recipientName') or person.get('name') or '').strip()[:120],
+                        'recipientPhone':str(address_in.get('recipientPhone') or person.get('phone') or '').strip()[:40],
+                        'country':str(address_in.get('country') or country or person.get('country') or '').strip()[:80],
+                        'city':str(address_in.get('city') or '').strip()[:100],
+                        'district':str(address_in.get('district') or '').strip()[:120],
+                        'addressLine':str(address_in.get('addressLine') or '').strip()[:240],
+                        'postalCode':str(address_in.get('postalCode') or '').strip()[:30],
+                        'notes':str(address_in.get('notes') or '').strip()[:240],
+                    }
+                    if not shipping_address['country'] or not shipping_address['city'] or not shipping_address['addressLine']:
+                        self.sendj({'error':'أكمل دولة ومدينة وعنوان التسليم قبل الحفظ'},400); return
 
                 nowiso=datetime.datetime.now().isoformat()
                 person['alias']=alias; person['country']=country; person['avatarUrl']=avatar; person['profileUpdatedAt']=nowiso
+                if shipping_address is not None: person['shippingAddress']=shipping_address; person['shippingAddressUpdatedAt']=nowiso
 
                 # توحيد الهوية العامة لكل سجلات الحساب القديمة التي تحمل الجوال نفسه.
                 phone_key=_norm_phone(person.get('phone'))
@@ -2926,12 +3007,21 @@ class H(SimpleHTTPRequestHandler):
                         if _norm_phone(other.get('phone'))==phone_key:
                             other['alias']=alias; other['country']=country
                             if avatar: other['avatarUrl']=avatar
+                            if shipping_address is not None: other['shippingAddress']=shipping_address; other['shippingAddressUpdatedAt']=nowiso
                             other['profileUpdatedAt']=nowiso
                             synced+=1
 
                 save_json(PEOPLE,{'participants':a})
-                append_operation('تحديث هوية الحساب العامة',{'participantId':pid,'country':country,'syncedDuplicateAccounts':synced},actor='العميل')
-                self.sendj({'ok':True,'participant':participant_public(person),'syncedDuplicateAccounts':synced}); return
+                address_orders_updated=0
+                if shipping_address is not None:
+                    orders=load_orders()
+                    for order in orders:
+                        if str(order.get('participantId') or '')!=pid: continue
+                        if str(order.get('status') or '') in ('shipped','received','completed','cancelled','returned'): continue
+                        order['shippingAddress']=dict(shipping_address); order['updated']=nowiso; address_orders_updated+=1
+                    if address_orders_updated: save_json(ORDERS,{'orders':orders})
+                append_operation('تحديث هوية الحساب العامة',{'participantId':pid,'country':country,'syncedDuplicateAccounts':synced,'shippingAddressUpdated':shipping_address is not None,'activeOrdersUpdated':address_orders_updated},actor='العميل')
+                self.sendj({'ok':True,'participant':participant_public(person),'syncedDuplicateAccounts':synced,'activeOrdersUpdated':address_orders_updated}); return
 
             if p=='/api/participant/verify':
                 request_id=str(d.get('requestId') or '').strip()
