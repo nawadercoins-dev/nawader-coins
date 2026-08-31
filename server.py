@@ -1880,6 +1880,11 @@ class H(SimpleHTTPRequestHandler):
             rows=[x for x in load_live_auctions() if live_session_owned_by(x,person)] if allowed else []
             self.sendj({'allowed':allowed,'permissions':participant_permissions(person.get('id')),'sessions':rows}); return
         if p=='/api/live-auctions/admin':
+            # V5.3.1: this endpoint is administration-only. Besides closing an
+            # unintended data exposure, this lets the studio reliably distinguish
+            # an admin session from a normal participant session.
+            if not self.is_admin():
+                self.sendj({'error':'يلزم تسجيل دخول الإدارة'},401); return
             sessions=load_live_auctions(); items={str(i.get('id')):i for i in load()}
             out=[]
             for row in sessions:
