@@ -1635,7 +1635,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.3.0','channel':'LIVE-CAMERA-WEBRTC','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.4.1','channel':'LIVE-CAMERA-WEBRTC','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1896,7 +1896,7 @@ class H(SimpleHTTPRequestHandler):
             now=datetime.datetime.now()
             for row in load_live_auctions():
                 if row.get('status') not in ('scheduled','live'): continue
-                x={k:row.get(k) for k in ('id','title','description','startAt','status','mode','currentItemId','currentLot','currentPrice','latestBidderName','itemIds','bidStep','lotEndsAt','broadcasterName')}
+                x={k:row.get(k) for k in ('id','title','description','startAt','startedAt','status','mode','marketEnabled','currentItemId','currentLot','currentPrice','latestBidderName','itemIds','bidStep','lotEndsAt','broadcasterName')}
                 x['items']=[{'id':iid,'title':item_title(items.get(str(iid),{})),'frontImg':items.get(str(iid),{}).get('frontImg'),'backImg':items.get(str(iid),{}).get('backImg')} for iid in (row.get('itemIds') or [])]
                 sessions.append(x)
             sessions.sort(key=lambda x:str(x.get('startAt') or ''))
@@ -2155,7 +2155,7 @@ class H(SimpleHTTPRequestHandler):
             try: bid_step=max(1,float(d.get('bidStep') or row.get('bidStep') or 1))
             except Exception: bid_step=1
             mode=str(d.get('mode') or ('prepared' if ids else 'camera')); mode=mode if mode in ('camera','prepared') else 'camera'
-            row.update({'title':str(d.get('title') or 'بث مباشر').strip()[:160],'description':str(d.get('description') or '').strip()[:1000],'startAt':str(d.get('startAt') or '').strip(),'itemIds':ids,'bidStep':bid_step,'mode':mode,'updated':datetime.datetime.now().isoformat()})
+            row.update({'title':str(d.get('title') or 'بث مباشر').strip()[:160],'description':str(d.get('description') or '').strip()[:1000],'startAt':str(d.get('startAt') or '').strip(),'itemIds':ids,'bidStep':bid_step,'mode':mode,'marketEnabled':bool(d.get('marketEnabled',row.get('marketEnabled',False))),'updated':datetime.datetime.now().isoformat()})
             save_json(LIVE_AUCTIONS,{'sessions':sessions}); append_operation('حفظ جلسة بث للبائع',{'sessionId':sid,'participantId':str(person.get('id'))},actor='البائع'); self.sendj({'ok':True,'session':row}); return
         if p=='/api/live-auctions/seller-control':
             person=self.require_participant('')
@@ -2167,7 +2167,7 @@ class H(SimpleHTTPRequestHandler):
             if action in ('start','end'):
                 row['status']='live' if action=='start' else 'ended'
                 row['startedAt']=row.get('startedAt') or (datetime.datetime.now().isoformat() if action=='start' else '')
-                if action=='end': row['endedAt']=datetime.datetime.now().isoformat()
+                if action=='end': row['endedAt']=datetime.datetime.now().isoformat(); row['archivedAt']=row['endedAt']
             elif action=='open-free-lot':
                 title=str(d.get('title') or '').strip()
                 if not title: self.sendj({'error':'اكتب اسم القطعة المعروضة أمام الكاميرا'},400); return
@@ -2183,6 +2183,8 @@ class H(SimpleHTTPRequestHandler):
                 row['currentItemId']=iid; row['currentLot']=None; row['currentPrice']=price; row['lotEndsAt']=''; row['latestBidderName']=''; row['latestBidderId']=''; row['status']='live'
             elif action=='close-item':
                 self._close_live_item(row,bool(d.get('sold')))
+            elif action=='market-toggle':
+                row['marketEnabled']=bool(d.get('enabled'))
             else: self.sendj({'error':'أمر البث غير معروف'},400); return
             row['updated']=datetime.datetime.now().isoformat(); save_json(LIVE_AUCTIONS,{'sessions':sessions}); append_operation('تحكم بائع بالبث المباشر',{'sessionId':sid,'action':action},actor='البائع'); self.sendj({'ok':True,'session':row}); return
         if p=='/api/live-auctions/save':
@@ -2197,7 +2199,7 @@ class H(SimpleHTTPRequestHandler):
                 if iid in valid and iid not in ids: ids.append(iid)
             try: bid_step=max(1,float(d.get('bidStep') or row.get('bidStep') or 1))
             except (TypeError,ValueError): bid_step=1
-            row.update({'title':str(d.get('title') or 'مزاد مباشر').strip()[:160],'description':str(d.get('description') or '').strip()[:1000],'startAt':str(d.get('startAt') or '').strip(),'itemIds':ids,'bidStep':bid_step,'mode':str(d.get('mode') or row.get('mode') or ('prepared' if ids else 'camera')) if str(d.get('mode') or row.get('mode') or '') in ('camera','prepared') else ('prepared' if ids else 'camera'),'broadcasterType':row.get('broadcasterType') or 'admin','broadcasterName':row.get('broadcasterName') or 'إدارة نوادر العملات'})
+            row.update({'title':str(d.get('title') or 'مزاد مباشر').strip()[:160],'description':str(d.get('description') or '').strip()[:1000],'startAt':str(d.get('startAt') or '').strip(),'itemIds':ids,'bidStep':bid_step,'mode':str(d.get('mode') or row.get('mode') or ('prepared' if ids else 'camera')) if str(d.get('mode') or row.get('mode') or '') in ('camera','prepared') else ('prepared' if ids else 'camera'),'broadcasterType':row.get('broadcasterType') or 'admin','broadcasterName':row.get('broadcasterName') or 'إدارة نوادر العملات','marketEnabled':bool(d.get('marketEnabled',row.get('marketEnabled',False)))})
             if d.get('status') in ('scheduled','live','ended','cancelled'): row['status']=d.get('status')
             row['updated']=datetime.datetime.now().isoformat()
             try:
@@ -2218,7 +2220,7 @@ class H(SimpleHTTPRequestHandler):
             if action in ('start','end','cancel'):
                 row['status']={'start':'live','end':'ended','cancel':'cancelled'}[action]
                 if action=='start': row['startedAt']=row.get('startedAt') or datetime.datetime.now().isoformat()
-                if action in ('end','cancel'): row['endedAt']=datetime.datetime.now().isoformat()
+                if action in ('end','cancel'): row['endedAt']=datetime.datetime.now().isoformat(); row['archivedAt']=row['endedAt']
             if action=='open-item': row['currentItemId']=str(d.get('itemId') or ''); row['currentPrice']=float(d.get('price') or 0); row['latestBidderName']=''
             if action=='price': row['currentPrice']=float(d.get('price') or 0); row['latestBidderName']=str(d.get('bidderName') or '').strip()[:120]
             if action=='open-free-lot':
@@ -2228,6 +2230,7 @@ class H(SimpleHTTPRequestHandler):
                 except Exception: self.sendj({'error':'راجع السعر والزيادة والمدة'},400); return
                 row['currentLot']={'id':'lot-'+secrets.token_hex(6),'title':title[:180],'country':str(d.get('country') or '').strip()[:120],'condition':str(d.get('condition') or '').strip()[:80],'notes':str(d.get('notes') or '').strip()[:500],'openedAt':datetime.datetime.now().isoformat(),'startPrice':start,'bidStep':step}; row['currentItemId']=''; row['currentPrice']=start; row['bidStep']=step; row['lotEndsAt']=(datetime.datetime.now()+datetime.timedelta(seconds=duration)).isoformat(); row['latestBidderName']=''; row['latestBidderId']=''; row['status']='live'
             if action=='close-item': self._close_live_item(row,bool(d.get('sold')))
+            if action=='market-toggle': row['marketEnabled']=bool(d.get('enabled'))
             row['updated']=datetime.datetime.now().isoformat(); save_json(LIVE_AUCTIONS,{'sessions':sessions}); append_operation('تحكم بالمزاد المباشر',{'sessionId':sid,'action':action}); self.sendj({'ok':True,'session':row}); return
         if p=='/api/promotions/update':
             d=self.readj(); iid=str(d.get('itemId') or ''); items=load(); item=next((x for x in items if str(x.get('id'))==iid),None)
