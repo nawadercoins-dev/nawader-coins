@@ -1589,7 +1589,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.2.5','channel':'UNIFIED-CHANNELS-PROMOTIONS-LIVE','marketFirstLaunch':False}); return
+            self.sendj({'version':'5.2.6','channel':'UNIFIED-CHANNELS-PROMOTIONS-LIVE','marketFirstLaunch':False}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -2049,9 +2049,20 @@ class H(SimpleHTTPRequestHandler):
             for iid in (d.get('itemIds') or []):
                 iid=str(iid)
                 if iid in valid and iid not in ids: ids.append(iid)
-            row.update({'title':str(d.get('title') or 'مزاد مباشر').strip()[:160],'description':str(d.get('description') or '').strip()[:1000],'startAt':str(d.get('startAt') or '').strip(),'itemIds':ids,'bidStep':max(1,float(d.get('bidStep') or row.get('bidStep') or 1))})
+            try: bid_step=max(1,float(d.get('bidStep') or row.get('bidStep') or 1))
+            except (TypeError,ValueError): bid_step=1
+            row.update({'title':str(d.get('title') or 'مزاد مباشر').strip()[:160],'description':str(d.get('description') or '').strip()[:1000],'startAt':str(d.get('startAt') or '').strip(),'itemIds':ids,'bidStep':bid_step})
             if d.get('status') in ('scheduled','live','ended','cancelled'): row['status']=d.get('status')
-            row['updated']=datetime.datetime.now().isoformat(); save_json(LIVE_AUCTIONS,{'sessions':sessions}); append_operation('حفظ جلسة مزاد مباشر',{'sessionId':sid,'items':ids,'status':row['status']}); self.sendj({'ok':True,'session':row}); return
+            row['updated']=datetime.datetime.now().isoformat()
+            try:
+                os.makedirs(DATA_ROOT,exist_ok=True)
+                save_json(LIVE_AUCTIONS,{'sessions':sessions})
+            except Exception as e:
+                print('LIVE_AUCTION_SAVE_ERROR:',repr(e))
+                self.sendj({'error':'تعذر حفظ جلسة البث في مساحة البيانات الدائمة','detail':str(e)[:240]},500); return
+            try: append_operation('حفظ جلسة مزاد مباشر',{'sessionId':sid,'items':ids,'status':row['status']})
+            except Exception as e: print('LIVE_AUCTION_AUDIT_WARNING:',repr(e))
+            self.sendj({'ok':True,'session':row}); return
         if p=='/api/live-auctions/control':
             d=self.readj(); sessions=load_live_auctions(); sid=str(d.get('id') or ''); row=next((x for x in sessions if str(x.get('id'))==sid),None)
             if not row: self.sendj({'error':'جلسة البث غير موجودة'},404); return
