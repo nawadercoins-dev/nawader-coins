@@ -10,6 +10,7 @@ let db,
   isSaving = false,
  mediaPicking = false,
 editingItemId = "";
+let latestItems = [];
 function newId() {
   try {
     if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function")
@@ -669,6 +670,7 @@ document.querySelectorAll("nav button").forEach(
           "warehouse",
           "special",
           "transitional",
+          "fantasia",
           "list",
           "auction",
           "ended-auctions",
@@ -681,7 +683,8 @@ document.querySelectorAll("nav button").forEach(
       if (b.dataset.v === "participants") await renderParticipants();
       if (b.dataset.v === "warehouse") await renderWarehouse();
       if (b.dataset.v === "special") await renderSpecialAdmin();
-      if (b.dataset.v === "transitional") await renderTransitionalAdmin(); renderFantasiaAdmin();
+      if (b.dataset.v === "transitional") await renderTransitionalAdmin();
+      if (b.dataset.v === "fantasia") await renderFantasiaAdmin();
       if (b.dataset.v === "ended-auctions") await renderEndedAuctions();
       if (b.dataset.v === "market") await renderMarketAdmin();
       if (b.dataset.v === "finance") await renderFinance();
@@ -698,6 +701,7 @@ document.querySelectorAll(".dashboard-go").forEach((b) =>
         "warehouse",
         "special",
         "transitional",
+        "fantasia",
         "list",
         "auction",
         "ended-auctions",
@@ -710,7 +714,8 @@ document.querySelectorAll(".dashboard-go").forEach((b) =>
     if (vw === "participants") await renderParticipants();
     if (vw === "warehouse") await renderWarehouse();
     if (vw === "special") await renderSpecialAdmin();
-    if (vw === "transitional") await renderTransitionalAdmin(); renderFantasiaAdmin();
+    if (vw === "transitional") await renderTransitionalAdmin();
+    if (vw === "fantasia") await renderFantasiaAdmin();
     if (vw === "ended-auctions") await renderEndedAuctions();
     if (vw === "market") await renderMarketAdmin();
     if (vw === "finance") await renderFinance();
@@ -886,6 +891,14 @@ function dataToken(a) {
         i.shipping,
         i.other,
         i.expectedPrice,
+        i.fantasiaEnabled,
+        i.fantasiaType,
+        i.fantasiaIssuer,
+        i.fantasiaNotes,
+        i.specialNumberEnabled,
+        (i.specialNumberTypes || []).join(","),
+        i.transitionalIssueEnabled,
+        i.transitionalIssueType,
       ].join(":"),
     )
     .sort()
@@ -896,6 +909,7 @@ async function refresh(force = false) {
   refreshBusy = true;
   try {
     let a = await all();
+    latestItems = a.slice();
     updateStorageCatalogFromItems(a);
     if (document.getElementById("add")?.classList.contains("active")) renderStorageSelectors();
     let token = dataToken(a);
@@ -953,6 +967,10 @@ async function refresh(force = false) {
       await renderWarehouse();
     if (document.getElementById("special")?.classList.contains("active"))
       await renderSpecialAdmin(a);
+    if (document.getElementById("transitional")?.classList.contains("active"))
+      await renderTransitionalAdmin(a);
+    if (document.getElementById("fantasia")?.classList.contains("active"))
+      await renderFantasiaAdmin(a);
   } catch (e) {
     console.warn("تعذر تحديث البيانات المشتركة", e);
   } finally {
@@ -4350,17 +4368,21 @@ document.addEventListener("click", (e) => {
   alert(btn.dataset.help || "تفاصيل إضافية عند الحاجة.");
 });
 
-// V5.2.0 — قسم فانتازيا
-function renderFantasiaAdmin(){
+// V5.2.4 — قسم فانتازيا: مصدر موحد مع بيانات الإدارة، بدون حالة محلية وهمية.
+async function renderFantasiaAdmin(items=null){
   const box=$("fantasiaAdminItems"); if(!box)return;
+  let source;
+  if(Array.isArray(items)) source=items;
+  else if(Array.isArray(latestItems) && latestItems.length) source=latestItems;
+  else source=await all();
+  latestItems=source.slice();
   const q=($("fantasiaSearch")?.value||"").trim().toLowerCase();
-  const rows=(state.items||[]).filter(i=>i.fantasiaEnabled).filter(i=>!q||[i.country,i.denomination,i.year,i.fantasiaIssuer,i.fantasiaType,i.fantasiaNotes].join(" ").toLowerCase().includes(q));
+  const rows=source.filter(i=>i && i.fantasiaEnabled===true).filter(i=>!q||[i.country,i.denomination,i.year,i.fantasiaIssuer,i.fantasiaType,i.fantasiaNotes].join(" ").toLowerCase().includes(q));
   box.innerHTML=rows.map(i=>`<article class="item"><div><h3>🎭 ${esc(i.country||"—")} — ${esc(i.denomination||"—")}</h3><p>${esc(i.year||"")} ${i.fantasiaIssuer?"— "+esc(i.fantasiaIssuer):""}</p><p class="muted">${esc(i.fantasiaNotes||"")}</p><div class="actions"><button onclick="editItem('${i.id}')">تعديل</button>${archiveButton(i.id)}${adminMoveButtons(i,"warehouse")}<a class="public-link" href="/fantasia#item-${i.id}" target="_blank">عرض للزوار</a></div></div></article>`).join("")||'<div class="empty">لا توجد مقتنيات فانتازيا حاليًا.</div>';
 }
 if ($("fantasiaEnabled")) $("fantasiaEnabled").addEventListener("change",()=>{if($("fantasiaFields"))$("fantasiaFields").hidden=!$("fantasiaEnabled").checked;});
-if ($("fantasiaSearch")) $("fantasiaSearch").addEventListener("input",renderFantasiaAdmin);
-if ($("refreshFantasia")) $("refreshFantasia").onclick=async()=>{const b=$("refreshFantasia"),old=b.textContent;try{b.disabled=true;b.textContent="جارٍ التحديث...";await refresh(true);renderFantasiaAdmin();toast("تم تحديث فانتازيا.");}catch(e){alert(e.message)}finally{b.disabled=false;b.textContent=old;}};
-if ($("fantasiaAddNew")) $("fantasiaAddNew").onclick=()=>{show("add");setTimeout(()=>$('fantasiaEnabled')?.scrollIntoView({behavior:"smooth",block:"center"}),80);};
+if ($("fantasiaSearch")) $("fantasiaSearch").addEventListener("input",()=>renderFantasiaAdmin().catch(e=>console.warn(e)));
+if ($("fantasiaAddNew")) $("fantasiaAddNew").onclick=()=>{show("add");setTimeout(()=>$("fantasiaEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}),80);};
 
 // V4.3.1 — الإصدارات الانتقالية: صفة للمقتنى نفسه دون إنشاء مخزون جديد.
 if ($("transitionalIssueEnabled")) $("transitionalIssueEnabled").addEventListener("change",()=>{
@@ -4368,5 +4390,39 @@ if ($("transitionalIssueEnabled")) $("transitionalIssueEnabled").addEventListene
 });
 if ($("transitionalSearch")) $("transitionalSearch").addEventListener("input",renderTransitionalAdmin);
 if ($("transitionalTypeFilter")) $("transitionalTypeFilter").addEventListener("change",renderTransitionalAdmin);
-if ($("refreshTransitional")) $("refreshTransitional").onclick=async()=>{const b=$("refreshTransitional"),old=b.textContent;try{b.disabled=true;b.textContent="جارٍ التحديث...";await refresh(true);await renderTransitionalAdmin();renderFantasiaAdmin();toast("تم تحديث الإصدارات الانتقالية.");}catch(e){alert(e.message)}finally{b.disabled=false;b.textContent=old;}};
+
 if ($("transitionalAddNew")) $("transitionalAddNew").onclick=()=>{show("add");setTimeout(()=>$("transitionalIssueEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}),80);};
+
+
+// V5.2.4 — طبقة موحدة لأزرار التحديث في الإدارة.
+async function runAdminRefreshButton(id, task, successMessage){
+  const b=$(id); if(!b || b.disabled)return;
+  const old=b.textContent;
+  b.disabled=true; b.setAttribute('aria-busy','true'); b.textContent='↻ جارٍ التحديث...';
+  try{
+    await task();
+    b.textContent='✓ تم التحديث';
+    if(successMessage) toast(successMessage);
+    setTimeout(()=>{ if(b && !b.disabled) b.textContent=old; },900);
+  }catch(e){
+    console.error('فشل التحديث',id,e);
+    alert('تعذر التحديث: '+(e?.message||e));
+    b.textContent=old;
+  }finally{
+    b.disabled=false; b.removeAttribute('aria-busy');
+    setTimeout(()=>{ if(b) b.textContent=old; },1100);
+  }
+}
+function bindAdminRefresh(id, task, message){ const b=$(id); if(b)b.onclick=()=>runAdminRefreshButton(id,task,message); }
+bindAdminRefresh('refreshWarehouse', async()=>{await refresh(true);await renderWarehouse();}, 'تم تحديث مؤشرات المستودع.');
+bindAdminRefresh('refreshSpecial', async()=>{await refresh(true);await renderSpecialAdmin(latestItems);}, 'تم تحديث الأرقام المميزة والأخطاء النادرة.');
+bindAdminRefresh('refreshFantasia', async()=>{await refresh(true);await renderFantasiaAdmin(latestItems);}, 'تم تحديث فانتازيا من المصدر المشترك.');
+bindAdminRefresh('refreshTransitional', async()=>{await refresh(true);await renderTransitionalAdmin(latestItems);}, 'تم تحديث الإصدارات الانتقالية.');
+bindAdminRefresh('refreshEndedAuctions', async()=>{lastDataToken='';const a=await all();latestItems=a.slice();await renderEndedAuctions(a);}, 'تم تحديث المزادات المنتهية.');
+bindAdminRefresh('refreshOrders', async()=>{await renderOrders();}, 'تم تحديث الطلبات والشحن.');
+bindAdminRefresh('refreshFinance', async()=>{await renderFinance();}, 'تم تحديث المالية.');
+bindAdminRefresh('refreshCollectibleApprovals', async()=>{await renderCollectibleApprovals();}, 'تم تحديث مراقبة المقتنيات.');
+bindAdminRefresh('refreshDues', async()=>{await renderDues();}, 'تم تحديث المستحقات.');
+bindAdminRefresh('refreshOperations', async()=>{await renderOperations();}, 'تم تحديث سجل العمليات.');
+bindAdminRefresh('refreshArchive', async()=>{await renderArchive();}, 'تم تحديث الأرشيف.');
+bindAdminRefresh('refreshIntegrity', async()=>{await renderIntegrity();}, 'تم تحديث فحص سلامة المنصة.');
