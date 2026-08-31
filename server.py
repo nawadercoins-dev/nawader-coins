@@ -1576,6 +1576,9 @@ class H(SimpleHTTPRequestHandler):
         b=json.dumps(obj,ensure_ascii=False).encode('utf-8'); self.send_response(status); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Content-Length',str(len(b))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(b)
     def body(self):
         n=int(self.headers.get('Content-Length','0')); return json.loads(self.rfile.read(n) or b'{}')
+    def readj(self):
+        # V5.2.7: live-auction routes historically called readj(); keep a single JSON reader.
+        return self.body()
     def send_file(self,path,content_type=None):
         try:
             with open(path,'rb') as f: data=f.read()
@@ -1589,7 +1592,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.2.6','channel':'UNIFIED-CHANNELS-PROMOTIONS-LIVE','marketFirstLaunch':False}); return
+            self.sendj({'version':'5.2.7','channel':'LIVE-SAVE-FANTASIA-LAYOUT','marketFirstLaunch':False}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
