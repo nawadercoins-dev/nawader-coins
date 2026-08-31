@@ -3649,6 +3649,12 @@ function permissionCheck(pid, key, checked) {
         "متابعة عروضه وطلباته في السوق",
         "market",
       ],
+      liveBroadcast: [
+        "🔴",
+        "البث المباشر",
+        "فتح كاميرا وبث مزاد مباشر من حسابه الموثق",
+        "auction",
+      ],
       marketSupervision: [
         "🛍",
         "إشراف السوق",
@@ -3686,7 +3692,7 @@ async function renderPermissions() {
       rows
         .map((x) => {
           let p = x.permissions || {};
-          return `<article class="permission-row"><div class="permission-user"><b>${esc(x.name || "مشارك")}</b><span>${esc(x.phone || "")}</span><small>${x.verified ? "موثق" : "غير موثق"} • ${x.approved ? "معتمد" : "غير معتمد"}</small></div><div class="permission-options">${permissionCheck(x.id, "sellerEndedAuctions", p.sellerEndedAuctions)}${permissionCheck(x.id, "sellerMarket", p.sellerMarket)}${permissionCheck(x.id, "marketSupervision", p.marketSupervision)}${permissionCheck(x.id, "auctionSupervision", p.auctionSupervision)}${permissionCheck(x.id, "ordersView", p.ordersView)}${permissionCheck(x.id, "ordersManage", p.ordersManage)}</div><button type="button" class="save-permissions" data-pid="${esc(x.id)}">حفظ الصلاحيات</button></article>`;
+          return `<article class="permission-row"><div class="permission-user"><b>${esc(x.name || "مشارك")}</b><span>${esc(x.phone || "")}</span><small>${x.verified ? "موثق" : "غير موثق"} • ${x.approved ? "معتمد" : "غير معتمد"}</small></div><div class="permission-options">${permissionCheck(x.id, "sellerEndedAuctions", p.sellerEndedAuctions)}${permissionCheck(x.id, "sellerMarket", p.sellerMarket)}${permissionCheck(x.id, "liveBroadcast", p.liveBroadcast)}${permissionCheck(x.id, "marketSupervision", p.marketSupervision)}${permissionCheck(x.id, "auctionSupervision", p.auctionSupervision)}${permissionCheck(x.id, "ordersView", p.ordersView)}${permissionCheck(x.id, "ordersManage", p.ordersManage)}</div><button type="button" class="save-permissions" data-pid="${esc(x.id)}">حفظ الصلاحيات</button></article>`;
         })
         .join("") || '<p class="muted">لا يوجد مشاركون مسجلون.</p>';
     document.querySelectorAll(".permission-check").forEach((l) => {
@@ -4452,23 +4458,24 @@ document.querySelectorAll('[data-v="promotions"],.dashboard-go[data-go="promotio
 $("refreshPromotions")?.addEventListener('click',renderPromotions); $("promotionSearch")?.addEventListener('input',renderPromotions);
 
 async function renderLiveAuctions(){
- if(!$("liveSessions"))return;
- const [lr,items]=await Promise.all([api('/api/live-auctions/admin'),all()]);
+ if(!$('liveSessions'))return;
+ const [lr,items,media]=await Promise.all([api('/api/live-auctions/admin'),all(),api('/api/live-media/status').catch(()=>({configured:false}))]);
  const map=Object.fromEntries(items.map(i=>[String(i.id),i]));
- if($("liveItemIds")) $("liveItemIds").innerHTML=items.filter(i=>!i.archived).map(i=>`<option value="${i.id}">${esc(i.country||'')} — ${esc(i.denomination||'')} (${esc(i.year||'')})</option>`).join('');
- $("liveSessions").innerHTML=(lr.sessions||[]).map(s=>{
-   const current=map[String(s.currentItemId||'')];
+ if($('liveMediaStatus')){ $('liveMediaStatus').className='live-media-status '+(media.configured?'ok':'warn'); $('liveMediaStatus').textContent=media.configured?'✓ خدمة الفيديو الحي جاهزة. الكاميرا والصوت سينتقلان للمشاهدين دون تسجيل.':'⚠ جلسات المزاد تعمل، لكن نقل فيديو الكاميرا يحتاج إعداد LIVEKIT_URL وLIVEKIT_API_KEY وLIVEKIT_API_SECRET في Render.'; }
+ if($('liveItemIds')) $('liveItemIds').innerHTML=items.filter(i=>!i.archived).map(i=>`<option value="${i.id}">${esc(i.country||'')} — ${esc(i.denomination||'')} (${esc(i.year||'')})</option>`).join('');
+ $('liveSessions').innerHTML=(lr.sessions||[]).map(s=>{
+   const current=map[String(s.currentItemId||'')], lot=s.currentLot||null, mode=s.mode||((s.itemIds||[]).length?'prepared':'camera');
    const itemButtons=(s.itemIds||[]).map(iid=>{const it=map[String(iid)]||{};return `<button class="ghost" onclick="liveOpenItem('${s.id}','${iid}')">فتح: ${esc(it.country||'')} ${esc(it.denomination||iid)}</button>`}).join('');
-   return `<article class="participant-card"><h3>${esc(s.title||'مزاد مباشر')} <span class="approval-chip ${s.status==='live'?'ok':''}">${esc(s.status||'scheduled')}</span></h3><p>${esc(s.startAt||'بدون موعد')} — ${(s.itemIds||[]).length} مقتنى — زيادة ${Number(s.bidStep||1)} ر.س</p>${s.currentItemId?`<div class="special-admin-note"><b>المفتوح الآن:</b> ${esc(current?`${current.country||''} — ${current.denomination||''}`:s.currentItemId)} — السعر ${Number(s.currentPrice||0).toLocaleString('ar-SA')} ر.س — ${esc(s.latestBidderName||'لا توجد مزايدة')}</div>`:''}<div class="actions">${s.status==='live'?itemButtons:''}</div>${s.currentItemId?`<div class="actions"><button class="gold-action" onclick="liveCloseItem('${s.id}',true)">بيع وإغلاق المقتنى</button><button class="ghost" onclick="liveCloseItem('${s.id}',false)">إغلاق دون بيع</button></div>`:''}<div class="actions"><button onclick="editLiveSession('${s.id}')">تعديل</button><button class="gold-action" onclick="liveControl('${s.id}','start')">بدء البث</button><button onclick="liveControl('${s.id}','end')">إنهاء</button><button class="danger" onclick="liveControl('${s.id}','delete')">حذف</button><a class="public-link" href="/live-auction" target="_blank">واجهة العملاء</a></div></article>`;
+   const opened=lot?esc(lot.title||'قطعة أمام الكاميرا'):(current?esc(`${current.country||''} — ${current.denomination||''}`):esc(s.currentItemId||''));
+   return `<article class="participant-card"><h3>${esc(s.title||'مزاد مباشر')} <span class="approval-chip ${s.status==='live'?'ok':''}">${esc(s.status||'scheduled')}</span> <span class="live-session-badge ${mode==='camera'?'camera':''}">${mode==='camera'?'📹 كاميرا حرة':'📦 مُحضّر'}</span></h3><p>${esc(s.startAt||'بدون موعد')} — ${(s.itemIds||[]).length} مقتنى محضّر — زيادة ${Number(s.bidStep||1)} ر.س</p>${(s.currentItemId||lot)?`<div class="special-admin-note"><b>المفتوح الآن:</b> ${opened} — السعر ${Number(s.currentPrice||0).toLocaleString('ar-SA')} ر.س — ${esc(s.latestBidderName||'لا توجد مزايدة')}</div>`:''}${mode==='prepared'?`<div class="actions">${s.status==='live'?itemButtons:''}</div>`:''}${(s.currentItemId||lot)?`<div class="actions"><button class="gold-action" onclick="liveCloseItem('${s.id}',true)">بيع وإغلاق القطعة</button><button class="ghost" onclick="liveCloseItem('${s.id}',false)">إغلاق دون بيع</button></div>`:''}<div class="actions"><button onclick="editLiveSession('${s.id}')">تعديل</button><a class="gold-action" style="text-decoration:none" href="/live-studio?session=${encodeURIComponent(s.id)}" target="_blank">📹 فتح استوديو الكاميرا</a><button class="gold-action" onclick="liveControl('${s.id}','start')">بدء الجلسة</button><button onclick="liveControl('${s.id}','end')">إنهاء</button><button class="danger" onclick="liveControl('${s.id}','delete')">حذف</button><a class="public-link" href="/live-auction" target="_blank">واجهة العملاء</a></div></article>`;
  }).join('')||'<p>لا توجد جلسات بث مباشر.</p>';
  window.__liveSessions=lr.sessions||[];
 }
-function openLiveEditor(s={}){ $("liveSessionEditor").hidden=false; $("liveSessionId").value=s.id||''; $("liveTitle").value=s.title||''; $("liveStartAt").value=(s.startAt||'').slice(0,16); $("liveDescription").value=s.description||''; if($("liveBidStep")) $("liveBidStep").value=Number(s.bidStep||1); [...$("liveItemIds").options].forEach(o=>o.selected=(s.itemIds||[]).map(String).includes(String(o.value))); }
+function openLiveEditor(s={}){ $('liveSessionEditor').hidden=false; $('liveSessionId').value=s.id||''; $('liveTitle').value=s.title||''; $('liveStartAt').value=(s.startAt||'').slice(0,16); $('liveDescription').value=s.description||''; if($('liveBidStep')) $('liveBidStep').value=Number(s.bidStep||1); if($('liveMode')) $('liveMode').value=s.mode||((s.itemIds||[]).length?'prepared':'camera'); [...$('liveItemIds').options].forEach(o=>o.selected=(s.itemIds||[]).map(String).includes(String(o.value))); }
 function editLiveSession(id){ openLiveEditor((window.__liveSessions||[]).find(x=>String(x.id)===String(id))||{}); }
 async function liveControl(id,action,extra={}){ await api('/api/live-auctions/control',{method:'POST',body:JSON.stringify({id,action,...extra})}); await renderLiveAuctions(); }
 async function liveOpenItem(id,itemId){const price=prompt('سعر بداية هذا المقتنى في البث','0');if(price===null)return;await liveControl(id,'open-item',{itemId,price:Number(price||0)});}
 async function liveCloseItem(id,sold){if(sold&&!confirm('اعتماد البيع لآخر مزايد وإنشاء طلب تلقائي؟'))return;await liveControl(id,'close-item',{sold});}
-window.liveOpenItem=liveOpenItem; window.liveCloseItem=liveCloseItem;
-window.editLiveSession=editLiveSession; window.liveControl=liveControl;
-$("liveAddSession")?.addEventListener('click',async()=>{await renderLiveAuctions();openLiveEditor({});}); $("cancelLiveEditor")?.addEventListener('click',()=>$("liveSessionEditor").hidden=true); $("saveLiveSession")?.addEventListener('click',async()=>{const itemIds=[...$("liveItemIds").selectedOptions].map(o=>o.value); await api('/api/live-auctions/save',{method:'POST',body:JSON.stringify({id:$("liveSessionId").value,title:$("liveTitle").value,startAt:$("liveStartAt").value,description:$("liveDescription").value,bidStep:Number($("liveBidStep")?.value||1),itemIds})}); $("liveSessionEditor").hidden=true; await renderLiveAuctions();});
+window.liveOpenItem=liveOpenItem; window.liveCloseItem=liveCloseItem; window.editLiveSession=editLiveSession; window.liveControl=liveControl;
+$('liveAddSession')?.addEventListener('click',async()=>{await renderLiveAuctions();openLiveEditor({mode:'camera'});}); $('cancelLiveEditor')?.addEventListener('click',()=>$('liveSessionEditor').hidden=true); $('saveLiveSession')?.addEventListener('click',async()=>{const itemIds=[...$('liveItemIds').selectedOptions].map(o=>o.value); await api('/api/live-auctions/save',{method:'POST',body:JSON.stringify({id:$('liveSessionId').value,title:$('liveTitle').value,startAt:$('liveStartAt').value,description:$('liveDescription').value,bidStep:Number($('liveBidStep')?.value||1),mode:$('liveMode')?.value||'camera',itemIds})}); $('liveSessionEditor').hidden=true; await renderLiveAuctions();});
 document.querySelectorAll('[data-v="live-auctions"],.dashboard-go[data-go="live-auctions"]').forEach(b=>b.addEventListener('click',renderLiveAuctions));
