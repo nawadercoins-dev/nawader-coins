@@ -4457,6 +4457,14 @@ window.savePromotion=savePromotion;
 document.querySelectorAll('[data-v="promotions"],.dashboard-go[data-go="promotions"]').forEach(b=>b.addEventListener('click',renderPromotions));
 $("refreshPromotions")?.addEventListener('click',renderPromotions); $("promotionSearch")?.addEventListener('input',renderPromotions);
 
+// V5.4.2 — اسم آمن للمقتنى داخل إدارة البث المباشر.
+function item_title(i={}){
+  return String(
+    i.marketTitle || i.title || i.itemTitle ||
+    [i.country, i.denomination, i.year].filter(Boolean).join(" — ") ||
+    "مقتنى"
+  ).trim();
+}
 function liveSessionDate(s){const raw=s.startedAt||s.startAt||s.created||'';if(!raw)return 'بدون تاريخ';try{return new Date(raw).toLocaleDateString('ar-SA',{year:'numeric',month:'2-digit',day:'2-digit'})}catch{return String(raw).slice(0,10)}}
 function liveSessionCard(s,items,archived=false){
  const mode=s.mode||((s.itemIds||[]).length?'prepared':'camera'), lot=s.currentLot; const opened=lot?.title||item_title(items.find(i=>String(i.id)===String(s.currentItemId))||{});
