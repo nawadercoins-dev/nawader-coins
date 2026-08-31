@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>استوديو البث المباشر — نوادر العملات</title>
+<link rel="stylesheet" href="/visitor.css?v=5.3.0">
+<style>
+body{background:#071426;color:#10213e}.studio-shell{width:min(1180px,94vw);margin:20px auto}.studio-top{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.studio-card{background:#fff;border:1px solid #dbe2ec;border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 8px 28px #00152a18}.studio-grid{display:grid;grid-template-columns:1.35fr .85fr;gap:14px}.video-box{background:#02070d;border-radius:16px;min-height:390px;display:grid;place-items:center;overflow:hidden;position:relative}.video-box video{width:100%;height:100%;max-height:70vh;object-fit:contain;background:#000}.live-chip{position:absolute;top:12px;right:12px;background:#c51f32;color:#fff;padding:7px 11px;border-radius:999px;font-weight:900;z-index:2}.form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.form-row .wide{grid-column:1/-1}.studio-card input,.studio-card select,.studio-card textarea{box-sizing:border-box;width:100%;padding:11px;border:1px solid #cdd6e2;border-radius:10px}.studio-card label{display:grid;gap:6px;font-weight:800}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.actions button,.actions a{border:0;border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer;text-decoration:none}.primary{background:#0b3260;color:#fff}.gold{background:#c78b2d;color:#fff}.danger{background:#a9283a;color:#fff}.ghost{background:#edf1f6;color:#17304e}.status{padding:10px 12px;border-radius:10px;background:#eef3f8;margin:10px 0}.status.ok{background:#eaf8ef;color:#176035}.status.warn{background:#fff6df;color:#765200}.lot-live{border:2px solid #cf9b31;background:#fffaf0}.price{font-size:1.5rem;font-weight:1000;color:#0b3260}.countdown{font-size:1.15rem;font-weight:900;color:#9a2434}.session-list{display:grid;gap:8px}.session-row{border:1px solid #dbe2ec;border-radius:12px;padding:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}@media(max-width:850px){.studio-grid{grid-template-columns:1fr}.video-box{min-height:280px}.form-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="studio-shell">
+  <div class="studio-top"><div><h1>🔴 استوديو البث المباشر</h1><p style="color:#d8e2ef">فتح الكاميرا وعرض القطع مباشرة بدون تسجيل الفيديو.</p></div><div class="actions"><a class="ghost" href="/live-auction">واجهة المشاهدين</a><a class="gold" href="/account">حسابي</a></div></div>
+  <div id="studioStatus" class="status">جارٍ التحقق من صلاحية البث…</div>
+  <section class="studio-card" id="sessionChooser">
+    <h2>جلسة البث</h2>
+    <div id="sessionList" class="session-list"></div>
+    <div id="createSessionBox" hidden>
+      <div class="form-row"><label>اسم الجلسة<input id="newSessionTitle" placeholder="مزاد مباشر من الكاميرا"></label><label>زيادة المزايدة الافتراضية<input id="newSessionStep" type="number" min="1" value="1"></label><label class="wide">الوصف<input id="newSessionDescription" placeholder="اختياري"></label></div>
+      <div class="actions"><button class="gold" id="createSessionBtn">＋ إنشاء جلسة كاميرا</button></div>
+    </div>
+  </section>
+  <section class="studio-grid" id="studioMain" hidden>
+    <div class="studio-card"><h2 id="sessionTitle">البث</h2><div class="video-box" id="localVideo"><span class="live-chip">🔴 LIVE</span><div style="color:#fff;text-align:center;padding:20px">الكاميرا لم تبدأ بعد</div></div><div class="actions"><button class="primary" id="startCamera">📹 فتح الكاميرا وبدء البث</button><button class="ghost" id="toggleMic" disabled>🎙 كتم الميكروفون</button><button class="danger" id="endStream" disabled>إنهاء البث</button></div><div id="mediaStatus" class="status">الفيديو غير متصل.</div></div>
+    <div>
+      <section class="studio-card lot-live"><h2>القطعة أمام الكاميرا</h2><div class="form-row"><label class="wide">اسم / وصف القطعة<input id="lotTitle" placeholder="مثال: 100 ريال إصدار الملك خالد"></label><label>سعر البداية<input id="lotStart" type="number" min="0" value="0"></label><label>قيمة الزيادة<input id="lotStep" type="number" min="1" value="1"></label><label>مدة المزايدة بالثواني<input id="lotDuration" type="number" min="10" max="7200" value="60"></label><label>الدولة / الجهة<input id="lotCountry" placeholder="اختياري"></label><label class="wide">ملاحظات<input id="lotNotes" placeholder="اختياري"></label></div><div class="actions"><button class="gold" id="openLot">🔨 فتح المزايدة على القطعة</button></div><div id="currentLotBox" class="status">لا توجد قطعة مفتوحة.</div><div class="actions"><button class="gold" id="sellLot" disabled>🏆 بيع لآخر مزايد</button><button class="ghost" id="closeLot" disabled>إغلاق دون بيع</button></div></section>
+      <section class="studio-card" id="preparedBox" hidden><h2>المقتنيات المحضّرة</h2><div id="preparedItems"></div></section>
+    </div>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+<script src="/live_studio.js?v=5.3.0"></script>
+</body></html>
