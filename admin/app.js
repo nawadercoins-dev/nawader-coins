@@ -1861,6 +1861,7 @@ if (saveBtn) saveBtn.disabled = false;
   if ($("financialDetails")) $("financialDetails").open = !!(Number(i.purchase||0) || Number(i.shipping||0) || Number(i.other||0) || Number(i.expectedPrice||0) || String(i.notes||"").trim());
   if ($("forMarket")) $("forMarket").checked = !!i.forMarket;
   if ($("marketApproved")) $("marketApproved").checked = !!i.marketApproved;
+  if ($("marketCategory")) $("marketCategory").value = i.marketCategory || (i.fantasiaEnabled?"fantasia":i.specialNumberEnabled?"special":i.transitionalIssueEnabled?"transitional":i.marketOfferType==="set"?"set":"banknote");
   if ($("marketPartialAllowed"))
     $("marketPartialAllowed").checked = !!i.marketPartialAllowed;
   if ($("marketNegotiationEnabled"))
@@ -2106,6 +2107,7 @@ $("form").onsubmit = async (e) => {
       negotiationPercent: n("negotiationPercent") || 5,
       forMarket: wantsMarket,
       marketApproved: marketPublish,
+      marketCategory: wantsMarket ? v("marketCategory") : "",
       marketOfferType: wantsMarket ? v("marketOfferType") : "",
       marketTitle: wantsMarket ? v("marketTitle") : "",
       marketSalePrice: wantsMarket ? n("marketSalePrice") : 0,
@@ -2281,6 +2283,7 @@ editingItemId = "";
   if ($("financialDetails")) $("financialDetails").open = false;
   if ($("forMarket")) $("forMarket").checked = false;
   if ($("marketApproved")) $("marketApproved").checked = false;
+  if ($("marketCategory")) $("marketCategory").value = "banknote";
   if ($("marketOfferType")) $("marketOfferType").value = "single";
   if ($("marketPriceUnit")) $("marketPriceUnit").value = "piece";
   if ($("marketQuantity")) $("marketQuantity").value = "1";
@@ -3136,6 +3139,7 @@ function marketSearchFields(i) {
     id: warehouseFieldText(i.id),
     location: warehouseFieldText([i.warehouse, i.cabinet, i.shelf, i.box, i.album, i.page, i.pocket]),
     title: warehouseFieldText(i.marketTitle),
+    category: warehouseFieldText(i.marketCategory),
     price: warehouseFieldText([i.marketSalePrice, i.marketUnitPrice]),
     quantity: warehouseFieldText([i.marketQuantity, i.quantity, i.marketSetPieces]),
     offerType: warehouseFieldText(offerAliases),
@@ -4426,3 +4430,45 @@ bindAdminRefresh('refreshDues', async()=>{await renderDues();}, 'تم تحديث
 bindAdminRefresh('refreshOperations', async()=>{await renderOperations();}, 'تم تحديث سجل العمليات.');
 bindAdminRefresh('refreshArchive', async()=>{await renderArchive();}, 'تم تحديث الأرشيف.');
 bindAdminRefresh('refreshIntegrity', async()=>{await renderIntegrity();}, 'تم تحديث فحص سلامة المنصة.');
+
+
+// V5.2.5 — قنوات موحدة: السوق/المزاد/التمييز/البث المباشر بدون تكرار السجل الأصلي.
+function goAddWithChannel(channel){
+  document.querySelector('nav button[data-v="add"]')?.click();
+  setTimeout(()=>{ if($("forMarket")) $("forMarket").checked=channel==="market"; if($("forAuction")) $("forAuction").checked=channel==="auction"; $("forMarket")?.dispatchEvent(new Event("change")); $("forAuction")?.dispatchEvent(new Event("change")); },80);
+}
+$("marketAddNew")?.addEventListener("click",()=>goAddWithChannel("market"));
+$("auctionAddNew")?.addEventListener("click",()=>goAddWithChannel("auction"));
+
+function promoActive(i){ return !!(i.homeFeatured||i.homeQuickDeal||i.homeDiscounted); }
+function promoCard(i){
+ const title=i.marketTitle||`${i.country||""} — ${i.denomination||""}`;
+ return `<article class="item market-admin-card">${i.frontImg?`<img src="${i.frontImg}" alt="${esc(title)}">`:""}<div class="market-admin-body"><h3>${esc(title)}</h3><p>${promoActive(i)?'<span class="approval-chip ok">مميز حاليًا</span>':'<span class="approval-chip">غير مميز</span>'}</p><div class="form-grid"><label class="check"><input type="checkbox" data-pf="${i.id}" ${i.homeFeatured?'checked':''}> مميز</label><label class="check"><input type="checkbox" data-pq="${i.id}" ${i.homeQuickDeal?'checked':''}> سريع</label><label class="check"><input type="checkbox" data-pd="${i.id}" ${i.homeDiscounted?'checked':''}> مخفض</label><label>الخصم %<input type="number" min="0" max="100" data-pp="${i.id}" value="${Number(i.homeDiscountPercent||0)}"></label><label>شارة العرض<input data-pb="${i.id}" value="${esc(i.homePromoBadge||'')}"></label><label>حتى<input type="datetime-local" data-pu="${i.id}" value="${esc((i.homePromoUntil||'').slice(0,16))}"></label></div><div class="actions"><button class="gold-action" onclick="savePromotion('${i.id}')">حفظ التمييز</button><button class="ghost" onclick="editItem('${i.id}')">تعديل المقتنى</button></div></div></article>`;
+}
+async function renderPromotions(){ if(!$("promotionAdminItems"))return; const items=await all(); const q=($('promotionSearch')?.value||'').toLowerCase(); const rows=items.filter(i=>!i.archived&&(i.forMarket||i.forAuction||i.fantasiaEnabled||i.specialNumberEnabled||i.transitionalIssueEnabled)).filter(i=>!q||JSON.stringify(i).toLowerCase().includes(q)); $("promotionAdminItems").innerHTML=rows.map(promoCard).join('')||'<p>لا توجد مقتنيات متاحة.</p>'; }
+async function savePromotion(id){ const body={itemId:id,featured:document.querySelector(`[data-pf="${id}"]`)?.checked,quick:document.querySelector(`[data-pq="${id}"]`)?.checked,discounted:document.querySelector(`[data-pd="${id}"]`)?.checked,discountPercent:document.querySelector(`[data-pp="${id}"]`)?.value,badge:document.querySelector(`[data-pb="${id}"]`)?.value,until:document.querySelector(`[data-pu="${id}"]`)?.value}; await api('/api/promotions/update',{method:'POST',body:JSON.stringify(body)}); await renderPromotions(); }
+window.savePromotion=savePromotion;
+document.querySelectorAll('[data-v="promotions"],.dashboard-go[data-go="promotions"]').forEach(b=>b.addEventListener('click',renderPromotions));
+$("refreshPromotions")?.addEventListener('click',renderPromotions); $("promotionSearch")?.addEventListener('input',renderPromotions);
+
+async function renderLiveAuctions(){
+ if(!$("liveSessions"))return;
+ const [lr,items]=await Promise.all([api('/api/live-auctions/admin'),all()]);
+ const map=Object.fromEntries(items.map(i=>[String(i.id),i]));
+ if($("liveItemIds")) $("liveItemIds").innerHTML=items.filter(i=>!i.archived).map(i=>`<option value="${i.id}">${esc(i.country||'')} — ${esc(i.denomination||'')} (${esc(i.year||'')})</option>`).join('');
+ $("liveSessions").innerHTML=(lr.sessions||[]).map(s=>{
+   const current=map[String(s.currentItemId||'')];
+   const itemButtons=(s.itemIds||[]).map(iid=>{const it=map[String(iid)]||{};return `<button class="ghost" onclick="liveOpenItem('${s.id}','${iid}')">فتح: ${esc(it.country||'')} ${esc(it.denomination||iid)}</button>`}).join('');
+   return `<article class="participant-card"><h3>${esc(s.title||'مزاد مباشر')} <span class="approval-chip ${s.status==='live'?'ok':''}">${esc(s.status||'scheduled')}</span></h3><p>${esc(s.startAt||'بدون موعد')} — ${(s.itemIds||[]).length} مقتنى — زيادة ${Number(s.bidStep||1)} ر.س</p>${s.currentItemId?`<div class="special-admin-note"><b>المفتوح الآن:</b> ${esc(current?`${current.country||''} — ${current.denomination||''}`:s.currentItemId)} — السعر ${Number(s.currentPrice||0).toLocaleString('ar-SA')} ر.س — ${esc(s.latestBidderName||'لا توجد مزايدة')}</div>`:''}<div class="actions">${s.status==='live'?itemButtons:''}</div>${s.currentItemId?`<div class="actions"><button class="gold-action" onclick="liveCloseItem('${s.id}',true)">بيع وإغلاق المقتنى</button><button class="ghost" onclick="liveCloseItem('${s.id}',false)">إغلاق دون بيع</button></div>`:''}<div class="actions"><button onclick="editLiveSession('${s.id}')">تعديل</button><button class="gold-action" onclick="liveControl('${s.id}','start')">بدء البث</button><button onclick="liveControl('${s.id}','end')">إنهاء</button><button class="danger" onclick="liveControl('${s.id}','delete')">حذف</button><a class="public-link" href="/live-auction" target="_blank">واجهة العملاء</a></div></article>`;
+ }).join('')||'<p>لا توجد جلسات بث مباشر.</p>';
+ window.__liveSessions=lr.sessions||[];
+}
+function openLiveEditor(s={}){ $("liveSessionEditor").hidden=false; $("liveSessionId").value=s.id||''; $("liveTitle").value=s.title||''; $("liveStartAt").value=(s.startAt||'').slice(0,16); $("liveDescription").value=s.description||''; if($("liveBidStep")) $("liveBidStep").value=Number(s.bidStep||1); [...$("liveItemIds").options].forEach(o=>o.selected=(s.itemIds||[]).map(String).includes(String(o.value))); }
+function editLiveSession(id){ openLiveEditor((window.__liveSessions||[]).find(x=>String(x.id)===String(id))||{}); }
+async function liveControl(id,action,extra={}){ await api('/api/live-auctions/control',{method:'POST',body:JSON.stringify({id,action,...extra})}); await renderLiveAuctions(); }
+async function liveOpenItem(id,itemId){const price=prompt('سعر بداية هذا المقتنى في البث','0');if(price===null)return;await liveControl(id,'open-item',{itemId,price:Number(price||0)});}
+async function liveCloseItem(id,sold){if(sold&&!confirm('اعتماد البيع لآخر مزايد وإنشاء طلب تلقائي؟'))return;await liveControl(id,'close-item',{sold});}
+window.liveOpenItem=liveOpenItem; window.liveCloseItem=liveCloseItem;
+window.editLiveSession=editLiveSession; window.liveControl=liveControl;
+$("liveAddSession")?.addEventListener('click',async()=>{await renderLiveAuctions();openLiveEditor({});}); $("cancelLiveEditor")?.addEventListener('click',()=>$("liveSessionEditor").hidden=true); $("saveLiveSession")?.addEventListener('click',async()=>{const itemIds=[...$("liveItemIds").selectedOptions].map(o=>o.value); await api('/api/live-auctions/save',{method:'POST',body:JSON.stringify({id:$("liveSessionId").value,title:$("liveTitle").value,startAt:$("liveStartAt").value,description:$("liveDescription").value,bidStep:Number($("liveBidStep")?.value||1),itemIds})}); $("liveSessionEditor").hidden=true; await renderLiveAuctions();});
+document.querySelectorAll('[data-v="live-auctions"],.dashboard-go[data-go="live-auctions"]').forEach(b=>b.addEventListener('click',renderLiveAuctions));

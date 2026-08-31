@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#071b35" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="/admin/styles.css?v=4.3.5-final" />
-    <title>نوادر العملات — الإدارة V4.8.2</title>
+    <title>نوادر العملات — الإدارة V5.2.5</title>
   </head>
   <body>
     <header>
@@ -22,7 +22,7 @@
     <nav>
       <a class="site-home-link" href="/home" target="_blank">⌂ واجهة الموقع</a
       ><button data-v="home" class="active">لوحة التحكم</button
-      ><button data-v="add">إضافة</button><button data-v="warehouse">المستودع</button><button data-v="special">المميزة والنادرة</button><button data-v="transitional">الإصدارات الانتقالية</button><button data-v="fantasia">فانتازيا</button><button data-v="list">السجل</button
+      ><button data-v="add">إضافة</button><button data-v="warehouse">المستودع</button><button data-v="special">المميزة والنادرة</button><button data-v="transitional">الإصدارات الانتقالية</button><button data-v="fantasia">فانتازيا</button><button data-v="promotions">العروض المميزة</button><button data-v="live-auctions">البث المباشر 🔴</button><button data-v="list">السجل</button
       ><button data-v="auction">المزاد</button
       ><button data-v="ended-auctions">
         المزادات المنتهية
@@ -185,6 +185,8 @@
               <span class="module-icon">♻</span><b>المزادات المنتهية</b
               ><small>تعديل السعر والحد والزيادة وإعادة الإدراج</small>
             </button>
+            <button type="button" class="module-card dashboard-go" data-go="live-auctions"><span class="module-icon">🔴</span><b>البث المباشر</b><small>جلسات مزاد لحظية مرتبطة بالمستودع</small></button>
+            <button type="button" class="module-card dashboard-go" data-go="promotions"><span class="module-icon">⭐</span><b>العروض المميزة</b><small>إبراز مقتنيات السوق والمزاد دون تكرار</small></button>
             <a class="module-card public-module" href="/auction" target="_blank"
               ><span class="module-icon">↗</span><b>واجهة المزاد العامة</b
               ><small>معاينة ما يراه الزائر والمزايد</small></a
@@ -825,6 +827,7 @@
               العام</label
             >
             <div id="marketFields" hidden>
+              <label>تصنيف السوق<select id="marketCategory"><option value="banknote">أوراق نقدية</option><option value="coin">عملات معدنية</option><option value="fantasia">فانتازيا</option><option value="special">أرقام مميزة وأخطاء نادرة</option><option value="transitional">إصدارات انتقالية</option><option value="set">مجموعات / أطقم</option><option value="other">أخرى</option></select></label>
               <label
                 >نوع العرض<select id="marketOfferType">
                   <option value="single">قطعة واحدة</option>
@@ -1068,7 +1071,7 @@
       </section>
       <section id="auction" class="view">
         <div class="panel">
-          <div class="auction-title-row"><h2>عروض المزادات</h2></div>
+          <div class="auction-title-row"><h2>عروض المزادات</h2><button type="button" class="gold-action" id="auctionAddNew">＋ إضافة مقتنى للمزاد</button></div>
           <div class="platform-policy compact-policy">
             <b>السياسات المالية:</b><span>عمولة المشتري 2.5%</span
             ><span>رسم الدخول الافتراضي 10 ر.س</span
@@ -1090,7 +1093,7 @@
       </section>
       <section id="market" class="view">
         <div class="panel">
-          <div class="auction-title-row"><h2>عروض السوق العام</h2></div>
+          <div class="auction-title-row"><h2>عروض السوق العام</h2><button type="button" class="gold-action" id="marketAddNew">＋ إضافة مقتنى للسوق</button></div>
           <p class="muted">
             البيع المباشر مستقل عن المزاد. يمكن عرض قطعة واحدة أو حزمة/بندل أو
             طقم، مع التفاوض والشراء الجزئي حسب إعداد العرض.
@@ -1143,6 +1146,8 @@
           <div id="marketRequests" class="participants-list"></div>
         </div>
       </section>
+      <section id="promotions" class="view"><div class="panel"><div class="auction-title-row"><div><h2>⭐ العروض السريعة والمميزة</h2><p class="muted">قناة إبراز مرتبطة بالمقتنى الأصلي دون إنشاء نسخة جديدة.</p></div><button id="refreshPromotions" class="ghost">↻ تحديث</button></div><div class="warehouse-controls"><input id="promotionSearch" placeholder="بحث عن مقتنى لإبرازه" /></div><div id="promotionAdminItems" class="grid"></div></div></section>
+      <section id="live-auctions" class="view"><div class="panel"><div class="auction-title-row"><div><h2>🔴 البث المباشر</h2><p class="muted">إدارة جلسات المزاد اللحظي وربطها بمقتنيات المستودع نفسها.</p></div><button id="liveAddSession" class="gold-action">＋ جلسة بث مباشر</button></div><div id="liveSessionEditor" class="panel" hidden><input id="liveSessionId" type="hidden"><div class="form-grid"><label>اسم الجلسة<input id="liveTitle" placeholder="مزاد نوادر مباشر"></label><label>موعد البداية<input id="liveStartAt" type="datetime-local"></label><label>زيادة المزايدة<input id="liveBidStep" type="number" min="1" value="1"></label><label class="wide">الوصف<input id="liveDescription"></label><label class="wide">المقتنيات<select id="liveItemIds" multiple size="8"></select></label></div><div class="actions"><button id="saveLiveSession" class="gold-action">حفظ الجلسة</button><button id="cancelLiveEditor" class="ghost">إلغاء</button></div></div><div id="liveSessions" class="participants-list"></div></div></section>
       <section id="orders" class="view">
         <div class="panel">
           <div class="auction-title-row">
