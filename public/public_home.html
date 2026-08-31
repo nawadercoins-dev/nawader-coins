@@ -34,7 +34,7 @@
 </section>
 
 <section class="home-row" id="auctionRow" data-section="auction">
-<div class="row-head"><div class="row-copy"><h2>⚖ المزادات</h2><p>المزادات النشطة مرتبة حسب الأقرب انتهاءً.</p></div><div class="row-actions"><a class="all-link" href="/auction">عرض الكل</a><button class="rail-btn" type="button" data-dir="next" data-target="auctionRail">‹</button><button class="rail-btn" type="button" data-dir="prev" data-target="auctionRail">›</button></div></div>
+<div class="row-head"><div class="row-copy"><h2>⚖ المزادات</h2><p>المزادات النشطة مرتبة حسب الأقرب انتهاءً.</p></div><div class="row-actions"><a class="all-link live-nav-link" href="/live-auction" id="liveNavLink" hidden>🔴 مزادات مباشرة</a><a href="/auction">عرض الكل</a><button class="rail-btn" type="button" data-dir="next" data-target="auctionRail">‹</button><button class="rail-btn" type="button" data-dir="prev" data-target="auctionRail">›</button></div></div>
 <div class="item-rail loading-row" id="auctionRail"><span class="strip-empty">جارٍ تحميل المزادات…</span></div>
 </section>
 
@@ -113,6 +113,7 @@ function promoTag(section,i){
  const until=dt(i.homePromoUntil);
  if(until&&until<=Date.now()) return '';
  const pct=num(i.homeDiscountPercent);
+ if(i.homePromoBadge) return i.homePromoBadge;
  if(i.homeDiscounted) return pct>0?`خصم ${Math.round(pct)}%`:'عرض مخفض';
  if(i.homeQuickDeal) return 'صفقة سريعة';
  if(i.homeFeatured) return 'مميز';
@@ -128,7 +129,7 @@ function renderPromotions(){
    for(const i of datasets[section]||[]){
      const badge=promoTag(section,i);if(!badge||!(i.frontImg||i.backImg))continue;
      const key=String(i.id||'');if(key&&seen.has(key))continue;if(key)seen.add(key);
-     promos.push({section,i,badge,sort:section==='auction'?-(dt(i.auctionEnd)||9e15):dt(i.updated||i.created)});
+     promos.push({section,i,badge,sort:(num(i.homePromoPriority)*1e15)+(section==='auction'?-(dt(i.auctionEnd)||9e15):dt(i.updated||i.created))});
    }
  }
  promos.sort((a,b)=>b.sort-a.sort);
@@ -147,7 +148,9 @@ function setupAutoRail(box,delay=4300){
 }
 document.querySelectorAll('.rail-btn').forEach(btn=>btn.addEventListener('click',()=>{const box=$(btn.dataset.target);if(!box)return;const amount=Math.max(160,Math.round(box.clientWidth*.72));box.scrollBy({left:btn.dataset.dir==='next'?-amount:amount,behavior:'smooth'})}));
 async function json(url){const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error(url);return r.json()}
+async function refreshLiveNav(){try{const d=await json('/api/public/live-auctions');const a=$('liveNavLink');if(a)a.hidden=!(d.sessions||[]).length}catch(_){}}
 async function boot(){
+ await refreshLiveNav();
  let settings={};try{settings=await json('/api/settings/public')}catch(_){settings={}}
  const enabled=settings.visitorSections||{};
  for(const [key,def] of Object.entries(sectionDefs)){if(enabled[key]===false)$(def.row)?.classList.add('hidden')}
