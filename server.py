@@ -1587,7 +1587,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.2.3-r2','channel':'STABILITY-AUCTION-SESSION','marketFirstLaunch':False}); return
+            self.sendj({'version':'5.2.4','channel':'STABILITY-FANTASIA-REFRESH-AUCTION','marketFirstLaunch':False}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1810,7 +1810,12 @@ class H(SimpleHTTPRequestHandler):
                 try: ensure_auction_outcomes()
                 except Exception as e: print('تنبيه تسوية المزادات العامة:',e)
                 items=[]; skipped=0
-                for i in load():
+                try:
+                    source_items=load()
+                except Exception as e:
+                    print('خطأ تحميل مصدر المزادات العامة:',e)
+                    self.sendj({'items':[],'error':'تعذر قراءة مصدر المزادات مؤقتًا','retryable':True},503); return
+                for i in source_items:
                     if not (i.get('forAuction') and i.get('auctionApproved') and item_is_public(i)): continue
                     try:
                         public=public_item(i)
@@ -1820,7 +1825,7 @@ class H(SimpleHTTPRequestHandler):
                     except Exception as e:
                         skipped+=1; print('تنبيه مقتنى مزاد عام غير صالح:',i.get('id'),e)
                 items.sort(key=lambda x:str(x.get('auctionEnd') or ''))
-                self.sendj({'items':items,'skipped':skipped}); return
+                self.sendj({'items':items,'skipped':skipped,'ok':True,'generatedAt':datetime.datetime.now().isoformat()}); return
         if p=='/api/visitor/auction-activity':
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
             person=self.require_participant(pid)
