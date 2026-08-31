@@ -7,7 +7,41 @@ async function saveNewSession(){const body={title:$('newSessionTitle').value||'�
 function setStatus(msg,kind=''){$('studioStatus').className='status '+kind;$('studioStatus').textContent=msg}
 function selectSession(s){activeSession=s;history.replaceState(null,'','/live-studio?session='+encodeURIComponent(s.id));$('studioMain').hidden=false;$('sessionTitle').textContent='🔴 '+(s.title||'البث المباشر');$('lotStep').value=Number(s.bidStep||1);renderPrepared(s);refreshSession()}
 function renderSessions(rows){$('sessionList').innerHTML=(rows||[]).filter(x=>['scheduled','live'].includes(x.status)).map(s=>`<div class="session-row"><div><b>${esc(s.title||'جلسة بث')}</b><div>${s.status==='live'?'🔴 مباشر الآن':'🗓️ مجدولة'} — ${s.mode==='prepared'?'مُحضّرة':'كاميرا حرة'}</div></div><button class="primary" data-sid="${esc(s.id)}">فتح الاستوديو</button></div>`).join('')||'<p>لا توجد جلسات نشطة.</p>';document.querySelectorAll('[data-sid]').forEach(b=>b.onclick=()=>{const s=(rows||[]).find(x=>String(x.id)===String(b.dataset.sid));if(s)selectSession(s)})}
-async function boot(){let rows=[];try{const mine=await json('/api/live-auctions/mine');isSeller=true;if(!mine.allowed){setStatus('حسابك مسجل، لكن صلاحية البث المباشر غير مفعلة. اطلب تفعيلها من الإدارة.','warn');return}rows=mine.sessions||[];$('createSessionBox').hidden=false;setStatus('✓ حساب بائع موثق ومصرّح له بالبث المباشر.','ok')}catch(e){try{const a=await json('/api/live-auctions/admin');rows=a.sessions||[];$('createSessionBox').hidden=false;setStatus('✓ استوديو الإدارة جاهز.','ok')}catch{setStatus('سجل الدخول إلى الإدارة أو حساب بائع موثق لديه صلاحية البث.','warn');return}}renderSessions(rows);if(querySession){const s=rows.find(x=>String(x.id)===String(querySession));if(s)selectSession(s)}}
+async function boot(){let rows=[];
+  // V5.3.1: when the same browser is logged in as both admin and participant,
+  // prefer the admin session. V5.3.0 checked the participant session first and
+  // stopped if that participant lacked liveBroadcast permission, leaving the
+  // studio session list empty even when opened from the admin live-auction card.
+  try{
+    const a=await json('/api/live-auctions/admin');
+    isSeller=false;
+    rows=a.sessions||[];
+    $('createSessionBox').hidden=false;
+    setStatus('✓ استوديو الإدارة جاهز.','ok');
+  }catch(adminErr){
+    try{
+      const mine=await json('/api/live-auctions/mine');
+      isSeller=true;
+      if(!mine.allowed){
+        setStatus('حسابك مسجل، لكن صلاحية البث المباشر غير مفعلة. اطلب تفعيلها من الإدارة.','warn');
+        renderSessions([]);
+        return;
+      }
+      rows=mine.sessions||[];
+      $('createSessionBox').hidden=false;
+      setStatus('✓ حساب بائع موثق ومصرّح له بالبث المباشر.','ok');
+    }catch(e){
+      setStatus('سجل الدخول إلى الإدارة أو حساب بائع موثق لديه صلاحية البث.','warn');
+      return;
+    }
+  }
+  renderSessions(rows);
+  if(querySession){
+    const s=rows.find(x=>String(x.id)===String(querySession));
+    if(s)selectSession(s);
+    else setStatus('لم يتم العثور على جلسة البث المطلوبة ضمن الجلسات المتاحة لهذا الحساب.','warn');
+  }
+}
 async function startCamera(){if(!activeSession)return alert('اختر جلسة أولًا');if(!window.LivekitClient)return alert('تعذر تحميل مكتبة الفيديو الحي. تحقق من الاتصال بالإنترنت.');$('startCamera').disabled=true;$('mediaStatus').textContent='جارٍ طلب إذن الكاميرا والميكروفون…';try{await adminOrSellerControl('start');const t=await json('/api/live-media/token?sessionId='+encodeURIComponent(activeSession.id)+'&role=publisher');room=new LivekitClient.Room({adaptiveStream:true,dynacast:true});room.on(LivekitClient.RoomEvent.Disconnected,()=>{$('mediaStatus').textContent='انقطع اتصال الفيديو.'});await room.connect(t.url,t.token);await room.localParticipant.enableCameraAndMicrophone();const box=$('localVideo');box.querySelectorAll('video,audio').forEach(x=>x.remove());for(const pub of room.localParticipant.trackPublications.values()){if(pub.track&&pub.track.kind==='video'){const el=pub.track.attach();el.autoplay=true;el.muted=true;el.playsInline=true;box.appendChild(el)}}$('mediaStatus').className='status ok';$('mediaStatus').textContent='🔴 الكاميرا والصوت يبثان الآن للمشاهدين. الفيديو غير مسجل.';$('toggleMic').disabled=false;$('endStream').disabled=false;activeSession.status='live';startPolling()}catch(e){$('startCamera').disabled=false;$('mediaStatus').className='status warn';$('mediaStatus').textContent=e.message||'تعذر بدء الفيديو'}}
 async function endStream(){if(!confirm('إنهاء البث المباشر؟'))return;try{await adminOrSellerControl('end')}catch{}if(room){await room.disconnect();room=null}$('startCamera').disabled=false;$('toggleMic').disabled=true;$('endStream').disabled=true;$('mediaStatus').className='status';$('mediaStatus').textContent='تم إنهاء البث.';stopPolling()}
 async function toggleMic(){if(!room)return;micOn=!micOn;await room.localParticipant.setMicrophoneEnabled(micOn);$('toggleMic').textContent=micOn?'🎙 كتم الميكروفون':'🎙 تشغيل الميكروفون'}
