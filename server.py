@@ -1542,7 +1542,7 @@ ADMIN_GET_API={
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
     '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity','/api/archive/items','/api/live-auctions/admin'
 }
-PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control'}
+PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
 PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/invoice.html','/live_auction.html','/live_auction.js','/live_studio.html','/live_studio.js'}
 
 class H(SimpleHTTPRequestHandler):
@@ -1898,6 +1898,8 @@ class H(SimpleHTTPRequestHandler):
                 if row.get('status') not in ('scheduled','live'): continue
                 x={k:row.get(k) for k in ('id','title','description','startAt','startedAt','status','mode','marketEnabled','currentItemId','currentLot','currentPrice','latestBidderName','itemIds','bidStep','lotEndsAt','broadcasterName')}
                 x['items']=[{'id':iid,'title':item_title(items.get(str(iid),{})),'frontImg':items.get(str(iid),{}).get('frontImg'),'backImg':items.get(str(iid),{}).get('backImg')} for iid in (row.get('itemIds') or [])]
+                x['chat']=[{'id':m.get('id'),'name':m.get('name') or 'زائر','text':m.get('text') or '','role':m.get('role') or 'guest','created':m.get('created')} for m in (row.get('chat') or [])[-120:]]
+                x['bids']=[{'id':b.get('id'),'bidderName':b.get('bidderName') or 'مشارك','amount':float(b.get('amount') or 0),'created':b.get('created')} for b in (row.get('bids') or [])[-80:]]
                 sessions.append(x)
             sessions.sort(key=lambda x:str(x.get('startAt') or ''))
             self.sendj({'sessions':sessions,'count':len(sessions)}); return
@@ -2121,6 +2123,21 @@ class H(SimpleHTTPRequestHandler):
             self.sendj({'error':'تم رفض الطلب لأسباب أمنية.'},403); return
         if p not in PUBLIC_POST_API:
             if not self.require_admin(api=True): return
+        if p=='/api/live-auctions/chat':
+            d=self.readj(); sid=str(d.get('id') or ''); text=' '.join(str(d.get('text') or '').strip().split())[:500]
+            if not text: self.sendj({'error':'اكتب التعليق أولًا'},400); return
+            sessions=load_live_auctions(); row=next((x for x in sessions if str(x.get('id'))==sid),None)
+            if not row or row.get('status') not in ('scheduled','live'): self.sendj({'error':'جلسة البث غير متاحة'},404); return
+            if self.is_admin(): name='الإدارة'; role='admin'; participant_id=''
+            else:
+                person=self.participant_person()
+                if person:
+                    name=str(person.get('alias') or person.get('displayName') or person.get('name') or 'مشارك')[:60]; role='participant'; participant_id=str(person.get('id') or '')
+                else:
+                    name=' '.join(str(d.get('guestName') or 'زائر').strip().split())[:40] or 'زائر'; role='guest'; participant_id=''
+            msg={'id':'lc-'+secrets.token_hex(6),'name':name,'text':text,'role':role,'participantId':participant_id,'created':datetime.datetime.now().isoformat()}
+            row.setdefault('chat',[]).append(msg); row['chat']=row['chat'][-300:]; row['updated']=datetime.datetime.now().isoformat()
+            save_json(LIVE_AUCTIONS,{'sessions':sessions}); self.sendj({'ok':True,'message':{'id':msg['id'],'name':name,'text':text,'role':role,'created':msg['created']}}); return
         if p=='/api/live-auctions/bid':
             person=self.require_participant('')
             if not person: return
