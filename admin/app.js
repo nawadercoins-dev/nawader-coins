@@ -1558,7 +1558,8 @@ function approvalBadge(x){let s=x.approvalStatus||"new",m=approvalMeta[s]||appro
 function participantActions(x){
   if((x.approvalStatus||"")==="cancelled")
     return `<button class="participant-history" onclick="showParticipantHistory('${x.id}')">عرض سجل المستخدم</button>`;
-  return `<button class="approval-preliminary" onclick="participantSetStatus('${x.id}','preliminary')">توثيق مبدئي</button>
+  let wa=x.whatsappPending?`<button class="approval-final" onclick="participantWhatsAppDecision('${x.id}','${x.whatsappPendingRequestId}','approve')">✅ مطابقة واتساب واعتماد كامل</button><button class="approval-cancelled" onclick="participantWhatsAppDecision('${x.id}','${x.whatsappPendingRequestId}','reject')">رفض طلب واتساب</button>`:"";
+  return `${wa}<button class="approval-preliminary" onclick="participantSetStatus('${x.id}','preliminary')">توثيق مبدئي</button>
   <button class="approval-final" onclick="participantSetStatus('${x.id}','final')">توثيق كامل</button>
   <button class="approval-suspended" onclick="participantSetStatus('${x.id}','suspended')">تعليق الحساب</button>
   <button class="approval-stopped" onclick="participantSetStatus('${x.id}','stopped')">إيقاف الحساب</button>
@@ -1585,7 +1586,7 @@ async function renderParticipants() {
     if ($("participantsArchiveCount"))
       $("participantsArchiveCount").textContent = Number(r.archived || 0);
     document.querySelectorAll("[data-count]").forEach(el=>el.textContent=counts[el.dataset.count]||0);
-    $("participantsList").innerHTML=a.map(x=>`<div class="participant status-${esc(x.approvalStatus||'new')}"><div class="participant-head"><b>${esc(x.name||"")}</b>${approvalBadge(x)}</div><div>${esc(x.phone||"")}</div><small class="muted">رمز المشاركة: ${esc(x.id||"")} ${x.created?"— التسجيل: "+new Date(x.created).toLocaleString("ar-SA"):""}</small>${x.archiveReason?`<p class="participant-reason">السبب: ${esc(x.archiveReason)}</p>`:""}<div class="actions participant-approval-actions">${participantActions(x)}</div></div>`).join("")||"<p>لا يوجد مشاركون في هذا التصنيف.</p>";
+    $("participantsList").innerHTML=a.map(x=>`<div class="participant status-${esc(x.approvalStatus||'new')}"><div class="participant-head"><b>${esc(x.name||"")}</b>${approvalBadge(x)}</div><div>${esc(x.phone||"")}</div><small class="muted">رمز المشاركة: ${esc(x.id||"")} ${x.created?"— التسجيل: "+new Date(x.created).toLocaleString("ar-SA"):""}</small>${x.whatsappPending?`<p class="participant-reason"><b>طلب واتساب قيد الانتظار:</b> ${esc(x.whatsappPendingCode||"")}</p>`:""}${x.archiveReason?`<p class="participant-reason">السبب: ${esc(x.archiveReason)}</p>`:""}<div class="actions participant-approval-actions">${participantActions(x)}</div></div>`).join("")||"<p>لا يوجد مشاركون في هذا التصنيف.</p>";
     window.__participantRows=all;
     await refreshParticipantBadge();
   } catch (e) {
@@ -1610,6 +1611,7 @@ async function refreshParticipantBadge() {
       $("dashboardParticipantsPending").textContent = r.pending || 0;
   } catch (e) {}
 }
+window.participantWhatsAppDecision=async(id,requestId,action)=>{let label=action==="approve"?"اعتماد التوثيق الكامل بعد مطابقة رسالة واتساب":"رفض طلب التوثيق عبر واتساب";if(!confirm(`تأكيد ${label}؟`))return;try{await api("/api/participant/whatsapp-decision",{method:"POST",body:JSON.stringify({id,requestId,action})});await renderParticipants();await renderAdminNotifications();alert(action==="approve"?"تم اعتماد الحساب بالكامل وأصبح بإمكانه المزايدة.":"تم رفض طلب واتساب.")}catch(e){alert("تعذر تنفيذ القرار: "+e.message)}};
 window.participantSetStatus=async(id,status)=>{let labels={preliminary:"التوثيق المبدئي",final:"التوثيق الكامل",suspended:"تعليق الحساب",stopped:"إيقاف الحساب",cancelled:"إلغاء الحساب نهائيًا"},reason="";if(["suspended","stopped","cancelled"].includes(status)){reason=prompt("اكتب سبب القرار (إلزامي):","")?.trim()||"";if(!reason){alert("لم ينفذ القرار: كتابة السبب إلزامية.");return}}if(!confirm(`تأكيد ${labels[status]} لهذا المستخدم؟${reason?"\nالسبب: "+reason:""}`))return;try{await api("/api/participant/approval-status",{method:"POST",body:JSON.stringify({id,status,reason})});await renderParticipants();await renderAdminNotifications()}catch(e){alert("تعذر تحديث حالة الحساب: "+e.message)}};
 window.showParticipantHistory=id=>{let x=(window.__participantRows||[]).find(p=>p.id===id),rows=x?.approvalHistory||[];let lines=rows.length?rows.slice().reverse().map(h=>`${new Date(h.at).toLocaleString("ar-SA")} — ${(approvalMeta[h.status]||[h.status])[0]} — ${h.actor||"الإدارة"}${h.reason?" — "+h.reason:""}`).join("\n"):"لا يوجد سجل سابق.";alert(`سجل المستخدم: ${x?.name||""}\n\n${lines}`)};
 document.querySelectorAll("[data-participant-filter]").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("[data-participant-filter]").forEach(x=>x.classList.remove("active"));b.classList.add("active");participantFilter=b.dataset.participantFilter;renderParticipants()}));
