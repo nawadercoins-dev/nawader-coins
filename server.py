@@ -3410,10 +3410,10 @@ class H(SimpleHTTPRequestHandler):
             if p=='/api/participant/approval-status':
                 a=load_people(); iid=str(d.get('id') or ''); status=str(d.get('status') or '').strip().lower(); reason=str(d.get('reason') or '').strip()
                 if status not in APPROVAL_STATUSES or status=='new': self.sendj({'error':'حالة التوثيق غير صالحة'},400); return
-                if status=='final' and participant_approval_status(person)=='new': self.sendj({'error':'الحساب الجديد يحتاج اعتماد طلب واتساب.'},409); return
                 if status in ('suspended','stopped','cancelled') and not reason: self.sendj({'error':'كتابة السبب إلزامية لهذا القرار'},400); return
                 person=next((x for x in a if str(x.get('id'))==iid),None)
                 if not person: self.sendj({'error':'المشارك غير موجود'},404); return
+                if status=='final' and participant_approval_status(person)=='new': self.sendj({'error':'الحساب الجديد يحتاج اعتماد طلب واتساب.'},409); return
                 previous=participant_approval_status(person)
                 if previous=='cancelled': self.sendj({'error':'الإلغاء نهائي ولا يمكن إعادة تفعيل الحساب'},409); return
                 nowiso=datetime.datetime.now().isoformat(); apply_approval_status(person,status); person['approvalUpdatedAt']=nowiso; person['approvalUpdatedBy']='الإدارة'
