@@ -100,6 +100,36 @@ def load_operations_log(): return load_json(OPERATIONS_LOG,{'events':[]}).get('e
 def load_orders(): return load_json(ORDERS,{'orders':[]}).get('orders',[])
 def load_collectible_submissions(): return load_json(COLLECTIBLE_SUBMISSIONS,{'submissions':[]}).get('submissions',[])
 def load_live_auctions(): return load_json(LIVE_AUCTIONS,{'sessions':[]}).get('sessions',[])
+
+def live_timer_remaining(row):
+    """Return authoritative remaining lot seconds from the server clock.
+    The browser must never infer the auction state from a wall-clock timestamp.
+    """
+    if not (row.get('currentItemId') or row.get('currentLot')):
+        return None
+    raw=str(row.get('lotEndsAt') or '').strip()
+    if not raw:
+        return None
+    try:
+        end=datetime.datetime.fromisoformat(raw.replace('Z','+00:00'))
+        if end.tzinfo is None:
+            # Legacy rows without an offset are treated as UTC for live-auction timers.
+            end=end.replace(tzinfo=datetime.timezone.utc)
+        remaining=end.timestamp()-time.time()
+        return max(0,int(__import__('math').ceil(remaining)))
+    except Exception:
+        return None
+
+def with_live_timer(row):
+    x=dict(row)
+    x['remainingSec']=live_timer_remaining(row)
+    x['serverEpochMs']=int(time.time()*1000)
+    return x
+
+def live_lot_expired(row):
+    rem=live_timer_remaining(row)
+    return rem is not None and rem<=0 and bool(row.get('currentItemId') or row.get('currentLot'))
+
 def load_save_audit(): return load_json(SAVE_AUDIT,{'events':[]}).get('events',[])
 def append_save_audit(event):
     rows=load_save_audit(); rows.append(event); rows=rows[-500:]; save_json(SAVE_AUDIT,{'events':rows})
@@ -1874,29 +1904,31 @@ class H(SimpleHTTPRequestHandler):
             except Exception as e: self.sendj({'error':str(e)},503); return
             self.sendj({'provider':'livekit','url':LIVEKIT_URL,'room':livekit_room_name(sid),'token':token,'role':'publisher' if publish else 'viewer'}); return
         if p=='/api/live-auctions/mine':
+            sessions=load_live_auctions(); self._settle_expired_live_sessions(sessions)
             person=self.require_participant('')
             if not person: return
             allowed=live_broadcast_allowed(person)
-            rows=[x for x in load_live_auctions() if live_session_owned_by(x,person)] if allowed else []
-            self.sendj({'allowed':allowed,'permissions':participant_permissions(person.get('id')),'sessions':rows}); return
+            rows=[x for x in sessions if live_session_owned_by(x,person)] if allowed else []
+            self.sendj({'allowed':allowed,'permissions':participant_permissions(person.get('id')),'sessions':[with_live_timer(x) for x in rows]}); return
         if p=='/api/live-auctions/admin':
             # V5.3.1: this endpoint is administration-only. Besides closing an
             # unintended data exposure, this lets the studio reliably distinguish
             # an admin session from a normal participant session.
             if not self.is_admin():
                 self.sendj({'error':'يلزم تسجيل دخول الإدارة'},401); return
-            sessions=load_live_auctions(); items={str(i.get('id')):i for i in load()}
+            sessions=load_live_auctions(); self._settle_expired_live_sessions(sessions); items={str(i.get('id')):i for i in load()}
             out=[]
             for row in sessions:
-                x=dict(row); x['itemsDetailed']=[{'itemId':iid,'title':item_title(items.get(str(iid),{})),'frontImg':items.get(str(iid),{}).get('frontImg'),'backImg':items.get(str(iid),{}).get('backImg')} for iid in (row.get('itemIds') or [])]
+                x=with_live_timer(row); x['itemsDetailed']=[{'itemId':iid,'title':item_title(items.get(str(iid),{})),'frontImg':items.get(str(iid),{}).get('frontImg'),'backImg':items.get(str(iid),{}).get('backImg')} for iid in (row.get('itemIds') or [])]
                 out.append(x)
             self.sendj({'sessions':out}); return
         if p=='/api/public/live-auctions':
             sessions=[]; items={str(i.get('id')):i for i in load()}
-            now=datetime.datetime.now()
-            for row in load_live_auctions():
+            now=datetime.datetime.now(); live_rows=load_live_auctions(); self._settle_expired_live_sessions(live_rows)
+            for row in live_rows:
                 if row.get('status') not in ('scheduled','live'): continue
-                x={k:row.get(k) for k in ('id','title','description','startAt','startedAt','status','mode','marketEnabled','currentItemId','currentLot','currentPrice','latestBidderName','itemIds','bidStep','lotEndsAt','broadcasterName')}
+                x={k:row.get(k) for k in ('id','title','description','startAt','startedAt','status','mode','marketEnabled','currentItemId','currentLot','currentPrice','latestBidderName','itemIds','bidStep','lotEndsAt','broadcasterName','lastResult')}
+                x['remainingSec']=live_timer_remaining(row); x['serverEpochMs']=int(time.time()*1000)
                 x['items']=[{'id':iid,'title':item_title(items.get(str(iid),{})),'frontImg':items.get(str(iid),{}).get('frontImg'),'backImg':items.get(str(iid),{}).get('backImg')} for iid in (row.get('itemIds') or [])]
                 x['chat']=[{'id':m.get('id'),'name':m.get('name') or 'زائر','text':m.get('text') or '','role':m.get('role') or 'guest','created':m.get('created')} for m in (row.get('chat') or [])[-120:]]
                 x['bids']=[{'id':b.get('id'),'bidderName':b.get('bidderName') or 'مشارك','amount':float(b.get('amount') or 0),'created':b.get('created')} for b in (row.get('bids') or [])[-80:]]
@@ -2102,9 +2134,32 @@ class H(SimpleHTTPRequestHandler):
             person=next((x for x in load_people() if str(x.get('id'))==winner_id),{})
             due={'id':'live-due-'+secrets.token_hex(5),'itemId':closed_item,'itemTitle':item_title(item),'participantId':winner_id,'amount':float(row.get('currentPrice') or 0),'auctionRound':1}
             order=order_from_auction(due,item,person); order['source']='live_auction'; order['sourceId']=row.get('id'); order['history'][0]['note']='تم إنشاء الطلب تلقائيًا من فوز المزاد المباشر بالكاميرا' if lot else 'تم إنشاء الطلب تلقائيًا من فوز المزاد المباشر'
-            orders=load_orders(); orders.append(order); save_json(ORDERS,{'orders':orders}); hist['orderId']=order['id']; add_notification('participant',winner_id,'orders','🏆 فوز في المزاد المباشر',f"تم إنشاء طلب بقيمة {float(row.get('currentPrice') or 0):g} ر.س للمقتنى {item_title(item)}.",closed_item,'/account')
-        row.setdefault('history',[]).append(hist); row['currentItemId']=''; row['currentLot']=None; row['currentPrice']=0; row['lotEndsAt']=''; row['latestBidderName']=''; row['latestBidderId']=''
+            orders=load_orders(); orders.append(order); save_json(ORDERS,{'orders':orders}); hist['orderId']=order['id']
+            # ثبّت نتيجة المزاد على سجل المقتنى حتى يظهر البيع في الإدارة والسلة ولا تضيع النتيجة بعد إعادة التشغيل.
+            items=load(); stored=next((i for i in items if str(i.get('id'))==closed_item),None)
+            if stored:
+                stored['auctionOutcome']='sold'; stored['auctionSold']=True; stored['auctionWinnerParticipantId']=winner_id
+                stored['auctionWinningAmount']=float(row.get('currentPrice') or 0); stored['auctionOrderId']=order['id']
+                stored['auctionOutcomeAt']=datetime.datetime.now().isoformat(); stored['updated']=int(time.time()*1000)
+                save(items)
+            add_notification('participant',winner_id,'orders','🏆 فوز في المزاد المباشر',f"تم إنشاء طلب بقيمة {float(row.get('currentPrice') or 0):g} ر.س للمقتنى {item_title(item)}.",closed_item,'/account')
+            add_notification('admin','','auction','🏆 تم إرساء مزاد مباشر',f"فاز {person.get('name') or 'مشارك'} بالمقتنى {item_title(item)} بقيمة {float(row.get('currentPrice') or 0):g} ر.س وتم إنشاء طلب المبيعات تلقائيًا.",closed_item,'/admin')
+        row.setdefault('history',[]).append(hist); row['lastResult']=dict(hist); row['currentItemId']=''; row['currentLot']=None; row['currentPrice']=0; row['lotEndsAt']=''; row['latestBidderName']=''; row['latestBidderId']=''
         return hist
+
+    def _settle_expired_live_sessions(self,sessions):
+        """Settle expired live lots exactly once. A winner creates the sales order; no bids closes without sale."""
+        changed=False
+        for row in sessions:
+            if row.get('status')!='live' or not live_lot_expired(row):
+                continue
+            sold=bool(row.get('latestBidderId'))
+            self._close_live_item(row,sold=sold)
+            row['updated']=datetime.datetime.now().isoformat(); changed=True
+            append_operation('إغلاق تلقائي لقطعة المزاد المباشر',{'sessionId':row.get('id'),'sold':sold,'orderId':(row.get('lastResult') or {}).get('orderId','')},actor='النظام')
+        if changed:
+            save_json(LIVE_AUCTIONS,{'sessions':sessions})
+        return changed
 
     def do_POST(self):
         p=urlparse(self.path).path
@@ -2142,7 +2197,7 @@ class H(SimpleHTTPRequestHandler):
             person=self.require_participant('')
             if not person: return
             if not participant_can_transact(person): self.sendj({'error':'يتطلب الاشتراك في المزاد توثيقًا كاملًا للحساب'},403); return
-            d=self.readj(); sid=str(d.get('id') or ''); sessions=load_live_auctions(); row=next((x for x in sessions if str(x.get('id'))==sid),None)
+            d=self.readj(); sid=str(d.get('id') or ''); sessions=load_live_auctions(); self._settle_expired_live_sessions(sessions); row=next((x for x in sessions if str(x.get('id'))==sid),None)
             if not row or row.get('status')!='live' or not (row.get('currentItemId') or row.get('currentLot')): self.sendj({'error':'لا يوجد مقتنى مفتوح للمزايدة الآن'},409); return
             if row.get('lotEndsAt'):
                 try:
@@ -2173,7 +2228,7 @@ class H(SimpleHTTPRequestHandler):
             except Exception: bid_step=1
             mode=str(d.get('mode') or ('prepared' if ids else 'camera')); mode=mode if mode in ('camera','prepared') else 'camera'
             row.update({'title':str(d.get('title') or 'بث مباشر').strip()[:160],'description':str(d.get('description') or '').strip()[:1000],'startAt':str(d.get('startAt') or '').strip(),'itemIds':ids,'bidStep':bid_step,'mode':mode,'marketEnabled':bool(d.get('marketEnabled',row.get('marketEnabled',False))),'updated':datetime.datetime.now().isoformat()})
-            save_json(LIVE_AUCTIONS,{'sessions':sessions}); append_operation('حفظ جلسة بث للبائع',{'sessionId':sid,'participantId':str(person.get('id'))},actor='البائع'); self.sendj({'ok':True,'session':row}); return
+            save_json(LIVE_AUCTIONS,{'sessions':sessions}); append_operation('حفظ جلسة بث للبائع',{'sessionId':sid,'participantId':str(person.get('id'))},actor='البائع'); self.sendj({'ok':True,'session':with_live_timer(row)}); return
         if p=='/api/live-auctions/seller-control':
             person=self.require_participant('')
             if not person: return
@@ -2190,8 +2245,8 @@ class H(SimpleHTTPRequestHandler):
                 if not title: self.sendj({'error':'اكتب اسم القطعة المعروضة أمام الكاميرا'},400); return
                 try: start=max(0,float(d.get('startPrice') or 0)); step=max(1,float(d.get('bidStep') or row.get('bidStep') or 1)); duration=max(10,min(7200,int(float(d.get('durationSec') or 60))))
                 except Exception: self.sendj({'error':'راجع السعر والزيادة والمدة'},400); return
-                lot={'id':'lot-'+secrets.token_hex(6),'title':title[:180],'country':str(d.get('country') or '').strip()[:120],'condition':str(d.get('condition') or '').strip()[:80],'notes':str(d.get('notes') or '').strip()[:500],'openedAt':datetime.datetime.now().isoformat(),'startPrice':start,'bidStep':step}
-                row['currentLot']=lot; row['currentItemId']=''; row['currentPrice']=start; row['bidStep']=step; row['lotEndsAt']=(datetime.datetime.now()+datetime.timedelta(seconds=duration)).isoformat(); row['latestBidderName']=''; row['latestBidderId']=''; row['status']='live'
+                lot={'id':'lot-'+secrets.token_hex(6),'title':title[:180],'country':str(d.get('country') or '').strip()[:120],'condition':str(d.get('condition') or '').strip()[:80],'notes':str(d.get('notes') or '').strip()[:500],'openedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'startPrice':start,'bidStep':step}
+                row['currentLot']=lot; row['currentItemId']=''; row['currentPrice']=start; row['bidStep']=step; row['lotEndsAt']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(seconds=duration)).isoformat(); row['latestBidderName']=''; row['latestBidderId']=''; row['status']='live'
             elif action=='open-item':
                 iid=str(d.get('itemId') or '')
                 if iid not in [str(x) for x in (row.get('itemIds') or [])]: self.sendj({'error':'المقتنى غير مدرج في هذه الجلسة'},403); return
@@ -2203,7 +2258,7 @@ class H(SimpleHTTPRequestHandler):
             elif action=='market-toggle':
                 row['marketEnabled']=bool(d.get('enabled'))
             else: self.sendj({'error':'أمر البث غير معروف'},400); return
-            row['updated']=datetime.datetime.now().isoformat(); save_json(LIVE_AUCTIONS,{'sessions':sessions}); append_operation('تحكم بائع بالبث المباشر',{'sessionId':sid,'action':action},actor='البائع'); self.sendj({'ok':True,'session':row}); return
+            row['updated']=datetime.datetime.now().isoformat(); save_json(LIVE_AUCTIONS,{'sessions':sessions}); append_operation('تحكم بائع بالبث المباشر',{'sessionId':sid,'action':action},actor='البائع'); self.sendj({'ok':True,'session':with_live_timer(row)}); return
         if p=='/api/live-auctions/save':
             d=self.readj(); sessions=load_live_auctions(); sid=str(d.get('id') or '') or 'live-'+secrets.token_hex(5)
             row=next((x for x in sessions if str(x.get('id'))==sid),None)
@@ -2227,7 +2282,7 @@ class H(SimpleHTTPRequestHandler):
                 self.sendj({'error':'تعذر حفظ جلسة البث في مساحة البيانات الدائمة','detail':str(e)[:240]},500); return
             try: append_operation('حفظ جلسة مزاد مباشر',{'sessionId':sid,'items':ids,'status':row['status']})
             except Exception as e: print('LIVE_AUCTION_AUDIT_WARNING:',repr(e))
-            self.sendj({'ok':True,'session':row}); return
+            self.sendj({'ok':True,'session':with_live_timer(row)}); return
         if p=='/api/live-auctions/control':
             d=self.readj(); sessions=load_live_auctions(); sid=str(d.get('id') or ''); row=next((x for x in sessions if str(x.get('id'))==sid),None)
             if not row: self.sendj({'error':'جلسة البث غير موجودة'},404); return
@@ -2245,7 +2300,7 @@ class H(SimpleHTTPRequestHandler):
                 if not title: self.sendj({'error':'اكتب اسم القطعة المعروضة أمام الكاميرا'},400); return
                 try: start=max(0,float(d.get('startPrice') or 0)); step=max(1,float(d.get('bidStep') or row.get('bidStep') or 1)); duration=max(10,min(7200,int(float(d.get('durationSec') or 60))))
                 except Exception: self.sendj({'error':'راجع السعر والزيادة والمدة'},400); return
-                row['currentLot']={'id':'lot-'+secrets.token_hex(6),'title':title[:180],'country':str(d.get('country') or '').strip()[:120],'condition':str(d.get('condition') or '').strip()[:80],'notes':str(d.get('notes') or '').strip()[:500],'openedAt':datetime.datetime.now().isoformat(),'startPrice':start,'bidStep':step}; row['currentItemId']=''; row['currentPrice']=start; row['bidStep']=step; row['lotEndsAt']=(datetime.datetime.now()+datetime.timedelta(seconds=duration)).isoformat(); row['latestBidderName']=''; row['latestBidderId']=''; row['status']='live'
+                row['currentLot']={'id':'lot-'+secrets.token_hex(6),'title':title[:180],'country':str(d.get('country') or '').strip()[:120],'condition':str(d.get('condition') or '').strip()[:80],'notes':str(d.get('notes') or '').strip()[:500],'openedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'startPrice':start,'bidStep':step}; row['currentItemId']=''; row['currentPrice']=start; row['bidStep']=step; row['lotEndsAt']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(seconds=duration)).isoformat(); row['latestBidderName']=''; row['latestBidderId']=''; row['status']='live'
             if action=='close-item': self._close_live_item(row,bool(d.get('sold')))
             if action=='market-toggle': row['marketEnabled']=bool(d.get('enabled'))
             row['updated']=datetime.datetime.now().isoformat(); save_json(LIVE_AUCTIONS,{'sessions':sessions}); append_operation('تحكم بالمزاد المباشر',{'sessionId':sid,'action':action}); self.sendj({'ok':True,'session':row}); return
@@ -3217,13 +3272,27 @@ class H(SimpleHTTPRequestHandler):
                         if exp>now-datetime.timedelta(days=7): reqs.append(old_req)
                     except Exception:
                         pass
-                request_id='wv-'+secrets.token_hex(8)
-                request_token=secrets.token_urlsafe(24)
-                request_code='NW-'+secrets.token_hex(3).upper()
-                expires=(now+datetime.timedelta(hours=24)).isoformat()
-                reqs.append({'id':request_id,'tokenHash':hashlib.sha256(request_token.encode()).hexdigest(),'code':request_code,'status':'pending','created':nowiso,'expires':expires,'approvedAt':'','rejectedAt':'','consumedAt':''})
-                person['whatsappVerificationRequests']=reqs[-12:]
-                save_json(PEOPLE,{'participants':people})
+                pending_req=None
+                for candidate in reversed(reqs):
+                    if str(candidate.get('status') or '')!='pending': continue
+                    try:
+                        if datetime.datetime.fromisoformat(str(candidate.get('expires') or ''))>now:
+                            pending_req=candidate; break
+                    except Exception:
+                        continue
+                if pending_req:
+                    request_id=str(pending_req.get('id') or '')
+                    request_code=str(pending_req.get('code') or '')
+                    expires=str(pending_req.get('expires') or '')
+                    request_token=''
+                else:
+                    request_id='wv-'+secrets.token_hex(8)
+                    request_token=secrets.token_urlsafe(24)
+                    request_code='NW-'+secrets.token_hex(3).upper()
+                    expires=(now+datetime.timedelta(hours=24)).isoformat()
+                    reqs.append({'id':request_id,'tokenHash':hashlib.sha256(request_token.encode()).hexdigest(),'code':request_code,'status':'pending','created':nowiso,'expires':expires,'approvedAt':'','rejectedAt':'','consumedAt':''})
+                    person['whatsappVerificationRequests']=reqs[-12:]
+                    save_json(PEOPLE,{'participants':people})
 
                 st=load_settings()
                 wa=''.join(ch for ch in str(st.get('whatsappVerificationNumber') or '966551892409') if ch.isdigit())
@@ -3233,8 +3302,9 @@ class H(SimpleHTTPRequestHandler):
                          f"رمز الطلب: {request_code}\n"
                          f"أرجو اعتماد التوثيق الكامل لهذا الحساب.")
                 whatsapp_url='https://wa.me/'+wa+'?text='+quote(message,safe='')
-                append_operation('إنشاء طلب توثيق واتساب',{'participantId':person.get('id'),'requestId':request_id,'requestCode':request_code,'phone':person.get('phone')},actor='العميل')
-                add_notification('admin','admin','approval','طلب توثيق حساب عبر واتساب',f"{person.get('name','')} — {person.get('phone','')} — {request_code}",person.get('id'),'/admin')
+                if not pending_req:
+                    append_operation('إنشاء طلب توثيق واتساب',{'participantId':person.get('id'),'requestId':request_id,'requestCode':request_code,'phone':person.get('phone')},actor='العميل')
+                    add_notification('admin','admin','approval','طلب توثيق حساب عبر واتساب',f"{person.get('name','')} — {person.get('phone','')} — {request_code}",person.get('id'),'/admin')
                 self.sendj({'ok':True,'pending':True,'requestId':request_id,'requestToken':request_token,'requestCode':request_code,'expires':expires,'whatsappUrl':whatsapp_url,'whatsappNumber':wa,'message':'تم إنشاء طلب التوثيق. افتح واتساب وأرسل الرسالة الجاهزة ثم انتظر اعتماد الإدارة.'}); return
 
             if p=='/api/participant/profile':
