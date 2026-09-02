@@ -1013,6 +1013,7 @@ function classMatch(i, f, sf) {
   return true;
 }
 function renderList(a) {
+  a = (a || []).filter((i) => i.inventoryVisible !== false);
   let q = v("search").toLowerCase();
   if ($("rfAll")) $("rfAll").textContent = a.length;
   if ($("rfGraded"))
@@ -4538,10 +4539,17 @@ function item_title(i={}){
   ).trim();
 }
 function liveSessionDate(s){const raw=s.startedAt||s.startAt||s.created||'';if(!raw)return 'بدون تاريخ';try{return new Date(raw).toLocaleDateString('ar-SA',{year:'numeric',month:'2-digit',day:'2-digit'})}catch{return String(raw).slice(0,10)}}
+function liveHistoryResult(h,items){
+ const item=items.find(i=>String(i.id)===String(h.itemId))||{}, lot=h.lot||{}, sold=!!h.sold;
+ const title=lot.title||item_title(item), image=item.frontImg||item.backImg||lot.image||'';
+ const status=sold?'تم البيع':'انتهى دون بيع', cls=sold?'sold':'unsold';
+ const media=image?`<img src="${esc(image)}" alt="${esc(title)}" loading="lazy">`:'<span>📹<small>قطعة عُرضت مباشرة بالكاميرا<br>لا توجد صورة محفوظة</small></span>';
+ return `<div class="live-history-result ${cls}"><div class="live-history-media">${media}</div><div class="live-history-info"><h4>${esc(title)}</h4><span class="approval-chip ${sold?'ok':''}">${status}</span><p>السعر الختامي: <b>${Number(h.price||0).toLocaleString('ar-SA')} ر.س</b></p>${sold?`<p>الفائز: <b>${esc(h.bidderName||'مشارك معتمد')}</b></p><p>رقم الطلب: <b>${esc(h.orderNumber||h.orderId||'—')}</b></p>`:'<p class="muted">لم يُنشأ طلب بيع أو فاتورة لهذه القطعة.</p>'}<small>${esc(h.closedAt||'')}</small></div></div>`;
+}
 function liveSessionCard(s,items,archived=false){
  const mode=s.mode||((s.itemIds||[]).length?'prepared':'camera'), lot=s.currentLot; const opened=lot?.title||item_title(items.find(i=>String(i.id)===String(s.currentItemId))||{});
  const itemButtons=(s.itemIds||[]).map(iid=>{const it=items.find(i=>String(i.id)===String(iid));return `<button class="ghost" onclick="liveOpenItem('${s.id}','${iid}')">فتح: ${esc(item_title(it||{}))}</button>`}).join('');
- if(archived)return `<article class="participant-card"><h3>${esc(s.title||'مزاد مباشر')} <span class="approval-chip">أرشيف</span></h3><p>📅 ${esc(liveSessionDate(s))} — ${esc(s.endedAt||s.updated||'')}</p><p>${mode==='camera'?'📹 كاميرا حرة':'📦 مُحضّر'} — ${(s.history||[]).length} قطعة أغلقت خلال الجلسة</p><div class="actions"><button onclick="editLiveSession('${s.id}')">عرض / تعديل</button><button class="danger" onclick="liveControl('${s.id}','delete')">حذف نهائي</button></div></article>`;
+ if(archived){const history=s.history||[];return `<article class="participant-card"><h3>${esc(s.title||'مزاد مباشر')} <span class="approval-chip">أرشيف</span></h3><p>📅 ${esc(liveSessionDate(s))} — ${esc(s.endedAt||s.updated||'')}</p><p>${mode==='camera'?'📹 كاميرا حرة':'📦 مُحضّر'} — ${history.length} قطعة أغلقت خلال الجلسة</p><details class="live-history-details"><summary>نتائج القطع (${history.length})</summary><div class="live-history-list">${history.map(h=>liveHistoryResult(h,items)).join('')||'<p class="muted">لم تُغلق أي قطعة في هذه الجلسة.</p>'}</div></details><div class="actions"><button onclick="editLiveSession('${s.id}')">عرض / تعديل</button><button class="danger" onclick="liveControl('${s.id}','delete')">حذف نهائي</button></div></article>`;}
  return `<article class="participant-card"><h3>${esc(s.title||'مزاد مباشر')} <span class="approval-chip ${s.status==='live'?'ok':''}">${esc(s.status||'scheduled')}</span> <span class="live-session-badge ${mode==='camera'?'camera':''}">${mode==='camera'?'📹 كاميرا حرة':'📦 مُحضّر'}</span> ${s.marketEnabled?'<span class="approval-chip ok">🛍️ السوق مفعل</span>':''}</h3><p>📅 ${esc(liveSessionDate(s))} — ${esc(s.startAt||'بدون موعد')} — ${(s.itemIds||[]).length} مقتنى محضّر — زيادة ${Number(s.bidStep||1)} ر.س</p>${(s.currentItemId||lot)?`<div class="special-admin-note"><b>المفتوح الآن:</b> ${opened} — السعر ${Number(s.currentPrice||0).toLocaleString('ar-SA')} ر.س — ${esc(s.latestBidderName||'لا توجد مزايدة')}</div>`:''}${mode==='prepared'?`<div class="actions">${s.status==='live'?itemButtons:''}</div>`:''}${(s.currentItemId||lot)?`<div class="actions"><button class="gold-action" onclick="liveCloseItem('${s.id}',true)">بيع وإغلاق القطعة</button><button class="ghost" onclick="liveCloseItem('${s.id}',false)">إغلاق دون بيع</button></div>`:''}<div class="actions"><button onclick="editLiveSession('${s.id}')">تعديل</button><a class="gold-action" style="text-decoration:none" href="/live-studio?session=${encodeURIComponent(s.id)}" target="_blank">📹 فتح استوديو الكاميرا</a><button class="gold-action" onclick="liveControl('${s.id}','start')">بدء الجلسة</button><button onclick="liveControl('${s.id}','end')">إنهاء وأرشفة</button><a class="public-link" href="/live-auction" target="_blank">واجهة العملاء</a></div></article>`;
 }
 async function renderLiveAuctions(){
