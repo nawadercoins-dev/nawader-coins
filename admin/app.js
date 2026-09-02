@@ -1013,7 +1013,6 @@ function classMatch(i, f, sf) {
   return true;
 }
 function renderList(a) {
-  a = (a || []).filter((i) => i.inventoryVisible !== false);
   let q = v("search").toLowerCase();
   if ($("rfAll")) $("rfAll").textContent = a.length;
   if ($("rfGraded"))
@@ -1864,7 +1863,7 @@ if (saveBtn) saveBtn.disabled = false;
   if ($("financialDetails")) $("financialDetails").open = !!(Number(i.purchase||0) || Number(i.shipping||0) || Number(i.other||0) || Number(i.expectedPrice||0) || String(i.notes||"").trim());
   if ($("forMarket")) $("forMarket").checked = !!i.forMarket;
   if ($("marketApproved")) $("marketApproved").checked = !!i.marketApproved;
-  if ($("marketCategory")) $("marketCategory").value = i.marketCategory || (i.fantasiaEnabled?"fantasia":i.specialNumberEnabled?"special":i.transitionalIssueEnabled?"transitional":i.marketOfferType==="set"?"set":"banknote");
+  if ($("marketCategory")) $("marketCategory").value = marketCategoryKey(i.marketCategory || (i.fantasiaEnabled?"fantasia":i.specialNumberEnabled?"special":i.transitionalIssueEnabled?"transitional":"coins-stamps"));
   if ($("marketPartialAllowed"))
     $("marketPartialAllowed").checked = !!i.marketPartialAllowed;
   if ($("marketNegotiationEnabled"))
@@ -2286,7 +2285,7 @@ editingItemId = "";
   if ($("financialDetails")) $("financialDetails").open = false;
   if ($("forMarket")) $("forMarket").checked = false;
   if ($("marketApproved")) $("marketApproved").checked = false;
-  if ($("marketCategory")) $("marketCategory").value = "banknote";
+  if ($("marketCategory")) $("marketCategory").value = "coins-stamps";
   if ($("marketOfferType")) $("marketOfferType").value = "single";
   if ($("marketPriceUnit")) $("marketPriceUnit").value = "piece";
   if ($("marketQuantity")) $("marketQuantity").value = "1";
@@ -2308,7 +2307,6 @@ editingItemId = "";
   updateAuctionUI();
   updateMarketUI();
   updateInventoryQuantity();
-  if(typeof syncDisplayMode==="function")syncDisplayMode("none");
 }
 if ($("reset"))
   $("reset").addEventListener("click", (e) => {
@@ -3066,6 +3064,8 @@ function updateMarketUI() {
 function marketTypeLabel(t) {
   return t === "bundle" ? "حزمة / بندل" : t === "set" ? "طقم" : "قطعة واحدة";
 }
+function marketCategoryKey(c){return ["banknote","coin","set",null,undefined,""] .includes(c)?"coins-stamps":c}
+function marketCategoryLabel(c){return ({"coins-stamps":"العملات والطوابع",collectibles:"المقتنيات",games:"الألعاب",tcg:"TCG",diecast:"دايكاست",lamps:"مصابيح",fantasia:"فانتازيا",special:"أرقام مميزة وأخطاء نادرة",transitional:"إصدارات انتقالية",other:"أخرى"})[marketCategoryKey(c)]||"العملات والطوابع"}
 function marketAdminCard(i) {
   let qty = Number(i.marketQuantity || i.quantity || 1),
     sold = Number(i.marketSoldQuantity || 0),
@@ -3093,7 +3093,7 @@ function marketAdminCard(i) {
       ...(i.additionalImages || []),
     ].filter(Boolean),
     title = i.marketTitle || `${i.country} — ${i.denomination}`;
-  return `<article class="item market-admin-card">${i.frontImg ? `<button type="button" class="market-image-button" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})' title="فتح عارض الصور"><img src="${i.frontImg}" alt="${esc(title)}"><span class="market-image-hint">⛶ تكبير الصور</span></button>` : '<div class="market-image-button market-no-photo">لا توجد صورة</div>'}<div class="market-admin-body"><h3>${esc(title)} ${transitionalBadge(i)}</h3><p class="market-status-row"><span class="badge market-badge">${marketTypeLabel(i.marketOfferType)}</span> <span class="approval-chip ${i.marketApproved ? "ok" : "bad"}">${i.marketApproved ? "نشط" : "غير نشط"}</span></p><div class="market-admin-metrics"><b>سعر ${ul}: ${money(price)}</b><span>المتاح ${left} من ${qty} ${i.marketOfferType === "set" ? "طقم" : i.marketOfferType === "bundle" ? "حزمة" : "وحدة"}</span>${i.marketSetPieces ? `<span>داخل الوحدة ${Number(i.marketSetPieces)} قطعة/ورقة</span>` : ""}</div><p class="market-negotiation">${i.marketNegotiationEnabled ? `التفاوض حتى ${Number(i.marketNegotiationPercent || 0)}%` : "سعر ثابت"}</p><div class="actions market-admin-actions">${imgs.length ? `<button class="ghost" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})'>⛶ الصور</button>` : ""}<button onclick="editItem('${i.id}')">تعديل</button>${archiveButton(i.id)}${adminMoveButtons(i,"market")}<a class="public-link" href="/market#${i.id}" target="_blank">عرض في السوق</a></div></div></article>`;
+  return `<article class="item market-admin-card">${i.frontImg ? `<button type="button" class="market-image-button" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})' title="فتح عارض الصور"><img src="${i.frontImg}" alt="${esc(title)}"><span class="market-image-hint">⛶ تكبير الصور</span></button>` : '<div class="market-image-button market-no-photo">لا توجد صورة</div>'}<div class="market-admin-body"><h3>${esc(title)} ${transitionalBadge(i)}</h3><p class="market-status-row"><span class="badge market-badge">${marketCategoryLabel(i.marketCategory)}</span> <span class="badge market-badge">${marketTypeLabel(i.marketOfferType)}</span> <span class="approval-chip ${i.marketApproved ? "ok" : "bad"}">${i.marketApproved ? "نشط" : "غير نشط"}</span></p><div class="market-admin-metrics"><b>سعر ${ul}: ${money(price)}</b><span>المتاح ${left} من ${qty} ${i.marketOfferType === "set" ? "طقم" : i.marketOfferType === "bundle" ? "حزمة" : "وحدة"}</span>${i.marketSetPieces ? `<span>داخل الوحدة ${Number(i.marketSetPieces)} قطعة/ورقة</span>` : ""}</div><p class="market-negotiation">${i.marketNegotiationEnabled ? `التفاوض حتى ${Number(i.marketNegotiationPercent || 0)}%` : "سعر ثابت"}</p><div class="actions market-admin-actions">${imgs.length ? `<button class="ghost" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})'>⛶ الصور</button>` : ""}<button onclick="editItem('${i.id}')">تعديل</button>${archiveButton(i.id)}${adminMoveButtons(i,"market")}<a class="public-link" href="/market#${i.id}" target="_blank">عرض في السوق</a></div></div></article>`;
 }
 function marketStatusLabel(st) {
   return st === "accepted"
@@ -3214,13 +3214,15 @@ async function renderMarketAdmin(items) {
   let a = Array.isArray(items) ? items : await all(),
     m = a.filter((i) => i.forMarket),
     map = Object.fromEntries(a.map((i) => [String(i.id), i])),
-    marketQuery = $("marketSearch")?.value || "";
+    marketQuery = $("marketSearch")?.value || "",
+    categoryFilter = $("marketCategoryFilter")?.value || "all";
   $("marketPublishedCount").textContent = m.filter(
     (i) => i.marketApproved,
   ).length;
   $("marketAdminItems").innerHTML =
     m
       .filter((i) => classMatch(i, marketFilter, marketSetFilter))
+      .filter((i) => categoryFilter==="all"||marketCategoryKey(i.marketCategory)===categoryFilter)
       .filter((i) => marketSmartMatch(i, marketQuery))
       .map(marketAdminCard)
       .join("") || "<p>لا توجد مقتنيات في هذا التصنيف.</p>";
@@ -3878,10 +3880,11 @@ function orderNextButtons(o) {
         `<button onclick="orderStatus('${o.id}','${x[0]}')">${x[1]}</button>`,
     )
     .join("");
-  return (
-    b +
-    `<button class="ghost" onclick="orderStatus('${o.id}','stalled')">متعثر</button><button class="ghost" onclick="orderStatus('${o.id}','returned')">مرتجع</button><button class="danger" onclick="orderStatus('${o.id}','cancelled')">ملغي</button>`
-  );
+  let requests="";
+  if(o.cancellationStatus==="requested")requests=`<button class="danger" onclick="processOrderRequest('${o.id}','approve_cancel')">اعتماد الإلغاء وإعادة الكمية</button><button class="ghost" onclick="processOrderRequest('${o.id}','reject')">رفض الطلب</button>`;
+  if(o.refundStatus==="requested")requests=`<button class="danger" onclick="processOrderRequest('${o.id}','complete_refund')">تسجيل الاسترداد وإعادة الكمية</button><button class="ghost" onclick="processOrderRequest('${o.id}','reject')">رفض الطلب</button>`;
+  let release=o.paymentStatus==="paid"&&["paid","preparing","ready_to_ship"].includes(o.status)&&o.refundStatus!=="requested"?`<button class="danger" onclick="processOrderRequest('${o.id}','complete_refund')">تسجيل الاسترداد وإعادة الكمية</button>`:o.paymentStatus!=="paid"&&["new","awaiting_payment","stalled"].includes(o.status)?`<button class="danger" onclick="orderStatus('${o.id}','cancelled')">إلغاء وإعادة الكمية</button>`:"";
+  return b+requests+`<button class="ghost" onclick="orderStatus('${o.id}','stalled')">متعثر</button><button class="ghost" onclick="orderStatus('${o.id}','returned')">مرتجع</button>`+release;
 }
 function orderCard(o) {
   let imgs = (o.items || []).flatMap((x) => x.images || []).filter(Boolean);
@@ -3891,7 +3894,8 @@ function orderCard(o) {
         `<div class="order-item">${(x.images || [])[0] ? `<img class="order-thumb" style="width:96px;height:72px;max-width:96px;max-height:72px;object-fit:contain" src="${esc((x.images || [])[0])}" onclick='openCoinLightbox(${JSON.stringify(x.images || [])},0,${JSON.stringify(x.title || "")})'>` : ""}<div><b>${esc(x.title || "مقتنى")}</b><div>الكمية: ${Number(x.quantity || 1)} • ${money(x.total || 0)}</div><div class="storage-path">${esc(storageText(x.storage || {}))}</div></div></div>`,
     )
     .join("");
-  return `<article class="order-card ${o.archived ? "archived-order" : ""}"><div class="order-head"><div><h3>${esc(o.orderNumber || o.id)}</h3><small>${new Date(o.created).toLocaleString("ar-SA")}</small></div><div><span class="source-chip">${o.source === "auction" ? "مزاد" : "السوق العام"}</span> <span class="order-status">${ORDER_LABELS[o.status] || esc(o.status)}</span></div></div><div class="order-body"><div class="order-grid"><div class="order-info"><span>العميل</span><b>${esc(o.customerName || "—")}</b><br>${esc(o.customerPhone || "")}</div><div class="order-info"><span>السداد</span><b>${o.paymentStatus === "paid" ? "تم السداد" : "غير مسدد"}</b></div><div class="order-info"><span>الإجمالي</span><b>${money(o.total || 0)}</b><br><small>الشحن: ${o.shippingFeeConfirmed ? money(o.shippingFee || 0) : "غير محدد"}</small></div><div class="order-info"><span>الشحن</span><b>${esc(o.shippingCompany || "لم يسجل")}</b><br>${esc(o.trackingNumber || "")}</div><div class="order-info"><span>عنوان التسليم</span><b>${esc((o.shippingAddress||{}).city || "غير مكتمل")}</b><br><small>${esc([(o.shippingAddress||{}).district,(o.shippingAddress||{}).addressLine].filter(Boolean).join(' — '))}</small></div></div>${itemHtml}<div class="order-shipping-fields"><input id="shipfee-${o.id}" type="number" min="0" step="0.01" value="${Number(o.shippingFee || 0)}" placeholder="مبلغ الشحن (0 = مجاني)" ${o.paymentStatus === "paid" ? "disabled" : ""}><input id="shipco-${o.id}" value="${esc(o.shippingCompany || "")}" placeholder="شركة الشحن"><input id="track-${o.id}" value="${esc(o.trackingNumber || "")}" placeholder="رقم التتبع"></div><div class="order-actions"><button class="ghost" onclick="saveShipping('${o.id}')">اعتماد مبلغ الشحن وحفظ بياناته</button>${orderNextButtons(o)}<button class="ghost" onclick="printOrder('${o.id}')">🖨 طباعة ملخص/فاتورة</button></div></div></article>`;
+  let requestNotice=o.refundStatus==="requested"?'<div class="notice danger"><b>طلب استرداد معلق من العميل</b></div>':o.cancellationStatus==="requested"?'<div class="notice danger"><b>طلب إلغاء معلق من العميل</b></div>':'';
+  return `<article class="order-card ${o.archived ? "archived-order" : ""}"><div class="order-head"><div><h3>${esc(o.orderNumber || o.id)}</h3><small>${new Date(o.created).toLocaleString("ar-SA")}</small></div><div><span class="source-chip">${o.source === "auction" ? "مزاد" : "السوق العام"}</span> <span class="order-status">${ORDER_LABELS[o.status] || esc(o.status)}</span></div></div><div class="order-body">${requestNotice}<div class="order-grid"><div class="order-info"><span>العميل</span><b>${esc(o.customerName || "—")}</b><br>${esc(o.customerPhone || "")}</div><div class="order-info"><span>السداد</span><b>${o.paymentStatus === "paid" ? "تم السداد" : o.paymentStatus==="refunded"?"تم الاسترداد":"غير مسدد"}</b></div><div class="order-info"><span>الإجمالي</span><b>${money(o.total || 0)}</b><br><small>الشحن: ${o.shippingFeeConfirmed ? money(o.shippingFee || 0) : "غير محدد"}</small></div><div class="order-info"><span>الشحن</span><b>${esc(o.shippingCompany || "لم يسجل")}</b><br>${esc(o.trackingNumber || "")}</div><div class="order-info"><span>عنوان التسليم</span><b>${esc((o.shippingAddress||{}).city || "غير مكتمل")}</b><br><small>${esc([(o.shippingAddress||{}).district,(o.shippingAddress||{}).addressLine].filter(Boolean).join(' — '))}</small></div></div>${itemHtml}<div class="order-shipping-fields"><input id="shipfee-${o.id}" type="number" min="0" step="0.01" value="${Number(o.shippingFee || 0)}" placeholder="مبلغ الشحن (0 = مجاني)" ${o.paymentStatus === "paid" ? "disabled" : ""}><input id="shipco-${o.id}" value="${esc(o.shippingCompany || "")}" placeholder="شركة الشحن"><input id="track-${o.id}" value="${esc(o.trackingNumber || "")}" placeholder="رقم التتبع"></div><div class="order-actions"><button class="ghost" onclick="saveShipping('${o.id}')">اعتماد مبلغ الشحن وحفظ بياناته</button>${orderNextButtons(o)}<button class="ghost" onclick="printOrder('${o.id}')">🖨 طباعة ملخص/فاتورة</button></div></div></article>`;
 }
 async function renderOrders() {
   if (!$("ordersList")) return;
@@ -3956,6 +3960,11 @@ window.orderStatus = async (id, status) => {
   } catch (e) {
     alert(e.message);
   }
+};
+window.processOrderRequest=async(id,action)=>{
+  let label=action==='approve_cancel'?'اعتماد الإلغاء وإعادة الكمية؟':action==='complete_refund'?'هل تم رد المبلغ فعليًا وتريد تسجيل الاسترداد وإعادة الكمية؟':'رفض طلب الإلغاء/الاسترداد؟';
+  if(!confirm(label))return;
+  try{await api('/api/order/request/resolve',{method:'POST',body:JSON.stringify({id,action})});await renderOrders();await renderDues()}catch(e){alert(e.message)}
 };
 window.saveShipping = async (id) => {
   try {
@@ -4280,6 +4289,7 @@ function setupClassificationFilters() {
     $("marketSearch").placeholder = "بحث ذكي: السعودية 50 ريال | PMG 66 | نشط | طقم | السعر:250 | الرقم:1234";
     $("marketSearch").oninput = async () => await renderMarketAdmin();
   }
+  if ($("marketCategoryFilter")) $("marketCategoryFilter").onchange=async()=>await renderMarketAdmin();
   document.querySelectorAll(".market-filter").forEach(
     (b) =>
       (b.onclick = async () => {
@@ -4371,75 +4381,6 @@ else {
   enforceMarketRequestImageSize();
 }
 window.addEventListener("resize", enforceMarketRequestImageSize);
-
-// V5.5.0 — صفحة مقتنى مختصرة مع الحفاظ الكامل على أسماء الحقول القديمة.
-function selectedDisplayMode(){
-  return document.querySelector('input[name="displayMode"]:checked')?.value || "none";
-}
-function syncDisplayMode(mode){
-  mode=mode||"none";
-  const radio=document.querySelector(`input[name="displayMode"][value="${mode}"]`);
-  if(radio)radio.checked=true;
-  const market=mode==="market",auction=mode==="auction";
-  if($("forMarket"))$("forMarket").checked=market;
-  if($("forAuction"))$("forAuction").checked=auction;
-  document.querySelector('[data-display-panel="market"]')?.toggleAttribute("hidden",!market);
-  document.querySelector('[data-display-panel="auction"]')?.toggleAttribute("hidden",!auction);
-  updateMarketUI();
-  updateAuctionUI();
-}
-function makeCompactSection(nodes,title,id){
-  const valid=nodes.filter(Boolean);
-  if(!valid.length||$(id))return null;
-  const details=document.createElement("details");
-  details.id=id;details.className="wide compact-form-section";
-  const summary=document.createElement("summary");summary.textContent=title;
-  const body=document.createElement("div");body.className="compact-form-section-body";
-  valid[0].parentNode.insertBefore(details,valid[0]);
-  details.append(summary,body);valid.forEach(node=>body.appendChild(node));
-  return details;
-}
-function setupCompactItemForm(){
-  const form=$("form");
-  if(!form||form.dataset.compactReady)return;
-  form.dataset.compactReady="1";
-  const photo=form.querySelector(".mobile-photo-section"),grading=form.querySelector(".grading-box");
-  if(photo&&grading)form.insertBefore(photo,grading);
-  if(grading){
-    const details=makeCompactSection([grading],"🏅 التقييم والتغليف الاحترافي","gradingDetails");
-    if(details)grading.classList.remove("wide");
-  }
-  const specialToggle=$("specialNumberEnabled")?.closest("label");
-  makeCompactSection([specialToggle?.previousElementSibling,specialToggle,$("specialNumberFields")],"✦ الأرقام المميزة والأخطاء النادرة","specialDetails");
-  const fantasiaToggle=$("fantasiaEnabled")?.closest("label");
-  makeCompactSection([fantasiaToggle?.previousElementSibling,fantasiaToggle,$("fantasiaFields")],"🎭 فنتازيا","fantasiaDetails");
-  const transitionalToggle=$("transitionalIssueEnabled")?.closest("label");
-  makeCompactSection([transitionalToggle?.previousElementSibling,transitionalToggle,$("transitionalIssueFields")],"⇄ الإصدار الانتقالي","transitionalDetails");
-  makeCompactSection([$("soldQuantity")?.closest("label"),$("damagedQuantity")?.closest("label")],"حركة الكمية: المباع والتالف أو المفقود","inventoryHistoryDetails");
-  form.querySelector(":scope > .actions")?.classList.add("form-save-bar");
-  document.querySelectorAll('input[name="displayMode"]').forEach(radio=>radio.addEventListener("change",()=>syncDisplayMode(radio.value)));
-  syncDisplayMode("none");
-}
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",setupCompactItemForm);else setupCompactItemForm();
-
-function syncCompactFormAfterLoad(){
-  const mode=$("forMarket")?.checked?"market":$("forAuction")?.checked?"auction":"none";
-  syncDisplayMode(mode);
-  if($("gradingDetails"))$("gradingDetails").open=!!$("isGraded")?.checked;
-  if($("specialDetails"))$("specialDetails").open=!!$("specialNumberEnabled")?.checked;
-  if($("fantasiaDetails"))$("fantasiaDetails").open=!!$("fantasiaEnabled")?.checked;
-  if($("transitionalDetails"))$("transitionalDetails").open=!!$("transitionalIssueEnabled")?.checked;
-}
-
-const editItemBeforeCompact=window.editItem;
-window.editItem=async function(id){
-  await editItemBeforeCompact(id);
-  syncCompactFormAfterLoad();
-};
-document.addEventListener("change",event=>{
-  if(event.target?.id==="forMarket"&&event.target.checked)syncDisplayMode("market");
-  if(event.target?.id==="forAuction"&&event.target.checked)syncDisplayMode("auction");
-});
 
 
 // V4.2.4 — مساعدة صغيرة للأقسام المطوية بدون تغيير منطق الحفظ
@@ -4539,17 +4480,10 @@ function item_title(i={}){
   ).trim();
 }
 function liveSessionDate(s){const raw=s.startedAt||s.startAt||s.created||'';if(!raw)return 'بدون تاريخ';try{return new Date(raw).toLocaleDateString('ar-SA',{year:'numeric',month:'2-digit',day:'2-digit'})}catch{return String(raw).slice(0,10)}}
-function liveHistoryResult(h,items){
- const item=items.find(i=>String(i.id)===String(h.itemId))||{}, lot=h.lot||{}, sold=!!h.sold;
- const title=lot.title||item_title(item), image=item.frontImg||item.backImg||lot.image||'';
- const status=sold?'تم البيع':'انتهى دون بيع', cls=sold?'sold':'unsold';
- const media=image?`<img src="${esc(image)}" alt="${esc(title)}" loading="lazy">`:'<span>📹<small>قطعة عُرضت مباشرة بالكاميرا<br>لا توجد صورة محفوظة</small></span>';
- return `<div class="live-history-result ${cls}"><div class="live-history-media">${media}</div><div class="live-history-info"><h4>${esc(title)}</h4><span class="approval-chip ${sold?'ok':''}">${status}</span><p>السعر الختامي: <b>${Number(h.price||0).toLocaleString('ar-SA')} ر.س</b></p>${sold?`<p>الفائز: <b>${esc(h.bidderName||'مشارك معتمد')}</b></p><p>رقم الطلب: <b>${esc(h.orderNumber||h.orderId||'—')}</b></p>`:'<p class="muted">لم يُنشأ طلب بيع أو فاتورة لهذه القطعة.</p>'}<small>${esc(h.closedAt||'')}</small></div></div>`;
-}
 function liveSessionCard(s,items,archived=false){
  const mode=s.mode||((s.itemIds||[]).length?'prepared':'camera'), lot=s.currentLot; const opened=lot?.title||item_title(items.find(i=>String(i.id)===String(s.currentItemId))||{});
  const itemButtons=(s.itemIds||[]).map(iid=>{const it=items.find(i=>String(i.id)===String(iid));return `<button class="ghost" onclick="liveOpenItem('${s.id}','${iid}')">فتح: ${esc(item_title(it||{}))}</button>`}).join('');
- if(archived){const history=s.history||[];return `<article class="participant-card"><h3>${esc(s.title||'مزاد مباشر')} <span class="approval-chip">أرشيف</span></h3><p>📅 ${esc(liveSessionDate(s))} — ${esc(s.endedAt||s.updated||'')}</p><p>${mode==='camera'?'📹 كاميرا حرة':'📦 مُحضّر'} — ${history.length} قطعة أغلقت خلال الجلسة</p><details class="live-history-details"><summary>نتائج القطع (${history.length})</summary><div class="live-history-list">${history.map(h=>liveHistoryResult(h,items)).join('')||'<p class="muted">لم تُغلق أي قطعة في هذه الجلسة.</p>'}</div></details><div class="actions"><button onclick="editLiveSession('${s.id}')">عرض / تعديل</button><button class="danger" onclick="liveControl('${s.id}','delete')">حذف نهائي</button></div></article>`;}
+ if(archived)return `<article class="participant-card"><h3>${esc(s.title||'مزاد مباشر')} <span class="approval-chip">أرشيف</span></h3><p>📅 ${esc(liveSessionDate(s))} — ${esc(s.endedAt||s.updated||'')}</p><p>${mode==='camera'?'📹 كاميرا حرة':'📦 مُحضّر'} — ${(s.history||[]).length} قطعة أغلقت خلال الجلسة</p><div class="actions"><button onclick="editLiveSession('${s.id}')">عرض / تعديل</button><button class="danger" onclick="liveControl('${s.id}','delete')">حذف نهائي</button></div></article>`;
  return `<article class="participant-card"><h3>${esc(s.title||'مزاد مباشر')} <span class="approval-chip ${s.status==='live'?'ok':''}">${esc(s.status||'scheduled')}</span> <span class="live-session-badge ${mode==='camera'?'camera':''}">${mode==='camera'?'📹 كاميرا حرة':'📦 مُحضّر'}</span> ${s.marketEnabled?'<span class="approval-chip ok">🛍️ السوق مفعل</span>':''}</h3><p>📅 ${esc(liveSessionDate(s))} — ${esc(s.startAt||'بدون موعد')} — ${(s.itemIds||[]).length} مقتنى محضّر — زيادة ${Number(s.bidStep||1)} ر.س</p>${(s.currentItemId||lot)?`<div class="special-admin-note"><b>المفتوح الآن:</b> ${opened} — السعر ${Number(s.currentPrice||0).toLocaleString('ar-SA')} ر.س — ${esc(s.latestBidderName||'لا توجد مزايدة')}</div>`:''}${mode==='prepared'?`<div class="actions">${s.status==='live'?itemButtons:''}</div>`:''}${(s.currentItemId||lot)?`<div class="actions"><button class="gold-action" onclick="liveCloseItem('${s.id}',true)">بيع وإغلاق القطعة</button><button class="ghost" onclick="liveCloseItem('${s.id}',false)">إغلاق دون بيع</button></div>`:''}<div class="actions"><button onclick="editLiveSession('${s.id}')">تعديل</button><a class="gold-action" style="text-decoration:none" href="/live-studio?session=${encodeURIComponent(s.id)}" target="_blank">📹 فتح استوديو الكاميرا</a><button class="gold-action" onclick="liveControl('${s.id}','start')">بدء الجلسة</button><button onclick="liveControl('${s.id}','end')">إنهاء وأرشفة</button><a class="public-link" href="/live-auction" target="_blank">واجهة العملاء</a></div></article>`;
 }
 async function renderLiveAuctions(){

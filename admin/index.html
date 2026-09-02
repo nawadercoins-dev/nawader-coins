@@ -354,11 +354,7 @@
               تم فصل الدولة والفئة والإصدار والسنة لسهولة البحث والتصنيف.
             </p>
           </div>
-          <div class="wide owner-auto-note">
-            <b>👤 بيانات المالك تُربط تلقائيًا</b>
-            <span>لا حاجة لإعادة كتابة الاسم أو الجوال؛ يحتفظ النظام ببيانات صاحب المقتنى المسجلة.</span>
-          </div>
-          <div class="wide owner-top-box" hidden aria-hidden="true">
+          <div class="wide owner-top-box">
             <h3>بيانات المالك / البائع</h3>
             <div class="owner-top-grid">
               <label
@@ -527,10 +523,6 @@
             >النوع<select id="type">
               <option>عملة ورقية</option>
               <option>عملة معدنية</option>
-              <option>قطعة معدنية فنتازية</option>
-              <option>مقتنى أو تحفة</option>
-              <option>حجر مشكل أو منحوتة</option>
-              <option>مجسم فني صغير</option>
               <option>أخرى</option>
             </select></label
           ><label
@@ -828,23 +820,14 @@
               </div>
             </div>
           </div>
-          <div class="wide display-mode-box">
-            <h3>طريقة عرض المقتنى</h3>
-            <p class="muted">اختر وجهة واحدة فقط. لا يمكن نشر المقتنى في السوق والمزاد معًا.</p>
-            <div class="display-mode-grid" role="radiogroup" aria-label="طريقة عرض المقتنى">
-              <label><input type="radio" name="displayMode" value="none" checked /> <span>📦 غير معروض حاليًا</span></label>
-              <label><input type="radio" name="displayMode" value="market" /> <span>🛍️ السوق العام</span></label>
-              <label><input type="radio" name="displayMode" value="auction" /> <span>⚖️ المزاد</span></label>
-            </div>
-          </div>
-          <div class="wide market-box" data-display-panel="market" hidden>
+          <div class="wide market-box">
             <h3>السوق العام / البيع المباشر</h3>
             <label class="check"
               ><input id="forMarket" type="checkbox" /> عرض هذا المقتنى في السوق
               العام</label
             >
             <div id="marketFields" hidden>
-              <label>تصنيف السوق<select id="marketCategory"><option value="banknote">أوراق نقدية</option><option value="coin">عملات معدنية</option><option value="fantasia">فانتازيا</option><option value="special">أرقام مميزة وأخطاء نادرة</option><option value="transitional">إصدارات انتقالية</option><option value="collectibles">مقتنيات وتحف</option><option value="set">مجموعات / أطقم</option><option value="other">أخرى</option></select></label>
+              <label>قسم السوق<select id="marketCategory"><option value="coins-stamps">العملات والطوابع</option><option value="collectibles">المقتنيات</option><option value="games">الألعاب</option><option value="tcg">TCG</option><option value="diecast">دايكاست</option><option value="lamps">مصابيح</option><option value="fantasia">فانتازيا</option><option value="special">أرقام مميزة وأخطاء نادرة</option><option value="transitional">إصدارات انتقالية</option><option value="other">أخرى</option></select></label>
               <label
                 >نوع العرض<select id="marketOfferType">
                   <option value="single">قطعة واحدة</option>
@@ -939,7 +922,7 @@
               </p>
             </div>
           </div>
-          <div class="wide auction-box" data-display-panel="auction" hidden>
+          <div class="wide auction-box">
             <h3>المزاد</h3>
             <label class="check"
               ><input id="forAuction" type="checkbox" /> مخصص للمزاد</label
@@ -1038,7 +1021,7 @@
             </div>
           </details>
           <div class="wide actions">
-            <button type="submit">حفظ المقتنى</button
+            <button type="submit">حفظ</button
             ><button type="button" id="reset" class="ghost">تفريغ</button>
           </div>
         </form>
@@ -1128,6 +1111,7 @@
           </div>
           <div class="warehouse-controls" style="margin:14px 0 10px">
             <input id="marketSearch" autocomplete="off" placeholder="بحث ذكي في السوق: الدولة، الفئة، السنة، التقييم، السعر، الرقم، أو حالة العرض" />
+            <select id="marketCategoryFilter"><option value="all">كل أقسام السوق</option><option value="coins-stamps">العملات والطوابع</option><option value="collectibles">المقتنيات</option><option value="games">الألعاب</option><option value="tcg">TCG</option><option value="diecast">دايكاست</option><option value="lamps">مصابيح</option><option value="fantasia">فانتازيا</option><option value="special">أرقام مميزة وأخطاء نادرة</option><option value="transitional">إصدارات انتقالية</option><option value="other">أخرى</option></select>
           </div>
           <div class="record-filter-bar" id="marketFilters">
             <button class="market-filter active" data-market-filter="all">
