@@ -31,7 +31,6 @@ OPERATIONS_LOG=os.path.join(DATA_ROOT,'operations_log.json')
 ORDERS=os.path.join(DATA_ROOT,'orders_shipping.json')
 COLLECTIBLE_SUBMISSIONS=os.path.join(DATA_ROOT,'collectible_submissions.json')
 LIVE_AUCTIONS=os.path.join(DATA_ROOT,'live_auctions.json')
-WHATSAPP_VERIFICATION_REQUESTS=os.path.join(DATA_ROOT,'whatsapp_verification_requests.json')
 LIVEKIT_URL=str(os.environ.get('LIVEKIT_URL') or '').strip()
 LIVEKIT_API_KEY=str(os.environ.get('LIVEKIT_API_KEY') or '').strip()
 LIVEKIT_API_SECRET=str(os.environ.get('LIVEKIT_API_SECRET') or '').strip()
@@ -51,7 +50,7 @@ os.makedirs(UPLOAD_DIR,exist_ok=True)
 
 # تهيئة القرص في أول تشغيل فقط من الملفات المرفقة مع المشروع، دون استبدال أي بيانات دائمة.
 if DATA_ROOT != ROOT:
-    for _dst in (DATA,PEOPLE,BIDS,NEGOTIATIONS,MARKET_REQUESTS,SUBSCRIPTIONS,SAVE_AUDIT,SETTINGS,NOTIFICATIONS,AUCTION_DUES,USER_PERMISSIONS,OPERATIONS_LOG,ORDERS,COLLECTIBLE_SUBMISSIONS,LIVE_AUCTIONS,WHATSAPP_VERIFICATION_REQUESTS,AUTH_FILE):
+    for _dst in (DATA,PEOPLE,BIDS,NEGOTIATIONS,MARKET_REQUESTS,SUBSCRIPTIONS,SAVE_AUDIT,SETTINGS,NOTIFICATIONS,AUCTION_DUES,USER_PERMISSIONS,OPERATIONS_LOG,ORDERS,COLLECTIBLE_SUBMISSIONS,AUTH_FILE):
         _src=os.path.join(ROOT,os.path.basename(_dst))
         if not os.path.exists(_dst) and os.path.isfile(_src):
             shutil.copy2(_src,_dst)
@@ -141,21 +140,6 @@ def add_notification(recipient_type, recipient_id, category, title, message, ite
     rows=load_notifications()
     row={'id':'nt-'+secrets.token_hex(6),'recipientType':recipient_type,'recipientId':str(recipient_id or ''),'category':category,'title':title,'message':message,'itemId':str(item_id or ''),'actionUrl':action_url,'read':False,'created':datetime.datetime.now().isoformat()}
     rows.append(row); rows=rows[-4000:]; save_json(NOTIFICATIONS,{'notifications':rows}); return row
-
-def sync_whatsapp_verification_request(person, request_id, request_code, expires):
-    """Keep the admin request queue and notification in sync, including reused pending requests."""
-    data=load_json(WHATSAPP_VERIFICATION_REQUESTS,{'requests':[]})
-    rows=data.get('requests',[]) if isinstance(data,dict) else []
-    row=next((x for x in rows if str(x.get('id') or '')==str(request_id)),None)
-    values={'id':str(request_id),'participantId':str(person.get('id') or ''),'name':str(person.get('name') or ''),'phone':str(person.get('phone') or ''),'code':str(request_code),'status':'pending','expires':str(expires)}
-    if row is None:
-        values['created']=datetime.datetime.now().isoformat(); rows.append(values)
-    else:
-        row.update(values)
-    save_json(WHATSAPP_VERIFICATION_REQUESTS,{'requests':rows[-2000:]})
-    already=any(x.get('recipientType')=='admin' and x.get('category')=='approval' and str(request_code) in str(x.get('message') or '') for x in load_notifications())
-    if not already:
-        add_notification('admin','admin','approval','طلب توثيق حساب عبر واتساب',f"{person.get('name','')} — {person.get('phone','')} — {request_code}",person.get('id'),'/admin')
 
 APPROVAL_STATUSES=('new','final','suspended','stopped','cancelled')
 APPROVAL_LABELS={'new':'طلب جديد','final':'توثيق كامل','suspended':'معلّق','stopped':'موقوف','cancelled':'ملغى'}
@@ -396,25 +380,8 @@ def make_free_live_item(row, lot):
           'notes':str((lot or {}).get('notes') or 'أُنشئ السجل من مزاد كاميرا مباشر بعد اعتماد البيع.').strip()[:1000],
           'ownerParticipantId':str(row.get('broadcasterParticipantId') or ''),'ownerName':str(row.get('broadcasterName') or 'الإدارة'),
           'forMarket':False,'forAuction':False,'archived':False,'sourceChannel':'live_camera','sourceLiveSessionId':str(row.get('id') or ''),
-          'liveAuctionRecord':True,'inventoryVisible':False,'recordLifecycle':'sold','quantity':1,'availableQuantity':0,
           'created':now_iso,'updated':int(time.time()*1000)}
     items.append(item); save(items); return item
-
-def reconcile_live_auction_inventory_visibility():
-    """Hide legacy camera-sale source records while preserving orders and invoices."""
-    items=load(); sessions=load_live_auctions(); sold_ids=set()
-    for session in sessions:
-        for hist in session.get('history') or []:
-            if hist.get('sold') and hist.get('itemId'): sold_ids.add(str(hist.get('itemId')))
-    changed=False
-    for item in items:
-        item_id=str(item.get('id') or '')
-        if item.get('sourceChannel')=='live_camera' and (item.get('auctionSold') or item_id in sold_ids):
-            expected={'liveAuctionRecord':True,'inventoryVisible':False,'recordLifecycle':'sold','availableQuantity':0}
-            for key,value in expected.items():
-                if item.get(key)!=value: item[key]=value; changed=True
-    if changed: save(items)
-    return items
 
 def item_title(i):
     return str(i.get('marketTitle') or ((i.get('country') or '')+' — '+(i.get('denomination') or ''))).strip(' —') or 'مقتنى'
@@ -527,7 +494,7 @@ def inventory_snapshot(item,orders=None):
     return {'itemId':str(item.get('id') or ''),'total':total,'current':current,'warehouse':warehouse,'market':market,'auction':auction,'reserved':reserved,'sold':sold,'returned':returned,'damaged':damaged,'special':special,'unitType':str(item.get('inventoryUnitType') or 'piece'),'unitCount':inventory_unit_count(item),'piecesPerUnit':inventory_pieces_per_unit(item)}
 
 def inventory_summary():
-    items=[i for i in reconcile_live_auction_inventory_visibility() if i.get('inventoryVisible') is not False]; orders=load_orders(); rows=[]
+    items=load(); orders=load_orders(); rows=[]
     totals={k:0 for k in ('total','current','warehouse','market','auction','reserved','sold','returned','damaged','special')}
     for item in items:
         snap=inventory_snapshot(item,orders); rows.append({**snap,'country':item.get('country',''),'denomination':item.get('denomination',''),'year':item.get('year',''),'frontImg':item.get('frontImg',''),'backImg':item.get('backImg',''),'location':storage_location(item),'specialNumberEnabled':bool(item.get('specialNumberEnabled')),'inventoryClassification':item.get('inventoryClassification') or ('set' if item.get('isSet') else ('graded' if item.get('isGraded') else 'ungraded')),'sourceSubmissionId':item.get('sourceSubmissionId','')})
@@ -1080,7 +1047,9 @@ def public_market_item(i):
     _,_,reserved=item_order_quantities(i.get('id'),item=i)
     per_unit=market_physical_per_unit(i)
     reserved_units=(reserved.get('market',0)+per_unit-1)//per_unit
-    out['availableQuantity']=max(0,int(i.get('marketQuantity') or i.get('quantity') or 1)-int(i.get('marketSoldQuantity') or 0)-reserved_units)
+    sold_units=int(i.get('marketSoldQuantity') or 0)
+    out['availableQuantity']=max(0,int(i.get('marketQuantity') or i.get('quantity') or 1)-sold_units-reserved_units)
+    out['availabilityStatus']='available' if out['availableQuantity']>0 else ('reserved' if reserved_units>0 else 'sold')
     return out
 
 def special_serial_pool(item):
@@ -1605,8 +1574,8 @@ ADMIN_GET_API={
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
     '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity','/api/archive/items','/api/live-auctions/admin'
 }
-PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
-PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/invoice.html','/live_auction.html','/live_auction.js','/live_studio.html','/live_studio.js'}
+PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/visitor/order/action','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/seller/order/update','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
+PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/seller_portal.css','/seller_portal.js','/invoice.html','/live_auction.html','/live_auction.js','/live_studio.html','/live_studio.js'}
 
 class H(SimpleHTTPRequestHandler):
     def cookie_value(self,name):
@@ -1698,7 +1667,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.4.1','channel':'LIVE-CAMERA-WEBRTC','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.5.1','channel':'SELLER-CENTER-MARKET-FIX','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1844,6 +1813,33 @@ class H(SimpleHTTPRequestHandler):
             req=[x for x in load_market_requests() if str(x.get('itemId')) in ids]
             safe=[{k:v for k,v in x.items() if k not in ('ownerPhone',)} for x in req]
             self.sendj({'requests':safe}); return
+        if p=='/api/seller/dashboard':
+            qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0]); person=self.require_participant(pid)
+            if not person: return
+            ensure_auction_outcomes(); reconcile_direct_market_buy_orders()
+            phone=str(person.get('phone') or '').replace(' ',''); inventory=[]
+            for item in load():
+                same_id=str(item.get('ownerParticipantId') or '')==pid
+                same_phone=bool(phone and str(item.get('ownerPhone') or '').replace(' ','')==phone)
+                if (same_id or same_phone) and not item.get('ownerArchived'): inventory.append(item)
+            owned_ids={str(x.get('id') or '') for x in inventory}
+            labels={'new':'طلب جديد','awaiting_payment':'بانتظار السداد','paid':'تم السداد','preparing':'قيد التجهيز','ready_to_ship':'جاهز للشحن','shipped':'تم الشحن','received':'تم الاستلام','completed':'مكتمل','stalled':'متعثر','cancelled':'ملغي','returned':'مرتجع'}
+            orders=[]
+            for order in load_orders():
+                lines=[x for x in (order.get('items') or []) if str(x.get('itemId') or '') in owned_ids]
+                if not lines: continue
+                subtotal=sum(float(x.get('total') or 0) for x in lines)
+                if subtotal<=0: subtotal=float(order.get('subtotal') or 0)
+                paid=str(order.get('paymentStatus') or '')=='paid'
+                address=order.get('shippingAddress') if paid and isinstance(order.get('shippingAddress'),dict) else {}
+                orders.append({'id':order.get('id'),'orderNumber':order.get('orderNumber'),'source':order.get('source'),'status':order.get('status'),'statusLabel':labels.get(order.get('status'),order.get('status')),'paymentStatus':order.get('paymentStatus','unpaid'),'created':order.get('created'),'updated':order.get('updated'),'customerName':order.get('customerName') or 'مشتري','subtotal':subtotal,'sellerFee':round(subtotal*.025,2),'sellerNet':round(subtotal*.975,2),'shippingCompany':order.get('shippingCompany') or '','trackingNumber':order.get('trackingNumber') or '','shippingAddress':address,'items':[{'itemId':x.get('itemId'),'title':x.get('title') or 'مقتنى','quantity':int(x.get('quantity') or 1),'image':((x.get('images') or [''])[0] or '')} for x in lines]})
+            orders.sort(key=lambda x:str(x.get('created') or ''),reverse=True)
+            paid_orders=[x for x in orders if x.get('paymentStatus')=='paid' and x.get('status') not in ('cancelled','returned')]
+            open_orders=[x for x in orders if x.get('status') in OPEN_ORDER_STATUSES]
+            requests=[x for x in load_market_requests() if str(x.get('itemId') or '') in owned_ids]
+            permissions=participant_permissions(pid)
+            seller_country=person.get('country') or 'المملكة العربية السعودية'
+            self.sendj({'seller':{'id':pid,'name':person.get('alias') or person.get('displayName') or person.get('name') or 'بائع','country':seller_country,'flag':SELLER_COUNTRY_FLAGS.get(_norm_country(seller_country),'🇸🇦'),'avatarUrl':person.get('avatarUrl') or '','verified':bool(person.get('verified') or person.get('approved'))},'permissions':permissions,'metrics':{'inventory':len(inventory),'marketActive':sum(1 for x in inventory if x.get('forMarket') and x.get('marketApproved')),'auctionActive':sum(1 for x in inventory if x.get('forAuction') and x.get('auctionApproved')),'orders':len(orders),'openOrders':len(open_orders),'paidGross':round(sum(float(x.get('subtotal') or 0) for x in paid_orders),2),'sellerNet':round(sum(float(x.get('sellerNet') or 0) for x in paid_orders),2),'pendingPayments':sum(1 for x in orders if x.get('paymentStatus')!='paid' and x.get('status') not in ('cancelled','returned','completed')),'readyToShip':sum(1 for x in orders if x.get('status')=='ready_to_ship'),'shipped':sum(1 for x in orders if x.get('status')=='shipped'),'completed':sum(1 for x in orders if x.get('status')=='completed'),'offers':sum(1 for x in requests if x.get('action')=='offer' and str(x.get('status') or 'pending') not in ('completed','cancelled','rejected'))},'orders':orders,'inventory':[{'id':x.get('id'),'title':item_title(x),'image':x.get('frontImg') or x.get('backImg') or '','forMarket':bool(x.get('forMarket')),'marketApproved':bool(x.get('marketApproved')),'marketPrice':float(x.get('marketSalePrice') or x.get('marketUnitPrice') or 0),'forAuction':bool(x.get('forAuction')),'auctionApproved':bool(x.get('auctionApproved')),'auctionEnd':x.get('auctionEnd') or '','auctionOutcome':x.get('auctionOutcome') or '','availableQuantity':inventory_snapshot(x).get('current',0)} for x in inventory],'requests':[{k:v for k,v in x.items() if k not in ('ownerPhone','phone')} for x in requests[-100:]]}); return
         if p=='/api/negotiations':
             q=urlparse(self.path).query
             qs=parse_qs(q); item_id=(qs.get('itemId') or [''])[0]; pid=(qs.get('participantId') or [''])[0]
@@ -1859,7 +1855,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/items':
             with LOCK:
                 ensure_auction_outcomes()
-                self.sendj({'items':reconcile_live_auction_inventory_visibility()}); return
+                self.sendj({'items':load()}); return
         if p=='/api/participants':
             with LOCK:
                 people=load_people(); rows=[participant_public(x) for x in people]; active=[x for x in rows if x['approvalStatus']!='cancelled']; archived=[x for x in rows if x['approvalStatus']=='cancelled']
@@ -2025,7 +2021,7 @@ class H(SimpleHTTPRequestHandler):
             for o in load_orders():
                 if str(o.get('participantId') or '')!=pid and str(o.get('customerPhone') or '').replace(' ','')!=phone: continue
                 first=(o.get('items') or [{}])[0]
-                rows.append({'id':o.get('id'),'orderNumber':o.get('orderNumber'),'source':o.get('source'),'itemTitle':first.get('title','مقتنى'),'quantity':sum(int(x.get('quantity') or 1) for x in o.get('items') or []),'buyerTotal':o.get('total',0),'subtotal':o.get('subtotal',0),'buyerFee':o.get('buyerFee',0),'shippingFee':o.get('shippingFee',0),'shippingFeeConfirmed':bool(o.get('shippingFeeConfirmed')),'paymentStatus':o.get('paymentStatus','unpaid'),'paidAt':o.get('paidAt'),'status':o.get('status'),'statusLabel':labels.get(o.get('status'),o.get('status')),'created':o.get('created'),'shippingCompany':o.get('shippingCompany'),'trackingNumber':o.get('trackingNumber'),'shippingAddress':o.get('shippingAddress') or participant_shipping_address(person),'archived':o.get('archived',False)})
+                rows.append({'id':o.get('id'),'orderNumber':o.get('orderNumber'),'source':o.get('source'),'itemTitle':first.get('title','مقتنى'),'quantity':sum(int(x.get('quantity') or 1) for x in o.get('items') or []),'buyerTotal':o.get('total',0),'subtotal':o.get('subtotal',0),'buyerFee':o.get('buyerFee',0),'shippingFee':o.get('shippingFee',0),'shippingFeeConfirmed':bool(o.get('shippingFeeConfirmed')),'paymentStatus':o.get('paymentStatus','unpaid'),'paidAt':o.get('paidAt'),'status':o.get('status'),'statusLabel':labels.get(o.get('status'),o.get('status')),'created':o.get('created'),'shippingCompany':o.get('shippingCompany'),'trackingNumber':o.get('trackingNumber'),'shippingAddress':o.get('shippingAddress') or participant_shipping_address(person),'archived':o.get('archived',False),'cancellationRequestedAt':o.get('cancellationRequestedAt'),'refundRequestedAt':o.get('refundRequestedAt'),'refundStatus':o.get('refundStatus')})
             rows.sort(key=lambda x:x.get('created') or '',reverse=True); self.sendj({'requests':rows}); return
         if p=='/api/visitor/invoice':
             qs=parse_qs(urlparse(self.path).query)
@@ -2159,8 +2155,7 @@ class H(SimpleHTTPRequestHandler):
         self.send_error(404,'Not found'); return
     def _close_live_item(self,row,sold=False):
         closed_item=str(row.get('currentItemId') or ''); lot=row.get('currentLot') if isinstance(row.get('currentLot'),dict) else None; winner_id=str(row.get('latestBidderId') or '')
-        sold=bool(sold and winner_id and (closed_item or lot)); source_type='camera' if lot else 'prepared'
-        hist={'itemId':closed_item or str((lot or {}).get('id') or ''),'lot':dict(lot) if lot else None,'price':float(row.get('currentPrice') or 0),'bidderName':row.get('latestBidderName') or '','participantId':winner_id,'sold':sold,'resultStatus':'sold' if sold else 'unsold','resultLabel':'تم البيع' if sold else 'انتهى دون بيع','sourceType':source_type,'closedAt':datetime.datetime.now().isoformat()}
+        hist={'itemId':closed_item or str((lot or {}).get('id') or ''),'lot':dict(lot) if lot else None,'price':float(row.get('currentPrice') or 0),'bidderName':row.get('latestBidderName') or '','participantId':winner_id,'sold':bool(sold),'closedAt':datetime.datetime.now().isoformat()}
         if sold and winner_id and (closed_item or lot):
             if closed_item: item=next((i for i in load() if str(i.get('id'))==closed_item),{})
             else:
@@ -2168,14 +2163,13 @@ class H(SimpleHTTPRequestHandler):
             person=next((x for x in load_people() if str(x.get('id'))==winner_id),{})
             due={'id':'live-due-'+secrets.token_hex(5),'itemId':closed_item,'itemTitle':item_title(item),'participantId':winner_id,'amount':float(row.get('currentPrice') or 0),'auctionRound':1}
             order=order_from_auction(due,item,person); order['source']='live_auction'; order['sourceId']=row.get('id'); order['history'][0]['note']='تم إنشاء الطلب تلقائيًا من فوز المزاد المباشر بالكاميرا' if lot else 'تم إنشاء الطلب تلقائيًا من فوز المزاد المباشر'
-            orders=load_orders(); orders.append(order); save_json(ORDERS,{'orders':orders}); hist['orderId']=order['id']; hist['orderNumber']=order.get('orderNumber') or order['id']
+            orders=load_orders(); orders.append(order); save_json(ORDERS,{'orders':orders}); hist['orderId']=order['id']
             # ثبّت نتيجة المزاد على سجل المقتنى حتى يظهر البيع في الإدارة والسلة ولا تضيع النتيجة بعد إعادة التشغيل.
             items=load(); stored=next((i for i in items if str(i.get('id'))==closed_item),None)
             if stored:
                 stored['auctionOutcome']='sold'; stored['auctionSold']=True; stored['auctionWinnerParticipantId']=winner_id
                 stored['auctionWinningAmount']=float(row.get('currentPrice') or 0); stored['auctionOrderId']=order['id']
-                stored['auctionOutcomeAt']=datetime.datetime.now().isoformat(); stored['liveAuctionRecord']=True; stored['inventoryVisible']=False
-                stored['recordLifecycle']='sold'; stored['sourceLiveSessionId']=str(row.get('id') or ''); stored['availableQuantity']=0; stored['updated']=int(time.time()*1000)
+                stored['auctionOutcomeAt']=datetime.datetime.now().isoformat(); stored['updated']=int(time.time()*1000)
                 save(items)
             add_notification('participant',winner_id,'orders','🏆 فوز في المزاد المباشر',f"تم إنشاء طلب بقيمة {float(row.get('currentPrice') or 0):g} ر.س للمقتنى {item_title(item)}.",closed_item,'/account')
             add_notification('admin','','auction','🏆 تم إرساء مزاد مباشر',f"فاز {person.get('name') or 'مشارك'} بالمقتنى {item_title(item)} بقيمة {float(row.get('currentPrice') or 0):g} ر.س وتم إنشاء طلب المبيعات تلقائيًا.",closed_item,'/admin')
@@ -2213,6 +2207,35 @@ class H(SimpleHTTPRequestHandler):
             self.sendj({'error':'تم رفض الطلب لأسباب أمنية.'},403); return
         if p not in PUBLIC_POST_API:
             if not self.require_admin(api=True): return
+        if p=='/api/seller/order/update':
+            person=self.require_participant('')
+            if not person: return
+            d=self.readj(); oid=str(d.get('id') or ''); target=str(d.get('status') or '')
+            if target not in ('preparing','ready_to_ship','shipped'):
+                self.sendj({'error':'هذه الحالة لا يمكن للبائع اعتمادها'},400); return
+            permissions=participant_permissions(person.get('id'))
+            if not permissions.get('ordersManage'):
+                self.sendj({'error':'صلاحية إدارة الطلبات غير مفعلة لهذا الحساب'},403); return
+            phone=str(person.get('phone') or '').replace(' ',''); owned_ids=set()
+            for item in load():
+                if str(item.get('ownerParticipantId') or '')==str(person.get('id')) or (phone and str(item.get('ownerPhone') or '').replace(' ','')==phone): owned_ids.add(str(item.get('id') or ''))
+            rows=load_orders(); row=next((x for x in rows if str(x.get('id') or '')==oid and any(str(line.get('itemId') or '') in owned_ids for line in (x.get('items') or []))),None)
+            if not row: self.sendj({'error':'الطلب غير موجود ضمن مبيعاتك'},404); return
+            current=str(row.get('status') or ''); allowed={'paid':'preparing','preparing':'ready_to_ship','ready_to_ship':'shipped'}
+            if allowed.get(current)!=target:
+                self.sendj({'error':'يجب تحديث الطلب حسب تسلسل التجهيز والشحن المعتمد'},409); return
+            if str(row.get('paymentStatus') or '')!='paid': self.sendj({'error':'لا يمكن تجهيز الطلب قبل تأكيد السداد من الإدارة'},409); return
+            if 'shippingCompany' in d: row['shippingCompany']=str(d.get('shippingCompany') or '').strip()[:120]
+            if 'trackingNumber' in d: row['trackingNumber']=str(d.get('trackingNumber') or '').strip()[:120]
+            address=row.get('shippingAddress') if isinstance(row.get('shippingAddress'),dict) else {}
+            if target in ('ready_to_ship','shipped') and (not str(address.get('country') or '').strip() or not str(address.get('city') or '').strip() or not str(address.get('addressLine') or '').strip()):
+                self.sendj({'error':'عنوان المشتري غير مكتمل؛ اطلب منه تحديثه قبل الشحن'},409); return
+            if target in ('ready_to_ship','shipped') and not str(row.get('shippingCompany') or '').strip(): self.sendj({'error':'حدد شركة الشحن أولًا'},409); return
+            if target=='shipped' and not str(row.get('trackingNumber') or '').strip(): self.sendj({'error':'أدخل رقم التتبع أو مرجع الشحنة'},409); return
+            update_order_status(row,target,'تحديث بواسطة البائع'); save_json(ORDERS,{'orders':rows})
+            add_notification('participant',row.get('participantId'),'order','تحديث حالة الطلب',f"الطلب {row.get('orderNumber')} أصبح: {({'preparing':'قيد التجهيز','ready_to_ship':'جاهز للشحن','shipped':'تم الشحن'}).get(target,target)}",'', '/account')
+            append_operation('تحديث طلب بواسطة البائع',{'orderId':oid,'participantId':person.get('id'),'status':target},actor='البائع')
+            self.sendj({'ok':True,'status':target}); return
         if p=='/api/live-auctions/chat':
             d=self.readj(); sid=str(d.get('id') or ''); text=' '.join(str(d.get('text') or '').strip().split())[:500]
             if not text: self.sendj({'error':'اكتب التعليق أولًا'},400); return
@@ -2272,8 +2295,6 @@ class H(SimpleHTTPRequestHandler):
             if not live_session_owned_by(row,person): self.sendj({'error':'الجلسة غير موجودة أو لا تملكها'},404); return
             action=str(d.get('action') or '')
             if action in ('start','end'):
-                if action=='end' and (row.get('currentItemId') or row.get('currentLot')):
-                    self._close_live_item(row,sold=bool(row.get('latestBidderId')))
                 row['status']='live' if action=='start' else 'ended'
                 row['startedAt']=row.get('startedAt') or (datetime.datetime.now().isoformat() if action=='start' else '')
                 if action=='end': row['endedAt']=datetime.datetime.now().isoformat(); row['archivedAt']=row['endedAt']
@@ -2327,8 +2348,6 @@ class H(SimpleHTTPRequestHandler):
             if action=='delete':
                 sessions=[x for x in sessions if str(x.get('id'))!=sid]; save_json(LIVE_AUCTIONS,{'sessions':sessions}); self.sendj({'ok':True}); return
             if action in ('start','end','cancel'):
-                if action=='end' and (row.get('currentItemId') or row.get('currentLot')):
-                    self._close_live_item(row,sold=bool(row.get('latestBidderId')))
                 row['status']={'start':'live','end':'ended','cancel':'cancelled'}[action]
                 if action=='start': row['startedAt']=row.get('startedAt') or datetime.datetime.now().isoformat()
                 if action in ('end','cancel'): row['endedAt']=datetime.datetime.now().isoformat(); row['archivedAt']=row['endedAt']
@@ -2786,6 +2805,42 @@ class H(SimpleHTTPRequestHandler):
                 append_operation('إلغاء المزاد بواسطة المالك',{'itemId':iid,'participantId':pid,'reason':reason,'bidCount':len(bids)},actor='العميل')
                 self.sendj({'ok':True}); return
 
+            if p=='/api/visitor/order/action':
+                pid=str(d.get('participantId') or ''); oid=str(d.get('orderId') or ''); action=str(d.get('action') or '')
+                person=self.require_participant(pid)
+                if not person: return
+                phone=''.join(ch for ch in str(person.get('phone') or '') if ch.isdigit())
+                rows=load_orders(); row=next((x for x in rows if str(x.get('id') or '')==oid and (str(x.get('participantId') or '')==pid or ''.join(ch for ch in str(x.get('customerPhone') or '') if ch.isdigit())==phone)),None)
+                if not row: self.sendj({'error':'الطلب غير موجود أو لا يخص هذا الحساب'},404); return
+                status=str(row.get('status') or ''); payment=str(row.get('paymentStatus') or 'unpaid'); now=datetime.datetime.now().isoformat(); number=row.get('orderNumber') or oid
+                if action=='cancel':
+                    if str(row.get('source') or '')!='market': self.sendj({'error':'إلغاء طلب المزاد يحتاج اعتماد الإدارة؛ استخدم زر «طلب إلغاء»'},409); return
+                    if payment=='paid' or status not in ('new','awaiting_payment','stalled'):
+                        self.sendj({'error':'الإلغاء الفوري متاح فقط لطلب السوق غير المسدد وغير المشحون'},409); return
+                    update_order_status(row,'cancelled','ألغاه المشتري قبل السداد؛ أعيدت الكمية إلى المتاح')
+                    row['cancelledBy']='participant'; row['cancelledAt']=now
+                    requests=load_market_requests()
+                    req=next((x for x in requests if str(x.get('id') or '')==str(row.get('sourceId') or '')),None)
+                    if req: req['status']='cancelled'; req['cancelledAt']=now; req['updated']=now; save_json(MARKET_REQUESTS,{'requests':requests})
+                    save_json(ORDERS,{'orders':rows}); append_operation('إلغاء طلب غير مسدد وإعادة الكمية',{'orderId':oid,'orderNumber':number,'participantId':pid},actor='العميل')
+                    add_notification('admin','','order','أُلغي طلب غير مسدد',f'ألغى العميل الطلب {number} وعادت كميته إلى المتاح.','', '/admin')
+                    self.sendj({'ok':True,'message':f'تم إلغاء الطلب {number} وإعادة كميته إلى المتاح.'}); return
+                if action=='cancel_request':
+                    if payment=='paid' or status not in ('new','awaiting_payment','stalled'):
+                        self.sendj({'error':'لا يمكن طلب الإلغاء في حالة الطلب الحالية'},409); return
+                    if row.get('cancellationRequestedAt'): self.sendj({'ok':True,'message':'طلب الإلغاء مسجل بالفعل لدى الإدارة.'}); return
+                    row['cancellationRequestedAt']=now; row['cancellationStatus']='requested'; row['updated']=now; row.setdefault('history',[]).append({'status':status,'at':now,'note':'طلب العميل إلغاء الطلب'})
+                    save_json(ORDERS,{'orders':rows}); add_notification('admin','','order','طلب إلغاء',f'طلب العميل إلغاء الطلب {number}.','', '/admin'); append_operation('طلب إلغاء من العميل',{'orderId':oid,'orderNumber':number,'participantId':pid},actor='العميل')
+                    self.sendj({'ok':True,'message':'تم إرسال طلب الإلغاء إلى الإدارة.'}); return
+                if action=='refund_request':
+                    if payment!='paid' or status not in ('paid','preparing','ready_to_ship'):
+                        self.sendj({'error':'طلب الاسترداد متاح للطلب المسدد الذي لم يُشحن فقط'},409); return
+                    if row.get('refundRequestedAt'): self.sendj({'ok':True,'message':'طلب الاسترداد مسجل بالفعل لدى الإدارة.'}); return
+                    row['refundRequestedAt']=now; row['refundStatus']='requested'; row['updated']=now; row.setdefault('history',[]).append({'status':status,'at':now,'note':'طلب العميل استرداد المبلغ قبل الشحن'})
+                    save_json(ORDERS,{'orders':rows}); add_notification('admin','','finance','طلب استرداد',f'طلب العميل استرداد مبلغ الطلب {number} قبل الشحن.','', '/admin'); append_operation('طلب استرداد من العميل',{'orderId':oid,'orderNumber':number,'participantId':pid},actor='العميل')
+                    self.sendj({'ok':True,'message':'تم إرسال طلب الاسترداد إلى الإدارة للمراجعة.'}); return
+                self.sendj({'error':'الإجراء المطلوب غير صالح'},400); return
+
             if p=='/api/notifications/read':
                 pid=str(d.get('participantId') or ''); nid=str(d.get('id') or ''); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
                 person_session=self.require_participant(pid)
@@ -2810,6 +2865,8 @@ class H(SimpleHTTPRequestHandler):
                 if 'trackingNumber' in d: row['trackingNumber']=str(d.get('trackingNumber') or '').strip()
                 if status=='paid' and not bool(row.get('shippingFeeConfirmed')):
                     self.sendj({'error':'حدد واعتمد مبلغ الشحن أولًا (يمكن اعتماد 0 للشحن المجاني) قبل تأكيد السداد'},409); return
+                if status=='cancelled' and str(row.get('paymentStatus') or '')=='paid':
+                    self.sendj({'error':'الطلب مسدد؛ استخدم إجراء «تسجيل الاسترداد وإعادة الكمية» بدل الإلغاء المباشر'},409); return
                 if status in ('preparing','ready_to_ship','shipped') and str(row.get('paymentStatus') or '')!='paid':
                     self.sendj({'error':'لا يمكن تجهيز أو شحن الطلب قبل تأكيد السداد'},409); return
                 if status in ('ready_to_ship','shipped'):
@@ -2822,6 +2879,13 @@ class H(SimpleHTTPRequestHandler):
                     self.sendj({'error':'أدخل رقم التتبع أو مرجع الشحنة قبل اعتماد تم الشحن'},409); return
                 try: update_order_status(row,status,str(d.get('note') or ''))
                 except ValueError as e: self.sendj({'error':str(e)},400); return
+                if status=='cancelled':
+                    if row.get('source')=='market':
+                        requests=load_market_requests(); req=next((x for x in requests if str(x.get('id') or '')==str(row.get('sourceId') or '')),None)
+                        if req: req['status']='cancelled'; req['cancelledAt']=datetime.datetime.now().isoformat(); req['updated']=req['cancelledAt']; save_json(MARKET_REQUESTS,{'requests':requests})
+                    elif row.get('source')=='auction':
+                        dues=load_auction_dues(); due=next((x for x in dues if str(x.get('id') or '')==str(row.get('sourceId') or '')),None)
+                        if due: due['status']='cancelled'; due['cancelledAt']=datetime.datetime.now().isoformat(); due['updated']=due['cancelledAt']; save_json(AUCTION_DUES,{'dues':dues})
                 if status=='paid' and row.get('source')=='auction':
                     dues=load_auction_dues(); due=next((x for x in dues if str(x.get('id'))==str(row.get('sourceId'))),None)
                     if due:
@@ -2829,6 +2893,36 @@ class H(SimpleHTTPRequestHandler):
                         add_notification('participant',due.get('participantId'),'finance','✅ تم اعتماد السداد',f"تم اعتماد سداد الطلب {row.get('orderNumber')}. عادت أهلية المشاركة وفق النظام.",due.get('itemId'),'/account')
                 save_json(ORDERS,{'orders':rows}); append_operation('تحديث طلب وشحن',{'orderId':oid,'orderNumber':row.get('orderNumber'),'status':status})
                 if row.get('participantId'): add_notification('participant',row.get('participantId'),'order','تحديث حالة الطلب',f"الطلب {row.get('orderNumber')} أصبح: {status}",'', '/account')
+                self.sendj({'ok':True,'order':row}); return
+            if p=='/api/order/request/resolve':
+                oid=str(d.get('id') or ''); action=str(d.get('action') or ''); note=str(d.get('note') or '').strip(); rows=load_orders(); row=next((x for x in rows if str(x.get('id'))==oid),None)
+                if not row: self.sendj({'error':'الطلب غير موجود'},404); return
+                status=str(row.get('status') or ''); payment=str(row.get('paymentStatus') or 'unpaid'); now=datetime.datetime.now().isoformat(); number=row.get('orderNumber') or oid
+                if action=='approve_cancel':
+                    if not row.get('cancellationRequestedAt') or payment=='paid' or status not in ('new','awaiting_payment','stalled'):
+                        self.sendj({'error':'طلب الإلغاء غير صالح للاعتماد في حالته الحالية'},409); return
+                    update_order_status(row,'cancelled',note or 'اعتمدت الإدارة طلب الإلغاء؛ أعيدت الكمية إلى المتاح'); row['cancellationStatus']='approved'; row['cancellationResolvedAt']=now
+                    if row.get('source')=='auction':
+                        dues=load_auction_dues(); due=next((x for x in dues if str(x.get('id') or '')==str(row.get('sourceId') or '')),None)
+                        if due: due['status']='cancelled'; due['cancelledAt']=now; due['updated']=now; save_json(AUCTION_DUES,{'dues':dues})
+                elif action=='complete_refund':
+                    if payment!='paid' or status not in ('paid','preparing','ready_to_ship'):
+                        self.sendj({'error':'طلب الاسترداد غير صالح للاعتماد في حالته الحالية'},409); return
+                    update_order_status(row,'cancelled',note or 'اعتمدت الإدارة الاسترداد قبل الشحن؛ أعيدت الكمية إلى المتاح'); row['paymentStatus']='refunded'; row['refundStatus']='completed'; row['refundedAt']=now; row['refundedAmount']=float(row.get('total') or 0)
+                    if row.get('source')=='market':
+                        requests=load_market_requests(); req=next((x for x in requests if str(x.get('id') or '')==str(row.get('sourceId') or '')),None)
+                        if req: req['status']='refunded'; req['refundedAt']=now; req['updated']=now; save_json(MARKET_REQUESTS,{'requests':requests})
+                    elif row.get('source')=='auction':
+                        dues=load_auction_dues(); due=next((x for x in dues if str(x.get('id') or '')==str(row.get('sourceId') or '')),None)
+                        if due: due['status']='refunded'; due['refundedAt']=now; due['updated']=now; save_json(AUCTION_DUES,{'dues':dues})
+                elif action=='reject':
+                    if row.get('refundStatus')=='requested': row['refundStatus']='rejected'; row['refundResolvedAt']=now
+                    elif row.get('cancellationStatus')=='requested': row['cancellationStatus']='rejected'; row['cancellationResolvedAt']=now
+                    else: self.sendj({'error':'لا يوجد طلب إلغاء أو استرداد معلق'},409); return
+                    row['updated']=now; row.setdefault('history',[]).append({'status':status,'at':now,'note':note or 'رفضت الإدارة طلب الإلغاء/الاسترداد'})
+                else: self.sendj({'error':'إجراء المعالجة غير صالح'},400); return
+                save_json(ORDERS,{'orders':rows}); append_operation('معالجة طلب إلغاء/استرداد',{'orderId':oid,'orderNumber':number,'action':action,'note':note})
+                add_notification('participant',row.get('participantId'),'finance' if action=='complete_refund' else 'order','تحديث طلب الإلغاء/الاسترداد',f'تمت معالجة الطلب {number}: '+({'approve_cancel':'تم الإلغاء وإعادة الكمية','complete_refund':'تم تسجيل الاسترداد وإعادة الكمية','reject':'تعذر اعتماد الطلب'}).get(action,action),'','/account')
                 self.sendj({'ok':True,'order':row}); return
             if p=='/api/order/shipping':
                 oid=str(d.get('id') or ''); rows=load_orders(); row=next((x for x in rows if str(x.get('id'))==oid),None)
@@ -2940,7 +3034,25 @@ class H(SimpleHTTPRequestHandler):
                 _,_,reserved=item_order_quantities(item.get('id'),item=item); per_unit=market_physical_per_unit(item)
                 reserved_units=(reserved.get('market',0)+per_unit-1)//per_unit
                 avail=max(0,int(item.get('marketQuantity') or item.get('quantity') or 1)-int(item.get('marketSoldQuantity') or 0)-reserved_units)
-                if avail<=0: self.sendj({'error':'نفدت الكمية المتاحة'},409); return
+                if avail<=0:
+                    labels={'new':'طلب جديد','awaiting_payment':'بانتظار السداد','paid':'تم السداد','preparing':'قيد التجهيز','ready_to_ship':'جاهز للشحن','shipped':'تم الشحن','received':'تم الاستلام','stalled':'متعثر'}
+                    buyer_phone=''.join(ch for ch in str(phone or '') if ch.isdigit())
+                    existing=None
+                    for order in load_orders():
+                        if str(order.get('status') or '') not in OPEN_ORDER_STATUSES: continue
+                        same_buyer=(str(order.get('participantId') or '')==pid)
+                        if not same_buyer and buyer_phone:
+                            order_phone=''.join(ch for ch in str(order.get('customerPhone') or '') if ch.isdigit())
+                            same_buyer=(order_phone==buyer_phone)
+                        if same_buyer and any(str(line.get('itemId') or '')==item_id for line in (order.get('items') or [])):
+                            existing=order; break
+                    if existing:
+                        number=existing.get('orderNumber') or existing.get('id') or 'السابق'
+                        status=str(existing.get('status') or '')
+                        self.sendj({'error':f'هذا المقتنى محجوز بالفعل في طلبك {number}، وحالته: {labels.get(status,status)}. تابعه من «حسابي».','availabilityStatus':'reserved','existingOrderNumber':number},409); return
+                    if reserved_units>0:
+                        self.sendj({'error':'الكمية المعروضة محجوزة حاليًا في طلب قائم، وليست مفقودة من المقتنيات.','availabilityStatus':'reserved'},409); return
+                    self.sendj({'error':'تم بيع الكمية المعروضة ولا توجد وحدة متاحة حاليًا.','availabilityStatus':'sold'},409); return
                 offer_type=str(item.get('marketOfferType') or 'single')
                 if qty>avail: self.sendj({'error':f'الكمية المتاحة حاليًا {avail}'},409); return
                 # V2.8: marketQuantity is always the number of sellable units (sets/bundles/pieces).
@@ -3343,7 +3455,7 @@ class H(SimpleHTTPRequestHandler):
                 whatsapp_url='https://wa.me/'+wa+'?text='+quote(message,safe='')
                 if not pending_req:
                     append_operation('إنشاء طلب توثيق واتساب',{'participantId':person.get('id'),'requestId':request_id,'requestCode':request_code,'phone':person.get('phone')},actor='العميل')
-                sync_whatsapp_verification_request(person,request_id,request_code,expires)
+                    add_notification('admin','admin','approval','طلب توثيق حساب عبر واتساب',f"{person.get('name','')} — {person.get('phone','')} — {request_code}",person.get('id'),'/admin')
                 self.sendj({'ok':True,'pending':True,'requestId':request_id,'requestToken':request_token,'requestCode':request_code,'expires':expires,'whatsappUrl':whatsapp_url,'whatsappNumber':wa,'message':'تم إنشاء طلب التوثيق. افتح واتساب وأرسل الرسالة الجاهزة ثم انتظر اعتماد الإدارة.'}); return
 
             if p=='/api/participant/profile':
@@ -3728,7 +3840,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.5.1-LIVE-AUCTION-LIFECYCLE'
+VERSION='5.5.1-SELLER-CENTER-MARKET-FIX'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
