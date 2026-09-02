@@ -1,8 +1,10 @@
-document.documentElement.dataset.marketVersion='4.9.0';console.info('Nawader Market V4.9.0 Launch Candidate loaded');
-const $=id=>document.getElementById(id);let ITEMS=[],SETTINGS={},CURRENT=null,HASH_DONE=false;
+document.documentElement.dataset.marketVersion='5.5.1';console.info('Nawader Market V5.5.1 loaded');
+const $=id=>document.getElementById(id);let ITEMS=[],SETTINGS={},CURRENT=null,HASH_DONE=false,CATEGORY='all';
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const money=x=>Number(x||0).toLocaleString('ar-SA',{maximumFractionDigits:2})+' ر.س';
 function typeLabel(t){return t==='bundle'?'حزمة / بندل':t==='set'?'طقم':'قطعة واحدة'}
+function categoryKey(c){return ['banknote','coin','set',null,undefined,''].includes(c)?'coins-stamps':c}
+function categoryLabel(c){return ({'coins-stamps':'العملات والطوابع',collectibles:'المقتنيات',games:'الألعاب',tcg:'TCG',diecast:'دايكاست',lamps:'مصابيح',fantasia:'المقتنيات',special:'العملات والطوابع',transitional:'العملات والطوابع',other:'أخرى'})[categoryKey(c)]||'العملات والطوابع'}
 function priceUnit(i){return i.marketPriceUnit||(i.marketOfferType==='set'?'set':i.marketOfferType==='bundle'?'bundle':'piece')}
 function priceUnitLabel(i){let p=priceUnit(i);return p==='set'?'الطقم':p==='bundle'?'الحزمة / البندل':p==='sheet'?'الورقة':'القطعة'}
 function qtyUnitLabel(i,n=1){if(i.marketOfferType==='set')return n===1?'طقم':'أطقم';if(i.marketOfferType==='bundle')return n===1?'حزمة':'حزم';return priceUnit(i)==='sheet'?(n===1?'ورقة':'أوراق'):(n===1?'قطعة':'قطع')}
@@ -105,6 +107,7 @@ function card(i){
 
       <div class="market-info-column">
         <div class="market-badge-row">
+          <span class="badge">${categoryLabel(i.marketCategory)}</span>
           <span class="badge">${typeLabel(i.marketOfferType)}</span>
           ${i.isGraded?`<span class="badge graded">${grade}</span>`:''}
           ${i.transitionalIssueEnabled?`<span class="badge transitional-public-badge">⇄ انتقالي</span>`:''}
@@ -135,8 +138,10 @@ function card(i){
     ${(mode||i.notes)?`<div class="market-secondary-line market-line-scroll"><div class="market-scroll-track">${mode?`التكوين: ${esc(mode)}`:''}${mode&&i.notes?' • ':''}${i.notes?esc(String(i.notes).replace(/\\s+/g,' ').trim()):''}</div></div>`:''}
 
     <div class="actions market-card-actions">
-      <button class="buy" onclick="addToCart('${i.id}')">🛒 أضف للسلة</button>
-      ${i.marketNegotiationEnabled?`<button class="offer" onclick="openRequest('${i.id}','offer')">تفاوض</button>`:''}
+      ${available>0
+        ?`<button class="buy" onclick="addToCart('${i.id}')">🛒 أضف للسلة</button>`
+        :`<button class="buy market-unavailable" disabled>${i.availabilityStatus==='reserved'?'محجوز في طلب قائم':'غير متاح حاليًا'}</button>`}
+      ${i.marketNegotiationEnabled&&available>0?`<button class="offer" onclick="openRequest('${i.id}','offer')">تفاوض</button>`:''}
     </div>
   </article>`
 }
@@ -168,7 +173,7 @@ function scheduleMarketEqualize(){
 
 function normalizedGrader(i){return String(i.gradingCompany||'').trim().toUpperCase()}
 function populateGradingFilters(){const grader=$('grader'),grade=$('grade');if(!grader||!grade)return;const fixed=new Set(['PMG','PCGS','NGC']);const extras=[...new Set(ITEMS.filter(i=>i.isGraded).map(normalizedGrader).filter(x=>x&&!fixed.has(x)))].sort();grader.querySelectorAll('option[data-dynamic]').forEach(o=>o.remove());extras.forEach(x=>{let o=document.createElement('option');o.value=x;o.textContent=x;o.dataset.dynamic='1';grader.insertBefore(o,grader.querySelector('option[value="__ungraded"]'))});const grades=[...new Set(ITEMS.filter(i=>i.isGraded&&String(i.gradeValue||'').trim()).map(i=>String(i.gradeValue).trim()))].sort((a,b)=>(Number(a)||999)-(Number(b)||999)||a.localeCompare(b,'ar'));const current=grade.value;grade.innerHTML='<option value="">كل درجات التقييم</option>'+grades.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');if(grades.includes(current))grade.value=current;}
-function render(){let q=$('search').value.trim().toLowerCase(),t=$('type').value,g=$('grader')?.value||'',gv=$('grade')?.value||'';let a=ITEMS.filter(i=>{if(t&&i.marketOfferType!==t)return false;if(q&&!JSON.stringify(i).toLowerCase().includes(q))return false;if(g==='__ungraded'&&i.isGraded)return false;if(g==='__other'&&(!i.isGraded||['PMG','PCGS','NGC'].includes(normalizedGrader(i))))return false;if(g&&!g.startsWith('__')&&(!i.isGraded||normalizedGrader(i)!==g))return false;if(gv&&(!i.isGraded||String(i.gradeValue||'').trim()!==gv))return false;return true;});$('items').innerHTML=a.map(card).join('')||'<div class="empty">لا توجد عروض مطابقة حاليًا.</div>';initMarketTitleMarquees();scheduleMarketEqualize()}
+function render(){let q=$('search').value.trim().toLowerCase(),t=$('type').value,g=$('grader')?.value||'',gv=$('grade')?.value||'';let a=ITEMS.filter(i=>{let cat=categoryKey(i.marketCategory);if(cat==='fantasia')cat='collectibles';if(['special','transitional'].includes(cat))cat='coins-stamps';if(CATEGORY!=='all'&&cat!==CATEGORY)return false;if(t&&i.marketOfferType!==t)return false;if(q&&!JSON.stringify(i).toLowerCase().includes(q))return false;if(g==='__ungraded'&&i.isGraded)return false;if(g==='__other'&&(!i.isGraded||['PMG','PCGS','NGC'].includes(normalizedGrader(i))))return false;if(g&&!g.startsWith('__')&&(!i.isGraded||normalizedGrader(i)!==g))return false;if(gv&&(!i.isGraded||String(i.gradeValue||'').trim()!==gv))return false;return true;});$('items').innerHTML=a.map(card).join('')||'<div class="empty">لا توجد عروض مطابقة حاليًا.</div>';initMarketTitleMarquees();scheduleMarketEqualize()}
 function setQty(v){if(!CURRENT)return;let max=Math.max(1,Number(CURRENT.availableQuantity||1)),n=Math.max(1,Math.min(max,Number(v||1)));$('requestQty').value=n;$('qtyNow').textContent=n;updateSummary()}
 window.qtyStep=d=>setQty(Number($('requestQty').value||1)+d);
 window.openRequest=(id,action)=>{let i=ITEMS.find(x=>x.id===id);if(!i)return;CURRENT=i;$('itemId').value=id;$('action').value=action;$('dlgTitle').textContent=action==='offer'?'تقديم عرض تفاوض':'السلة / طلب شراء';$('offerWrap').hidden=action!=='offer';$('requestQty').value=1;$('requestQty').max=Math.max(1,Number(i.availableQuantity||1));$('qtyUnit').textContent=qtyUnitLabel(i,2);$('qtyNow').textContent='1';$('offerAmount').value='';$('msg').textContent='';$('requestReceipt').hidden=true;$('requestReceipt').innerHTML='';updateSummary();if(typeof $('requestDlg').showModal==='function')$('requestDlg').showModal();else $('requestDlg').setAttribute('open','open')};
@@ -176,7 +181,9 @@ function updateSummary(){if(!CURRENT)return;let q=Math.max(1,Number($('requestQt
 $('requestQty').oninput=()=>setQty($('requestQty').value);function closeRequestDlg(){let d=$('requestDlg');if(typeof d.close==='function')d.close();else d.removeAttribute('open')};$('closeDlg').onclick=closeRequestDlg;if($('closeDlgTop'))$('closeDlgTop').onclick=closeRequestDlg;
 $('sendRequest').onclick=async()=>{let btn=$('sendRequest'),msg=$('msg');try{btn.disabled=true;msg.textContent='جارٍ إرسال الطلب...';msg.className='';let body={itemId:$('itemId').value,action:$('action').value,name:$('buyerName').value.trim(),phone:$('buyerPhone').value.trim(),quantity:Number($('requestQty').value||1),offeredAmount:Number($('offerAmount').value||0)};let r=await fetch('/api/market/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'}),d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر إرسال الطلب');let rr=d.request||{};$('requestReceipt').hidden=false;$('requestReceipt').innerHTML=`<b>تم تسجيل الطلب بنجاح</b><br>السلعة: ${esc(rr.itemTitle||CURRENT?.marketTitle||'')}<br>المشتري: ${esc(rr.name||body.name)} — ${esc(rr.phone||body.phone)}<br>الكمية: ${Number(rr.quantity||body.quantity)} ${qtyUnitLabel(CURRENT,Number(rr.quantity||body.quantity))}<br>${body.action==='offer'?'عرض التفاوض':'قيمة الشراء'}: ${money(body.action==='offer'?(rr.offeredAmount||body.offeredAmount):(rr.listedAmount||totalFor(CURRENT,body.quantity)))}`;msg.textContent='✅ وصل الطلب إلى الإدارة.';msg.className='ok';setTimeout(()=>load(),300)}catch(e){msg.textContent='⚠️ '+e.message;msg.className='err'}finally{btn.disabled=false}};
 async function load(){try{let [m,s]=await Promise.all([get('/api/public/market'),get('/api/settings/public')]);ITEMS=m.items||[];SETTINGS=s||{};populateGradingFilters();render();let hash=decodeURIComponent(location.hash.slice(1));if(hash&&!HASH_DONE){HASH_DONE=true;setTimeout(()=>document.getElementById(hash)?.scrollIntoView({behavior:'smooth',block:'center'}),100)}}catch(e){$('items').innerHTML='<div class="empty">تعذر تحميل السوق. تحقق من تشغيل البرنامج ثم حاول مرة أخرى.</div>'}}
-$('search').oninput=render;$('type').onchange=render;if($('grader'))$('grader').onchange=render;if($('grade'))$('grade').onchange=render;load();setInterval(load,12000);
+$('search').oninput=render;$('type').onchange=render;if($('grader'))$('grader').onchange=render;if($('grade'))$('grade').onchange=render;
+document.querySelectorAll('#marketCategoryTabs [data-category]').forEach(b=>b.onclick=()=>{document.querySelectorAll('#marketCategoryTabs [data-category]').forEach(x=>x.classList.remove('active'));b.classList.add('active');CATEGORY=b.dataset.category||'all';render()});
+load();setInterval(load,12000);
 
 
 // V3.0: عارض صورة كامل مع تكبير/تدوير/سحب وتوسيط تلقائي
@@ -197,10 +204,50 @@ imageStage?.addEventListener('pointerup',finishMarketDrag);imageStage?.addEventL
 document.getElementById('closeImageDlg')?.addEventListener('click',()=>imageDlg?.close());imageDlg?.addEventListener('click',(e)=>{if(e.target===imageDlg)imageDlg.close()});
 
 
-window.addToCart=id=>{let i=ITEMS.find(x=>x.id===id);if(!i)return;NawaderVisitor.add({id:i.id,title:i.marketTitle||`${i.country} — ${i.denomination}`,quantity:1,max:Number(i.availableQuantity||1),unitPrice:displayPrice(i),unitLabel:qtyUnitLabel(i,1)});};
+window.addToCart=id=>{
+  let i=ITEMS.find(x=>x.id===id);
+  if(!i)return;
+  if(Number(i.availableQuantity||0)<=0){
+    nawaderToast(i.availabilityStatus==='reserved'?'هذا المقتنى محجوز في طلب قائم':'هذا المقتنى غير متاح حاليًا');
+    return;
+  }
+  NawaderVisitor.add({id:i.id,title:i.marketTitle||`${i.country} — ${i.denomination}`,quantity:1,max:Number(i.availableQuantity),unitPrice:displayPrice(i),unitLabel:qtyUnitLabel(i,1)});
+};
 function ensureCartPanel(){if(document.getElementById('visitorCartPanel'))return;let p=document.createElement('div');p.id='visitorCartPanel';p.className='visitor-cart-panel';p.hidden=true;p.innerHTML='<div class="visitor-cart-box"><h2>🛒 سلة مشترياتي</h2><div id="visitorCartRows"></div><div id="visitorCartTotal"></div><div class="visitor-cart-actions"><button id="visitorCheckout">إتمام الطلب</button><button id="visitorClear" class="secondary">تفريغ السلة</button><button id="visitorClose" class="secondary">إغلاق</button></div><p id="visitorCartMsg"></p></div>';document.body.appendChild(p);document.getElementById('visitorClose').onclick=()=>p.hidden=true;document.getElementById('visitorClear').onclick=()=>NawaderVisitor.clear();document.getElementById('visitorCheckout').onclick=checkoutCart;window.addEventListener('nawader-cart-change',renderCart)}
 function renderCart(){ensureCartPanel();let a=NawaderVisitor.cart(),rows=document.getElementById('visitorCartRows'),total=a.reduce((s,x)=>s+Number(x.unitPrice||0)*Number(x.quantity||1),0);rows.innerHTML=a.map(x=>`<div class="visitor-cart-row"><div><b>${esc(x.title)}</b><div>${Number(x.quantity||1)} × ${money(x.unitPrice)}</div></div><button onclick="NawaderVisitor.remove('${esc(x.id)}')">حذف</button></div>`).join('')||'<p>السلة فارغة.</p>';document.getElementById('visitorCartTotal').innerHTML=a.length?`<h3>قيمة المشتريات: ${money(total)}</h3><small>تضاف رسوم المنصة عند تسجيل الطلب.</small>`:''}
-async function checkoutCart(){let v=NawaderVisitor.get(),a=NawaderVisitor.cart(),msg=document.getElementById('visitorCartMsg');if(!v?.id||!v?.verified){location.href='/account?next='+encodeURIComponent('/market?cart=1');return}if(!a.length){msg.textContent='السلة فارغة.';return}try{msg.textContent='جارٍ التحقق من جلسة الحساب...';msg.className='';let sr=await fetch('/api/participant/status?id='+encodeURIComponent(v.id),{cache:'no-store'});if(sr.status===401||sr.status===403){location.href='/account?next='+encodeURIComponent('/market?cart=1');return}let sd=await sr.json().catch(()=>({}));if(!sr.ok)throw Error(sd.error||'تعذر التحقق من الحساب');if(sd.participant){v={...v,...sd.participant,verified:true};NawaderVisitor.set(v)}msg.textContent='جارٍ تسجيل الطلبات...';for(const x of a){let r=await fetch('/api/market/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itemId:x.id,action:'buy',name:v.name,phone:v.phone,quantity:Number(x.quantity||1),participantId:v.id}),cache:'no-store'}),d=await r.json().catch(()=>({}));if(r.status===401||(r.status===403&&String(d.error||'').includes('جلسة'))){location.href='/account?next='+encodeURIComponent('/market?cart=1');return}if(!r.ok)throw Error(d.error||'تعذر تسجيل أحد الطلبات')}NawaderVisitor.clear();msg.textContent='✅ تم تسجيل الطلب بنجاح. يمكنك متابعته من «حسابي».';msg.className='ok';setTimeout(load,300)}catch(e){msg.textContent='⚠️ '+e.message;msg.className='err'}}
+async function checkoutCart(){
+  let v=NawaderVisitor.get(),a=NawaderVisitor.cart(),msg=document.getElementById('visitorCartMsg');
+  if(!v?.id||!v?.verified){location.href='/account?next='+encodeURIComponent('/market?cart=1');return}
+  if(!a.length){msg.textContent='السلة فارغة.';return}
+  try{
+    msg.textContent='جارٍ التحقق من الكمية والحساب...';msg.className='';
+    const [sr,mr]=await Promise.all([
+      fetch('/api/participant/status?id='+encodeURIComponent(v.id),{cache:'no-store'}),
+      fetch('/api/public/market',{cache:'no-store'})
+    ]);
+    if(sr.status===401||sr.status===403){location.href='/account?next='+encodeURIComponent('/market?cart=1');return}
+    let sd=await sr.json().catch(()=>({})),md=await mr.json().catch(()=>({}));
+    if(!sr.ok)throw Error(sd.error||'تعذر التحقق من الحساب');
+    if(!mr.ok)throw Error(md.error||'تعذر التحقق من الكمية');
+    if(sd.participant){v={...v,...sd.participant,verified:true};NawaderVisitor.set(v)}
+    const live=new Map((md.items||[]).map(i=>[String(i.id),i]));
+    for(const x of a){
+      const item=live.get(String(x.id)),needed=Number(x.quantity||1),available=Number(item?.availableQuantity||0);
+      if(!item||available<needed){
+        const title=x.title||'أحد المقتنيات';
+        const reason=item?.availabilityStatus==='reserved'?'محجوز حاليًا في طلب قائم':'غير متاح حاليًا';
+        throw Error(`«${title}» ${reason}. أزله من السلة ثم تابع الطلب الموجود من «حسابي».`);
+      }
+    }
+    msg.textContent='جارٍ تسجيل الطلبات...';
+    for(const x of a){
+      let r=await fetch('/api/market/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itemId:x.id,action:'buy',name:v.name,phone:v.phone,quantity:Number(x.quantity||1),participantId:v.id}),cache:'no-store'}),d=await r.json().catch(()=>({}));
+      if(r.status===401||(r.status===403&&String(d.error||'').includes('جلسة'))){location.href='/account?next='+encodeURIComponent('/market?cart=1');return}
+      if(!r.ok)throw Error(d.error||'تعذر تسجيل أحد الطلبات');
+    }
+    NawaderVisitor.clear();msg.textContent='✅ تم تسجيل الطلب بنجاح. يمكنك متابعته من «حسابي».';msg.className='ok';setTimeout(load,300);
+  }catch(e){msg.textContent='⚠️ '+e.message;msg.className='err'}
+}
 document.addEventListener('DOMContentLoaded',()=>{ensureCartPanel();document.getElementById('cartOpen')?.addEventListener('click',()=>{renderCart();document.getElementById('visitorCartPanel').hidden=false});let v=NawaderVisitor.get();if(v){if($('buyerName'))$('buyerName').value=v.name||'';if($('buyerPhone'))$('buyerPhone').value=v.phone||''}let qs=new URLSearchParams(location.search);if(qs.get('cart')==='1'){renderCart();document.getElementById('visitorCartPanel').hidden=false;history.replaceState({},'',location.pathname+location.hash)}});
 
 

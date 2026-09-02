@@ -1,3 +1,74 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>بوابة البائع | نوادر العملات</title><link rel="stylesheet" href="/visitor.css"><style>*{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial;background:#f4f6f8;color:#14243b}.hero{background:#071b35;color:white;padding:20px;border-bottom:4px solid #c89b3c}.top,.wrap{max-width:1000px;margin:auto}.top{display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap}.top h1{color:#e7c878;margin:0}.wrap{padding:22px 14px}.panel{background:#fff;border:1px solid #d9e0e8;border-radius:18px;padding:18px;margin-bottom:16px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}.card{border:1px solid #dde3ea;border-radius:14px;padding:14px}.status{font-weight:800;color:#8a642b}</style></head><body><header class="hero"><div class="top"><div><h1>بوابة البائع</h1><div data-account-name>زائر</div></div><nav class="visitor-nav"><a class="primary" href="/home">⌂ الرئيسية</a><a href="/account">👤 حسابي</a><a href="/notifications">🔔 الإشعارات</a><a id="liveStudioNav" href="/live-studio" hidden>🔴 استوديو البث</a></nav></div></header><main class="wrap"><section class="panel"><h2>صلاحياتي</h2><div id="perms">سجّل الدخول من حسابي أولًا.</div></section><section class="panel"><h2>مزاداتي المنتهية</h2><div id="ended" class="grid"></div></section><section class="panel"><h2>متابعة السوق والطلبات</h2><div id="market" class="grid"></div></section></main><script src="/visitor.js"></script><script>
-const $=x=>document.getElementById(x),esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));async function get(u){let r=await fetch(u,{cache:'no-store'}),d=await r.json();if(!r.ok)throw Error(d.error||'تعذر التحميل');return d}async function load(){let v=NawaderVisitor.get();if(!v?.verified)return;try{let p=(await get('/api/permissions/me?participantId='+encodeURIComponent(v.id))).permissions||{};$('perms').innerHTML=`${p.sellerEndedAuctions?'✅':'⛔'} المزادات المنتهية الخاصة بي &nbsp; ${p.sellerMarket?'✅':'⛔'} متابعة السوق &nbsp; ${p.liveBroadcast?'✅':'⛔'} البث المباشر &nbsp; ${p.marketSupervision?'✅':'⛔'} إشراف السوق`;if(document.getElementById('liveStudioNav'))document.getElementById('liveStudioNav').hidden=!p.liveBroadcast;if(p.sellerEndedAuctions){let d=await get('/api/seller/ended?participantId='+encodeURIComponent(v.id));$('ended').innerHTML=(d.items||[]).map(x=>`<div class="card"><b>${esc(x.country)} — ${esc(x.denomination)}</b><p>آخر سعر: ${Number(x.auctionCurrentPrice||0).toLocaleString('ar-SA')} ر.س</p><p class="status">منتهي</p></div>`).join('')||'لا توجد مزادات منتهية خاصة بك.'}else $('ended').textContent='لا توجد صلاحية لهذه الصفحة.';if(p.sellerMarket||p.marketSupervision){let d=await get('/api/seller/market?participantId='+encodeURIComponent(v.id));$('market').innerHTML=(d.requests||[]).map(x=>`<div class="card"><b>${esc(x.itemTitle)}</b><p>${esc(x.action==='offer'?'عرض تفاوض':'طلب شراء')}</p><p>الكمية: ${Number(x.quantity||1)}</p><p class="status">${esc(({completed:'مكتمل',rejected:'مرفوض',pending:'قيد الانتظار',approved:'مقبول',cancelled:'ملغي'}[x.status])||x.status||'قيد الانتظار')}</p></div>`).join('')||'لا توجد طلبات حالية.'}else $('market').textContent='لا توجد صلاحية لمتابعة السوق.'}catch(e){$('perms').textContent=e.message}}load();
-</script></body></html>
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#071b35">
+  <title>مركز البائع | نوادر العملات</title>
+  <link rel="stylesheet" href="/visitor.css">
+  <link rel="stylesheet" href="/seller_portal.css">
+</head>
+<body>
+  <header class="seller-head">
+    <a class="back-home" href="/account" aria-label="العودة إلى حسابي">‹</a>
+    <div class="seller-identity"><div id="sellerAvatar" class="seller-avatar">ن</div><div><div class="eyebrow">مركز البائع</div><h1 id="sellerName">نوادر العملات</h1><div id="sellerCountry" class="seller-country"></div></div></div>
+    <a class="head-action" href="/notifications" aria-label="الإشعارات">🔔 <b data-notification-count>0</b></a>
+  </header>
+  <main class="seller-main">
+    <section id="loginGate" class="empty-state" hidden><span>🔐</span><h2>سجّل الدخول أولًا</h2><p>مركز البائع مرتبط بحسابك الموثق ومقتنياتك فقط.</p><a href="/account">الانتقال إلى حسابي</a></section>
+    <div id="sellerApp" hidden>
+      <section class="view active" data-view="home">
+        <div class="section-heading"><div><span>نظرة سريعة</span><h2>لوحة المبيعات</h2></div><button class="refresh" type="button" data-refresh>تحديث</button></div>
+        <div class="metrics">
+          <article class="metric gold"><span>إجمالي المبيعات المسددة</span><strong id="paidGross">0 ر.س</strong><small>قبل خصم عمولة البائع</small></article>
+          <article class="metric navy"><span>صافي المستحقات التقديري</span><strong id="sellerNet">0 ر.س</strong><small>بعد عمولة البائع 2.5٪</small></article>
+          <article class="metric"><span>الطلبات النشطة</span><strong id="openOrders">0</strong><small id="pendingPayments">0 بانتظار السداد</small></article>
+          <article class="metric"><span>جاهز للشحن</span><strong id="readyToShip">0</strong><small id="shippedCount">0 تم شحنها</small></article>
+        </div>
+        <div class="split-grid">
+          <section class="surface"><div class="surface-title"><h3>المقتنيات</h3><button data-go="inventory">عرض الكل</button></div><div class="three-stats"><div><b id="inventoryCount">0</b><span>مقتنى</span></div><div><b id="marketActive">0</b><span>في السوق</span></div><div><b id="auctionActive">0</b><span>في المزاد</span></div></div></section>
+          <section class="surface"><div class="surface-title"><h3>التنبيهات التشغيلية</h3><button data-go="orders">الطلبات</button></div><div id="operationAlerts" class="alert-list"></div></section>
+        </div>
+        <section class="surface"><div class="surface-title"><h3>أحدث الطلبات</h3><button data-go="orders">عرض الكل</button></div><div id="recentOrders" class="cards-list"></div></section>
+      </section>
+      <section class="view" data-view="orders">
+        <div class="section-heading"><div><span>المبيعات</span><h2>الطلبات</h2></div><b id="ordersTotal" class="count-pill">0</b></div>
+        <label class="search-box">⌕<input id="orderSearch" type="search" placeholder="ابحث برقم الطلب أو المقتنى"></label>
+        <div class="filter-row" id="orderFilters"><button class="active" data-filter="all">الكل</button><button data-filter="awaiting_payment">بانتظار السداد</button><button data-filter="work">قيد التنفيذ</button><button data-filter="completed">مكتمل</button></div>
+        <div id="ordersList" class="cards-list"></div>
+      </section>
+      <section class="view" data-view="shipments">
+        <div class="section-heading"><div><span>التجهيز والتسليم</span><h2>الشحنات</h2></div><b id="shipmentsTotal" class="count-pill">0</b></div>
+        <div class="filter-row" id="shipmentFilters"><button class="active" data-filter="all">الكل</button><button data-filter="preparing">قيد التجهيز</button><button data-filter="ready_to_ship">جاهز للشحن</button><button data-filter="shipped">تم الشحن</button><button data-filter="completed">مكتمل</button></div>
+        <div id="shipmentsList" class="cards-list"></div>
+      </section>
+      <section class="view" data-view="finance">
+        <div class="section-heading"><div><span>السجل المالي</span><h2>المستحقات والتسويات</h2></div></div>
+        <div class="finance-note">تُعرض المستحقات كسجل محاسبي مرتبط بالطلبات. لا توجد محفظة أو عملية سحب آلي في هذه المرحلة.</div>
+        <div class="metrics compact"><article class="metric navy"><span>الصافي التقديري</span><strong id="financeNet">0 ر.س</strong></article><article class="metric"><span>طلبات مسددة</span><strong id="paidOrdersCount">0</strong></article></div>
+        <div id="financeList" class="cards-list"></div>
+      </section>
+      <section class="view" data-view="inventory">
+        <div class="section-heading"><div><span>إدارة العرض</span><h2>مقتنياتي</h2></div><a class="primary-link" href="/account#submissionPanel">إضافة مقتنى</a></div>
+        <div class="filter-row" id="inventoryFilters"><button class="active" data-filter="all">الكل</button><button data-filter="market">السوق</button><button data-filter="auction">المزاد</button><button data-filter="stored">غير معروض</button></div>
+        <div id="inventoryList" class="inventory-grid"></div>
+      </section>
+      <section class="view" data-view="more">
+        <div class="section-heading"><div><span>الخدمات</span><h2>المزيد</h2></div></div>
+        <div class="more-grid">
+          <button data-go="inventory"><span>◈</span><b>مقتنياتي</b><small>السوق والمزاد والمستودع</small></button>
+          <a href="/notifications"><span>🔔</span><b>الإشعارات</b><small>السوق والمزاد والطلبات</small></a>
+          <a id="liveStudioLink" href="/live-studio" hidden><span>●</span><b>البث المباشر</b><small>فتح استوديو الكاميرا</small></a>
+          <a href="/account#shippingPanel"><span>⌖</span><b>العناوين</b><small>عنوان التسليم والتتبع</small></a>
+          <a href="/account"><span>⚙</span><b>إعدادات الحساب</b><small>الهوية العامة وبيانات الحساب</small></a>
+          <a href="/home"><span>⌂</span><b>واجهة المنصة</b><small>العودة إلى السوق العام</small></a>
+        </div>
+      </section>
+    </div>
+  </main>
+  <nav id="sellerNav" class="seller-bottom" hidden aria-label="تنقل مركز البائع">
+    <button class="active" data-go="home"><span>⌂</span>الرئيسية</button><button data-go="orders"><span>▤</span>الطلبات<b id="ordersBadge" hidden>0</b></button><button data-go="shipments"><span>▣</span>الشحنات<b id="shippingBadge" hidden>0</b></button><button data-go="finance"><span>◫</span>المستحقات</button><button data-go="more"><span>☰</span>المزيد</button>
+  </nav>
+  <dialog id="shippingDialog"><form method="dialog" id="shippingForm"><button class="dialog-close" value="cancel" aria-label="إغلاق">×</button><h2>تحديث الشحنة</h2><p id="shippingOrderName"></p><label>شركة الشحن<input id="shippingCompany" maxlength="120" required></label><label>رقم التتبع أو مرجع الشحنة<input id="trackingNumber" maxlength="120"></label><div class="dialog-actions"><button value="cancel">إلغاء</button><button id="saveShipping" type="button">حفظ وتحديث الحالة</button></div></form></dialog>
+  <script src="/visitor.js"></script><script src="/seller_portal.js"></script>
+</body></html>
