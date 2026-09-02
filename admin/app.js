@@ -2307,6 +2307,7 @@ editingItemId = "";
   updateAuctionUI();
   updateMarketUI();
   updateInventoryQuantity();
+  if(typeof syncDisplayMode==="function")syncDisplayMode("none");
 }
 if ($("reset"))
   $("reset").addEventListener("click", (e) => {
@@ -4369,6 +4370,75 @@ else {
   enforceMarketRequestImageSize();
 }
 window.addEventListener("resize", enforceMarketRequestImageSize);
+
+// V5.5.0 — صفحة مقتنى مختصرة مع الحفاظ الكامل على أسماء الحقول القديمة.
+function selectedDisplayMode(){
+  return document.querySelector('input[name="displayMode"]:checked')?.value || "none";
+}
+function syncDisplayMode(mode){
+  mode=mode||"none";
+  const radio=document.querySelector(`input[name="displayMode"][value="${mode}"]`);
+  if(radio)radio.checked=true;
+  const market=mode==="market",auction=mode==="auction";
+  if($("forMarket"))$("forMarket").checked=market;
+  if($("forAuction"))$("forAuction").checked=auction;
+  document.querySelector('[data-display-panel="market"]')?.toggleAttribute("hidden",!market);
+  document.querySelector('[data-display-panel="auction"]')?.toggleAttribute("hidden",!auction);
+  updateMarketUI();
+  updateAuctionUI();
+}
+function makeCompactSection(nodes,title,id){
+  const valid=nodes.filter(Boolean);
+  if(!valid.length||$(id))return null;
+  const details=document.createElement("details");
+  details.id=id;details.className="wide compact-form-section";
+  const summary=document.createElement("summary");summary.textContent=title;
+  const body=document.createElement("div");body.className="compact-form-section-body";
+  valid[0].parentNode.insertBefore(details,valid[0]);
+  details.append(summary,body);valid.forEach(node=>body.appendChild(node));
+  return details;
+}
+function setupCompactItemForm(){
+  const form=$("form");
+  if(!form||form.dataset.compactReady)return;
+  form.dataset.compactReady="1";
+  const photo=form.querySelector(".mobile-photo-section"),grading=form.querySelector(".grading-box");
+  if(photo&&grading)form.insertBefore(photo,grading);
+  if(grading){
+    const details=makeCompactSection([grading],"🏅 التقييم والتغليف الاحترافي","gradingDetails");
+    if(details)grading.classList.remove("wide");
+  }
+  const specialToggle=$("specialNumberEnabled")?.closest("label");
+  makeCompactSection([specialToggle?.previousElementSibling,specialToggle,$("specialNumberFields")],"✦ الأرقام المميزة والأخطاء النادرة","specialDetails");
+  const fantasiaToggle=$("fantasiaEnabled")?.closest("label");
+  makeCompactSection([fantasiaToggle?.previousElementSibling,fantasiaToggle,$("fantasiaFields")],"🎭 فنتازيا","fantasiaDetails");
+  const transitionalToggle=$("transitionalIssueEnabled")?.closest("label");
+  makeCompactSection([transitionalToggle?.previousElementSibling,transitionalToggle,$("transitionalIssueFields")],"⇄ الإصدار الانتقالي","transitionalDetails");
+  makeCompactSection([$("soldQuantity")?.closest("label"),$("damagedQuantity")?.closest("label")],"حركة الكمية: المباع والتالف أو المفقود","inventoryHistoryDetails");
+  form.querySelector(":scope > .actions")?.classList.add("form-save-bar");
+  document.querySelectorAll('input[name="displayMode"]').forEach(radio=>radio.addEventListener("change",()=>syncDisplayMode(radio.value)));
+  syncDisplayMode("none");
+}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",setupCompactItemForm);else setupCompactItemForm();
+
+function syncCompactFormAfterLoad(){
+  const mode=$("forMarket")?.checked?"market":$("forAuction")?.checked?"auction":"none";
+  syncDisplayMode(mode);
+  if($("gradingDetails"))$("gradingDetails").open=!!$("isGraded")?.checked;
+  if($("specialDetails"))$("specialDetails").open=!!$("specialNumberEnabled")?.checked;
+  if($("fantasiaDetails"))$("fantasiaDetails").open=!!$("fantasiaEnabled")?.checked;
+  if($("transitionalDetails"))$("transitionalDetails").open=!!$("transitionalIssueEnabled")?.checked;
+}
+
+const editItemBeforeCompact=window.editItem;
+window.editItem=async function(id){
+  await editItemBeforeCompact(id);
+  syncCompactFormAfterLoad();
+};
+document.addEventListener("change",event=>{
+  if(event.target?.id==="forMarket"&&event.target.checked)syncDisplayMode("market");
+  if(event.target?.id==="forAuction"&&event.target.checked)syncDisplayMode("auction");
+});
 
 
 // V4.2.4 — مساعدة صغيرة للأقسام المطوية بدون تغيير منطق الحفظ
