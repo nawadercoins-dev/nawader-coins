@@ -31,6 +31,7 @@ OPERATIONS_LOG=os.path.join(DATA_ROOT,'operations_log.json')
 ORDERS=os.path.join(DATA_ROOT,'orders_shipping.json')
 COLLECTIBLE_SUBMISSIONS=os.path.join(DATA_ROOT,'collectible_submissions.json')
 LIVE_AUCTIONS=os.path.join(DATA_ROOT,'live_auctions.json')
+WHATSAPP_VERIFICATION_REQUESTS=os.path.join(DATA_ROOT,'whatsapp_verification_requests.json')
 LIVEKIT_URL=str(os.environ.get('LIVEKIT_URL') or '').strip()
 LIVEKIT_API_KEY=str(os.environ.get('LIVEKIT_API_KEY') or '').strip()
 LIVEKIT_API_SECRET=str(os.environ.get('LIVEKIT_API_SECRET') or '').strip()
@@ -50,7 +51,7 @@ os.makedirs(UPLOAD_DIR,exist_ok=True)
 
 # تهيئة القرص في أول تشغيل فقط من الملفات المرفقة مع المشروع، دون استبدال أي بيانات دائمة.
 if DATA_ROOT != ROOT:
-    for _dst in (DATA,PEOPLE,BIDS,NEGOTIATIONS,MARKET_REQUESTS,SUBSCRIPTIONS,SAVE_AUDIT,SETTINGS,NOTIFICATIONS,AUCTION_DUES,USER_PERMISSIONS,OPERATIONS_LOG,ORDERS,COLLECTIBLE_SUBMISSIONS,AUTH_FILE):
+    for _dst in (DATA,PEOPLE,BIDS,NEGOTIATIONS,MARKET_REQUESTS,SUBSCRIPTIONS,SAVE_AUDIT,SETTINGS,NOTIFICATIONS,AUCTION_DUES,USER_PERMISSIONS,OPERATIONS_LOG,ORDERS,COLLECTIBLE_SUBMISSIONS,LIVE_AUCTIONS,WHATSAPP_VERIFICATION_REQUESTS,AUTH_FILE):
         _src=os.path.join(ROOT,os.path.basename(_dst))
         if not os.path.exists(_dst) and os.path.isfile(_src):
             shutil.copy2(_src,_dst)
@@ -140,6 +141,21 @@ def add_notification(recipient_type, recipient_id, category, title, message, ite
     rows=load_notifications()
     row={'id':'nt-'+secrets.token_hex(6),'recipientType':recipient_type,'recipientId':str(recipient_id or ''),'category':category,'title':title,'message':message,'itemId':str(item_id or ''),'actionUrl':action_url,'read':False,'created':datetime.datetime.now().isoformat()}
     rows.append(row); rows=rows[-4000:]; save_json(NOTIFICATIONS,{'notifications':rows}); return row
+
+def sync_whatsapp_verification_request(person, request_id, request_code, expires):
+    """Keep the admin request queue and notification in sync, including reused pending requests."""
+    data=load_json(WHATSAPP_VERIFICATION_REQUESTS,{'requests':[]})
+    rows=data.get('requests',[]) if isinstance(data,dict) else []
+    row=next((x for x in rows if str(x.get('id') or '')==str(request_id)),None)
+    values={'id':str(request_id),'participantId':str(person.get('id') or ''),'name':str(person.get('name') or ''),'phone':str(person.get('phone') or ''),'code':str(request_code),'status':'pending','expires':str(expires)}
+    if row is None:
+        values['created']=datetime.datetime.now().isoformat(); rows.append(values)
+    else:
+        row.update(values)
+    save_json(WHATSAPP_VERIFICATION_REQUESTS,{'requests':rows[-2000:]})
+    already=any(x.get('recipientType')=='admin' and x.get('category')=='approval' and str(request_code) in str(x.get('message') or '') for x in load_notifications())
+    if not already:
+        add_notification('admin','admin','approval','طلب توثيق حساب عبر واتساب',f"{person.get('name','')} — {person.get('phone','')} — {request_code}",person.get('id'),'/admin')
 
 APPROVAL_STATUSES=('new','final','suspended','stopped','cancelled')
 APPROVAL_LABELS={'new':'طلب جديد','final':'توثيق كامل','suspended':'معلّق','stopped':'موقوف','cancelled':'ملغى'}
@@ -380,8 +396,25 @@ def make_free_live_item(row, lot):
           'notes':str((lot or {}).get('notes') or 'أُنشئ السجل من مزاد كاميرا مباشر بعد اعتماد البيع.').strip()[:1000],
           'ownerParticipantId':str(row.get('broadcasterParticipantId') or ''),'ownerName':str(row.get('broadcasterName') or 'الإدارة'),
           'forMarket':False,'forAuction':False,'archived':False,'sourceChannel':'live_camera','sourceLiveSessionId':str(row.get('id') or ''),
+          'liveAuctionRecord':True,'inventoryVisible':False,'recordLifecycle':'sold','quantity':1,'availableQuantity':0,
           'created':now_iso,'updated':int(time.time()*1000)}
     items.append(item); save(items); return item
+
+def reconcile_live_auction_inventory_visibility():
+    """Hide legacy camera-sale source records while preserving orders and invoices."""
+    items=load(); sessions=load_live_auctions(); sold_ids=set()
+    for session in sessions:
+        for hist in session.get('history') or []:
+            if hist.get('sold') and hist.get('itemId'): sold_ids.add(str(hist.get('itemId')))
+    changed=False
+    for item in items:
+        item_id=str(item.get('id') or '')
+        if item.get('sourceChannel')=='live_camera' and (item.get('auctionSold') or item_id in sold_ids):
+            expected={'liveAuctionRecord':True,'inventoryVisible':False,'recordLifecycle':'sold','availableQuantity':0}
+            for key,value in expected.items():
+                if item.get(key)!=value: item[key]=value; changed=True
+    if changed: save(items)
+    return items
 
 def item_title(i):
     return str(i.get('marketTitle') or ((i.get('country') or '')+' — '+(i.get('denomination') or ''))).strip(' —') or 'مقتنى'
@@ -494,7 +527,7 @@ def inventory_snapshot(item,orders=None):
     return {'itemId':str(item.get('id') or ''),'total':total,'current':current,'warehouse':warehouse,'market':market,'auction':auction,'reserved':reserved,'sold':sold,'returned':returned,'damaged':damaged,'special':special,'unitType':str(item.get('inventoryUnitType') or 'piece'),'unitCount':inventory_unit_count(item),'piecesPerUnit':inventory_pieces_per_unit(item)}
 
 def inventory_summary():
-    items=load(); orders=load_orders(); rows=[]
+    items=[i for i in reconcile_live_auction_inventory_visibility() if i.get('inventoryVisible') is not False]; orders=load_orders(); rows=[]
     totals={k:0 for k in ('total','current','warehouse','market','auction','reserved','sold','returned','damaged','special')}
     for item in items:
         snap=inventory_snapshot(item,orders); rows.append({**snap,'country':item.get('country',''),'denomination':item.get('denomination',''),'year':item.get('year',''),'frontImg':item.get('frontImg',''),'backImg':item.get('backImg',''),'location':storage_location(item),'specialNumberEnabled':bool(item.get('specialNumberEnabled')),'inventoryClassification':item.get('inventoryClassification') or ('set' if item.get('isSet') else ('graded' if item.get('isGraded') else 'ungraded')),'sourceSubmissionId':item.get('sourceSubmissionId','')})
@@ -1826,7 +1859,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/items':
             with LOCK:
                 ensure_auction_outcomes()
-                self.sendj({'items':load()}); return
+                self.sendj({'items':reconcile_live_auction_inventory_visibility()}); return
         if p=='/api/participants':
             with LOCK:
                 people=load_people(); rows=[participant_public(x) for x in people]; active=[x for x in rows if x['approvalStatus']!='cancelled']; archived=[x for x in rows if x['approvalStatus']=='cancelled']
@@ -2126,7 +2159,8 @@ class H(SimpleHTTPRequestHandler):
         self.send_error(404,'Not found'); return
     def _close_live_item(self,row,sold=False):
         closed_item=str(row.get('currentItemId') or ''); lot=row.get('currentLot') if isinstance(row.get('currentLot'),dict) else None; winner_id=str(row.get('latestBidderId') or '')
-        hist={'itemId':closed_item or str((lot or {}).get('id') or ''),'lot':dict(lot) if lot else None,'price':float(row.get('currentPrice') or 0),'bidderName':row.get('latestBidderName') or '','participantId':winner_id,'sold':bool(sold),'closedAt':datetime.datetime.now().isoformat()}
+        sold=bool(sold and winner_id and (closed_item or lot)); source_type='camera' if lot else 'prepared'
+        hist={'itemId':closed_item or str((lot or {}).get('id') or ''),'lot':dict(lot) if lot else None,'price':float(row.get('currentPrice') or 0),'bidderName':row.get('latestBidderName') or '','participantId':winner_id,'sold':sold,'resultStatus':'sold' if sold else 'unsold','resultLabel':'تم البيع' if sold else 'انتهى دون بيع','sourceType':source_type,'closedAt':datetime.datetime.now().isoformat()}
         if sold and winner_id and (closed_item or lot):
             if closed_item: item=next((i for i in load() if str(i.get('id'))==closed_item),{})
             else:
@@ -2134,13 +2168,14 @@ class H(SimpleHTTPRequestHandler):
             person=next((x for x in load_people() if str(x.get('id'))==winner_id),{})
             due={'id':'live-due-'+secrets.token_hex(5),'itemId':closed_item,'itemTitle':item_title(item),'participantId':winner_id,'amount':float(row.get('currentPrice') or 0),'auctionRound':1}
             order=order_from_auction(due,item,person); order['source']='live_auction'; order['sourceId']=row.get('id'); order['history'][0]['note']='تم إنشاء الطلب تلقائيًا من فوز المزاد المباشر بالكاميرا' if lot else 'تم إنشاء الطلب تلقائيًا من فوز المزاد المباشر'
-            orders=load_orders(); orders.append(order); save_json(ORDERS,{'orders':orders}); hist['orderId']=order['id']
+            orders=load_orders(); orders.append(order); save_json(ORDERS,{'orders':orders}); hist['orderId']=order['id']; hist['orderNumber']=order.get('orderNumber') or order['id']
             # ثبّت نتيجة المزاد على سجل المقتنى حتى يظهر البيع في الإدارة والسلة ولا تضيع النتيجة بعد إعادة التشغيل.
             items=load(); stored=next((i for i in items if str(i.get('id'))==closed_item),None)
             if stored:
                 stored['auctionOutcome']='sold'; stored['auctionSold']=True; stored['auctionWinnerParticipantId']=winner_id
                 stored['auctionWinningAmount']=float(row.get('currentPrice') or 0); stored['auctionOrderId']=order['id']
-                stored['auctionOutcomeAt']=datetime.datetime.now().isoformat(); stored['updated']=int(time.time()*1000)
+                stored['auctionOutcomeAt']=datetime.datetime.now().isoformat(); stored['liveAuctionRecord']=True; stored['inventoryVisible']=False
+                stored['recordLifecycle']='sold'; stored['sourceLiveSessionId']=str(row.get('id') or ''); stored['availableQuantity']=0; stored['updated']=int(time.time()*1000)
                 save(items)
             add_notification('participant',winner_id,'orders','🏆 فوز في المزاد المباشر',f"تم إنشاء طلب بقيمة {float(row.get('currentPrice') or 0):g} ر.س للمقتنى {item_title(item)}.",closed_item,'/account')
             add_notification('admin','','auction','🏆 تم إرساء مزاد مباشر',f"فاز {person.get('name') or 'مشارك'} بالمقتنى {item_title(item)} بقيمة {float(row.get('currentPrice') or 0):g} ر.س وتم إنشاء طلب المبيعات تلقائيًا.",closed_item,'/admin')
@@ -2237,6 +2272,8 @@ class H(SimpleHTTPRequestHandler):
             if not live_session_owned_by(row,person): self.sendj({'error':'الجلسة غير موجودة أو لا تملكها'},404); return
             action=str(d.get('action') or '')
             if action in ('start','end'):
+                if action=='end' and (row.get('currentItemId') or row.get('currentLot')):
+                    self._close_live_item(row,sold=bool(row.get('latestBidderId')))
                 row['status']='live' if action=='start' else 'ended'
                 row['startedAt']=row.get('startedAt') or (datetime.datetime.now().isoformat() if action=='start' else '')
                 if action=='end': row['endedAt']=datetime.datetime.now().isoformat(); row['archivedAt']=row['endedAt']
@@ -2290,6 +2327,8 @@ class H(SimpleHTTPRequestHandler):
             if action=='delete':
                 sessions=[x for x in sessions if str(x.get('id'))!=sid]; save_json(LIVE_AUCTIONS,{'sessions':sessions}); self.sendj({'ok':True}); return
             if action in ('start','end','cancel'):
+                if action=='end' and (row.get('currentItemId') or row.get('currentLot')):
+                    self._close_live_item(row,sold=bool(row.get('latestBidderId')))
                 row['status']={'start':'live','end':'ended','cancel':'cancelled'}[action]
                 if action=='start': row['startedAt']=row.get('startedAt') or datetime.datetime.now().isoformat()
                 if action in ('end','cancel'): row['endedAt']=datetime.datetime.now().isoformat(); row['archivedAt']=row['endedAt']
@@ -3304,7 +3343,7 @@ class H(SimpleHTTPRequestHandler):
                 whatsapp_url='https://wa.me/'+wa+'?text='+quote(message,safe='')
                 if not pending_req:
                     append_operation('إنشاء طلب توثيق واتساب',{'participantId':person.get('id'),'requestId':request_id,'requestCode':request_code,'phone':person.get('phone')},actor='العميل')
-                    add_notification('admin','admin','approval','طلب توثيق حساب عبر واتساب',f"{person.get('name','')} — {person.get('phone','')} — {request_code}",person.get('id'),'/admin')
+                sync_whatsapp_verification_request(person,request_id,request_code,expires)
                 self.sendj({'ok':True,'pending':True,'requestId':request_id,'requestToken':request_token,'requestCode':request_code,'expires':expires,'whatsappUrl':whatsapp_url,'whatsappNumber':wa,'message':'تم إنشاء طلب التوثيق. افتح واتساب وأرسل الرسالة الجاهزة ثم انتظر اعتماد الإدارة.'}); return
 
             if p=='/api/participant/profile':
@@ -3689,7 +3728,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.3.0-LIVE-CAMERA-WEBRTC'
+VERSION='5.5.1-LIVE-AUCTION-LIFECYCLE'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
