@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#071b35" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="/admin/styles.css?v=5.5.1" />
-    <title>نوادر العملات — الإدارة V5.5.1</title>
+    <title>دار المقتنيات — الإدارة V5.6.1</title>
   </head>
   <body>
     <header>
@@ -354,6 +354,26 @@
               تم فصل الدولة والفئة والإصدار والسنة لسهولة البحث والتصنيف.
             </p>
           </div>
+          <label class="wide dar-store-selector">المتجر داخل دار المقتنيات
+            <select id="storeType">
+              <option value="coins">🪙 نوادر العملات — العملات الأصلية والرسمية</option>
+              <option value="collectibles">🏺 نوادر المقتنيات — الفنتازيا والتحف وبقية المقتنيات</option>
+            </select>
+            <small class="muted">هذا الاختيار يفصل الواجهتين فقط؛ الحسابات والسوق والمزاد والطلبات والإدارة تبقى على نفس النظام.</small>
+          </label>
+          <label class="wide" id="collectibleCategoryWrap" hidden>تصنيف نوادر المقتنيات
+            <select id="collectibleCategory">
+              <option value="">اختر التصنيف</option>
+              <option value="fantasia">فنتازيا</option>
+              <option value="antiques">تحف</option>
+              <option value="prayer-beads">سبح ومسابح</option>
+              <option value="vehicles-models">سيارات ومجسمات</option>
+              <option value="aviation-marine">طائرات وسفن وقطارات</option>
+              <option value="jewelry-stones">خواتم وأحجار كريمة</option>
+              <option value="games">ألعاب ومقتنيات</option>
+              <option value="other">أخرى</option>
+            </select>
+          </label>
           <div class="wide owner-top-box">
             <h3>بيانات المالك / البائع</h3>
             <div class="owner-top-grid">
@@ -1792,6 +1812,6 @@
       <div id="quickResults"></div>
       <div id="recent"></div>
     </div>
-    <script src="/admin/app.js?v=5.5.1"></script>
+    <script src="/admin/app.js?v=5.6.1"></script>
   </body>
 </html>
