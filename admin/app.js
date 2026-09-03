@@ -191,7 +191,7 @@ async function setAdminStoreFilter(store){
   try{localStorage.setItem('nawaderAdminStoreFilter',store)}catch{}
   syncAdminStoreSwitchers(); await rerenderActiveStoreView();
 }
-document.addEventListener('click',e=>{const b=e.target.closest?.('[data-admin-store]');if(!b)return;e.preventDefault();setAdminStoreFilter(b.dataset.adminStore).catch(err=>console.warn(err))});
+document.addEventListener('click',e=>{const b=e.target.closest?.('[data-admin-store-switcher] button[data-admin-store]');if(!b)return;e.preventDefault();setAdminStoreFilter(b.dataset.adminStore).catch(err=>console.warn(err))});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installAdminStoreSwitchers);else installAdminStoreSwitchers();
 function itemStoreQuery(i){return '?store='+itemStoreKey(i);}
 function adminItemLocation(i) {
@@ -964,7 +964,7 @@ async function refresh(force = false) {
     latestItems = allRows.slice();
     updateStorageCatalogFromItems(allRows);
     let a = filterAdminItems(allRows);
-    if (document.getElementById("add")?.classList.contains("active")) renderStorageSelectors();
+    if (document.getElementById("add")?.classList.contains("active")) renderStorageSelectors(storageSelectedValues());
     let token = dataToken(a);
     if (!force && token === lastDataToken) return;
     lastDataToken = token;
@@ -2203,9 +2203,6 @@ $("form").onsubmit = async (e) => {
       box: v("box"),
       album: v("album"),
       pocket: v("pocket"),
-      ownerName: v("ownerName"),
-      ownerPhone: v("ownerPhone"),
-      ownerCountry: v("ownerCountry") || "المملكة العربية السعودية",
       purchase: n("purchase"),
       shipping: n("shipping"),
       other: n("other"),
@@ -2303,7 +2300,6 @@ editingItemId = "";
   $("quantity").value = 1;
   $("soldQuantity").value = 0;
   if ($("damagedQuantity")) $("damagedQuantity").value = 0;
-  if ($("ownerCountry")) $("ownerCountry").value = "المملكة العربية السعودية";
   if ($("inventoryUnitType")) $("inventoryUnitType").value = "piece";
   if ($("inventoryUnitCount")) $("inventoryUnitCount").value = 1;
   if ($("piecesPerUnit")) $("piecesPerUnit").value = 1;
@@ -4488,8 +4484,8 @@ function setControlContainerHidden(id,hidden){const el=$(id);if(!el)return;const
 function setSelectOptions(el,opts,current=''){if(!el)return;const wanted=String(current??el.value??'');el.innerHTML=opts.map(([v,l])=>`<option value="${esc(v)}">${esc(l)}</option>`).join('');if([...el.options].some(o=>o.value===wanted))el.value=wanted;}
 function ensureCollectibleDetailsBox(){
   if($('collectibleDetailsBox'))return;
-  const owner=document.querySelector('.owner-top-box'); if(!owner)return;
-  owner.insertAdjacentHTML('afterend',`<div id="collectibleDetailsBox" class="wide collectible-details-box" hidden><h3>بيانات نوادر المقتنيات</h3><p class="muted">حقول عامة للتحف والسبح والمجسمات وبقية المقتنيات. تظهر بدل حقول العملات.</p><div class="collectible-details-grid"><label>العلامة / الصانع<input id="collectibleBrand" placeholder="اختياري"></label><label>الخامة / المادة<input id="collectibleMaterial" placeholder="مثال: فضة، نحاس، خشب، حجر"></label><label>الموديل / الطراز<input id="collectibleModel" placeholder="اختياري"></label><label>المقياس / المقاس<input id="collectibleScale" placeholder="مثال: 1:18 أو المقاس"></label></div></div>`);
+  const anchor=$('collectibleCategoryWrap') || $('storeType')?.closest('label'); if(!anchor)return;
+  anchor.insertAdjacentHTML('afterend',`<div id="collectibleDetailsBox" class="wide collectible-details-box" hidden><h3>بيانات نوادر المقتنيات</h3><p class="muted">حقول عامة للتحف والسبح والمجسمات وبقية المقتنيات. تظهر بدل حقول العملات.</p><div class="collectible-details-grid"><label>العلامة / الصانع<input id="collectibleBrand" placeholder="اختياري"></label><label>الخامة / المادة<input id="collectibleMaterial" placeholder="مثال: فضة، نحاس، خشب، حجر"></label><label>الموديل / الطراز<input id="collectibleModel" placeholder="اختياري"></label><label>المقياس / المقاس<input id="collectibleScale" placeholder="مثال: 1:18 أو المقاس"></label></div></div>`);
 }
 function syncDarStoreFields(){
   ensureCollectibleDetailsBox();

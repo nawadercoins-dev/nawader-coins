@@ -359,7 +359,7 @@
               <option value="coins">🪙 نوادر العملات — العملات الأصلية والرسمية</option>
               <option value="collectibles">🏺 نوادر المقتنيات — الفنتازيا والتحف وبقية المقتنيات</option>
             </select>
-            <small class="muted">هذا الاختيار يفصل الواجهتين فقط؛ الحسابات والسوق والمزاد والطلبات والإدارة تبقى على نفس النظام.</small>
+            <small class="muted">يحدد هذا الاختيار المتجر التابع له المقتنى، ويُستخدم للفصل في الواجهة والإدارة والمستودع والسوق والمزادات والأرشيف والطلبات والإحصاءات، مع بقاء الحساب والسلة والخدمات المشتركة موحدة.</small>
           </label>
           <label class="wide" id="collectibleCategoryWrap" hidden>تصنيف نوادر المقتنيات
             <select id="collectibleCategory">
@@ -374,41 +374,15 @@
               <option value="other">أخرى</option>
             </select>
           </label>
-          <div class="wide owner-top-box">
-            <h3>بيانات المالك / البائع</h3>
-            <div class="owner-top-grid">
-              <label
-                >اسم صاحب المقتنى / البائع<input
-                  id="ownerName"
-                  placeholder="اسم المالك أو البائع" /></label
-              ><label
-                >رقم جوال البائع<input
-                  id="ownerPhone"
-                  inputmode="tel"
-                  placeholder="05xxxxxxxx"
-              /></label>
-              <label
-                >دولة صاحب المقتنى / الشحن
-                <select id="ownerCountry">
-                  <option value="المملكة العربية السعودية" selected>🇸🇦 المملكة العربية السعودية</option>
-                  <option value="الإمارات العربية المتحدة">🇦🇪 الإمارات العربية المتحدة</option>
-                  <option value="الكويت">🇰🇼 الكويت</option>
-                  <option value="قطر">🇶🇦 قطر</option>
-                  <option value="البحرين">🇧🇭 البحرين</option>
-                  <option value="سلطنة عمان">🇴🇲 سلطنة عمان</option>
-                  <option value="مصر">🇪🇬 مصر</option>
-                  <option value="الأردن">🇯🇴 الأردن</option>
-                  <option value="لبنان">🇱🇧 لبنان</option>
-                  <option value="العراق">🇮🇶 العراق</option>
-                  <option value="اليمن">🇾🇪 اليمن</option>
-                  <option value="سوريا">🇸🇾 سوريا</option>
-                  <option value="ألمانيا">🇩🇪 ألمانيا</option>
-                  <option value="بريطانيا">🇬🇧 بريطانيا</option>
-                  <option value="الولايات المتحدة">🇺🇸 الولايات المتحدة</option>
-                </select>
-              </label>
+          <div id="collectibleDetailsBox" class="wide collectible-details-box" hidden>
+            <h3>بيانات نوادر المقتنيات</h3>
+            <p class="muted">حقول عامة للتحف والسبح والمجسمات وبقية المقتنيات. تظهر بدل حقول العملات.</p>
+            <div class="collectible-details-grid">
+              <label>العلامة / الصانع<input id="collectibleBrand" placeholder="اختياري"></label>
+              <label>الخامة / المادة<input id="collectibleMaterial" placeholder="مثال: فضة، نحاس، خشب، حجر"></label>
+              <label>الموديل / الطراز<input id="collectibleModel" placeholder="اختياري"></label>
+              <label>المقياس / المقاس<input id="collectibleScale" placeholder="مثال: 1:18 أو المقاس"></label>
             </div>
-            <small class="muted">هذه هي دولة صاحب المقتنى/مكان الشحن، وليست دولة العملة. لمقتنيات صاحب المنصة الافتراضي: المملكة العربية السعودية 🇸🇦.</small>
           </div>
           <label
             >الدولة<select id="country" required>
@@ -1812,6 +1786,6 @@
       <div id="quickResults"></div>
       <div id="recent"></div>
     </div>
-    <script src="/admin/app.js?v=5.6.2"></script>
+    <script src="/admin/app.js?v=5.6.2-r1"></script>
   </body>
 </html>
