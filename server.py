@@ -1943,7 +1943,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/public/fantasia':
             if not effective_visitor_sections()['fantasia']:
                 self.sendj({'items':[],'hidden':True,'launchMode':True}); return
-            rows=[public_special_item(i) for i in load() if i.get('fantasiaEnabled') and item_is_public(i)]
+            rows=[public_special_item(i) for i in load() if i.get('fantasiaEnabled') and item_is_public(i) and item_store_type(i)=='collectibles']
             for row in rows:
                 src=next((x for x in load() if str(x.get('id'))==str(row.get('id'))),{})
                 row['storeType']='collectibles'; row['fantasiaType']=src.get('fantasiaType') or 'other'; row['fantasiaIssuer']=src.get('fantasiaIssuer') or ''; row['fantasiaNotes']=src.get('fantasiaNotes') or ''
@@ -3918,7 +3918,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.2-DAR-MUQTANYAT-SEPARATED-OPERATIONS'
+VERSION='5.6.2-R2-COLLECTIBLES-ROUTING-FIX'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
