@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>فاتورة | نوادر العملات</title><link rel="stylesheet" href="/visitor.css">
+<title>فاتورة | دار المقتنيات</title><link rel="stylesheet" href="/visitor.css">
 <style>
 :root{--navy:#071b35;--gold:#c89b3c;--paper:#fff;--muted:#667085}
 *{box-sizing:border-box}body{margin:0;background:#eef2f6;font-family:Tahoma,"Segoe UI",Arial,sans-serif;color:#172033}
@@ -33,13 +33,14 @@ async function load(){
  try{
   let r=await fetch('/api/visitor/invoice?orderId='+encodeURIComponent(orderId)+'&participantId='+encodeURIComponent(participantId),{cache:'no-store'}),d=await r.json();
   if(!r.ok)throw Error(d.error||'تعذر تحميل الفاتورة');let x=d.invoice;
-  document.title='فاتورة '+x.invoiceNumber+' | نوادر العملات';
-  document.getElementById('invoice').innerHTML=`<div class="head"><div class="brand"><img src="/assets/nawader-logo.jpg" alt="نوادر العملات"><div><h1>نوادر العملات</h1><small>NAWADER COINS · دار المسكوكات والمقتنيات</small></div></div><div class="inv-title"><h2>فاتورة شراء</h2><div><b>${esc(x.invoiceNumber)}</b></div><div>التاريخ: ${date(x.created)}</div></div></div>
+  const storeLabel=x.storeLabel||x.sellerName||'دار المقتنيات', platformName=x.platformName||'دار المقتنيات';
+  document.title='فاتورة '+x.invoiceNumber+' | '+storeLabel;
+  document.getElementById('invoice').innerHTML=`<div class="head"><div class="brand"><img src="/assets/nawader-logo.jpg" alt="${esc(storeLabel)}"><div><h1>${esc(storeLabel)}</h1><small>${esc(platformName)} · منصة واحدة للمقتنيات النادرة</small></div></div><div class="inv-title"><h2>فاتورة شراء</h2><div><b>${esc(x.invoiceNumber)}</b></div><div>التاريخ: ${date(x.created)}</div></div></div>
   <div class="grid"><div class="box"><h3>بيانات العميل</h3><div><b>${esc(x.customerName||'—')}</b></div><div>الجوال: ${esc(x.customerPhone||'—')}</div></div><div class="box"><h3>بيانات الطلب</h3><div>رقم الطلب: <b>${esc(x.orderNumber||'—')}</b></div><div>المصدر: ${x.source==='auction'?'مزاد':'السوق العام'}</div><div>الحالة: ${esc(x.statusLabel||'—')}</div></div></div>
   <table><thead><tr><th>المقتنى</th><th>سعر الوحدة</th><th>الكمية</th><th>الإجمالي</th></tr></thead><tbody>${(x.items||[]).map(i=>`<tr><td><div class="item">${i.image?`<img src="${esc(i.image)}" alt="">`:''}<b>${esc(i.title)}</b></div></td><td>${money(i.unitPrice)}</td><td>${Number(i.quantity||1)}</td><td>${money(i.total)}</td></tr>`).join('')}</tbody></table>
   <div class="totals"><div><span>المجموع الفرعي</span><b>${money(x.subtotal)}</b></div>${Number(x.buyerFee)>0?`<div><span>الرسوم</span><b>${money(x.buyerFee)}</b></div>`:''}${Number(x.shippingFee)>0?`<div><span>الشحن</span><b>${money(x.shippingFee)}</b></div>`:''}<div class="grand"><span>الإجمالي</span><span>${money(x.total)}</span></div><div><span>المدفوع</span><b>${money(x.paid)}</b></div><div><span>المتبقي</span><b>${money(x.balance)}</b></div></div>
   <div class="paid">${Number(x.balance)<=0?'✓ الفاتورة مسددة':'⏳ يوجد مبلغ متبقٍ على الفاتورة'}</div>
-  <div class="verify">فاتورة إلكترونية صادرة من <b>نوادر العملات</b> — دار المسكوكات والمقتنيات<br>رمز التحقق: <b>${esc(x.verificationCode)}</b><br><small>يمكن طباعة هذه الصفحة على ورق A4 أو اختيار «حفظ كملف PDF» من نافذة الطباعة.</small></div>`;
+  <div class="verify">فاتورة إلكترونية صادرة من <b>${esc(storeLabel)}</b> ضمن <b>${esc(platformName)}</b><br>رمز التحقق: <b>${esc(x.verificationCode)}</b><br><small>يمكن طباعة هذه الصفحة على ورق A4 أو اختيار «حفظ كملف PDF» من نافذة الطباعة.</small></div>`;
  }catch(e){document.getElementById('invoice').innerHTML='<div class="loading">'+esc(e.message)+'</div>'}
 }
 load();
