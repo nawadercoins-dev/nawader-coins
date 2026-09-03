@@ -1,21 +1,107 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071b35">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#071b35">
 <title>دار المقتنيات</title>
 <style>
-:root{--navy:#06172d;--navy2:#0b315a;--gold:#c89b3c;--gold2:#ebcf83;--green:#0c3a2d;--paper:#fffdf8}*{box-sizing:border-box}body{margin:0;font-family:Tahoma,"Segoe UI",Arial,sans-serif;background:radial-gradient(circle at 50% -10%,#17395e 0,#071b35 34%,#030b15 100%);color:#fff;min-height:100vh}.wrap{max-width:1180px;margin:auto;padding:26px 18px 40px}.top{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:10px 0 22px}.brand{display:flex;align-items:center;gap:14px}.mark{width:58px;height:58px;border:1px solid var(--gold);border-radius:15px;display:grid;place-items:center;color:var(--gold2);font-size:28px;font-weight:900;background:#081d36}.brand h1{margin:0;color:var(--gold2);font-size:28px}.brand small{color:#c8d5e4}.topnav{display:flex;gap:9px;flex-wrap:wrap}.topnav a{color:#fff;text-decoration:none;border:1px solid #ffffff29;padding:9px 12px;border-radius:999px}.hero{text-align:center;border:1px solid #c89b3c88;border-radius:26px;padding:58px 22px 42px;background:linear-gradient(145deg,#061a31e8,#0b315ae8);box-shadow:0 24px 70px #0007}.eyebrow{color:var(--gold2);font-weight:900;letter-spacing:.08em}.hero h2{font-size:clamp(38px,7vw,72px);margin:12px 0;color:var(--gold2)}.hero p{max-width:760px;margin:0 auto;color:#d6e0ec;line-height:1.9;font-size:18px}.stores{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:24px}.store{position:relative;min-height:330px;border-radius:24px;border:1px solid var(--gold);padding:26px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;box-shadow:0 18px 45px #0005}.store::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 80% 20%,#d4ab4d22,transparent 36%);pointer-events:none}.coins{background:linear-gradient(145deg,#071b35,#0b315a)}.collectibles{background:linear-gradient(145deg,#08251f,#0c4a39)}.art{position:absolute;left:26px;top:28px;font-size:86px;filter:drop-shadow(0 10px 16px #0006)}.store h3{font-size:34px;margin:0 0 8px;color:var(--gold2)}.store p{color:#dbe5ee;line-height:1.8;max-width:560px;margin:0 0 18px}.tags{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:20px}.tags span{border:1px solid #ffffff2c;border-radius:999px;padding:6px 10px;background:#ffffff0e;font-size:12px}.enter{align-self:flex-start;text-decoration:none;background:linear-gradient(135deg,#b88627,#e3c16e);color:#10233b;padding:12px 22px;border-radius:11px;font-weight:900}.services{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:22px}.service{border:1px solid #ffffff1c;background:#071b35bb;padding:18px;border-radius:17px;text-align:center}.service b{display:block;color:var(--gold2);margin-bottom:6px}.service span{color:#c5d1df;font-size:13px;line-height:1.6}footer{text-align:center;color:#8fa2b8;margin-top:30px}.badge{display:inline-block;border:1px solid #c89b3c55;color:#e7c878;padding:7px 12px;border-radius:999px;margin-top:18px}@media(max-width:760px){.top{align-items:flex-start}.topnav{justify-content:flex-end}.stores{grid-template-columns:1fr}.store{min-height:300px}.art{font-size:68px}.services{grid-template-columns:1fr 1fr}.hero{padding:40px 14px 30px}.hero p{font-size:15px}}@media(max-width:430px){.brand small{display:none}.brand h1{font-size:22px}.mark{width:48px;height:48px}.services{grid-template-columns:1fr}.topnav a{font-size:12px;padding:8px}.store h3{font-size:28px}}
+:root{--navy:#06172d;--navy2:#0b315a;--gold:#c89b3c;--gold2:#ebcf83;--green:#0c3a2d}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Tahoma,"Segoe UI",Arial,sans-serif;background:radial-gradient(circle at 50% -8%,#17395e 0,#071b35 34%,#030b15 100%);color:#fff;min-height:100vh}
+.wrap{max-width:1180px;margin:auto;padding:18px 18px 38px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:5px 0 16px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand img{width:54px;height:54px;object-fit:cover;border-radius:50%;border:1px solid var(--gold2);background:#050505}
+.brand h1{margin:0;color:var(--gold2);font-size:24px}.brand small{display:block;color:#bccbdd;margin-top:3px}
+.topnav{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.topnav a{color:#fff;text-decoration:none;border:1px solid #ffffff2b;border-radius:999px;padding:9px 12px;font-size:13px}
+.topnav a:hover{background:#ffffff10}
+.hero{text-align:center;border:1px solid #c89b3c88;border-radius:28px;padding:30px 22px 34px;background:linear-gradient(145deg,#061a31e8,#0b315ae8);box-shadow:0 24px 70px #0007}
+.main-logo{display:block;width:min(310px,70vw);aspect-ratio:1;object-fit:cover;border-radius:50%;border:3px solid var(--gold2);box-shadow:0 18px 55px #0009;margin:0 auto 14px;background:#050505}
+.eyebrow{color:var(--gold2);font-weight:900;letter-spacing:.06em;font-size:13px}
+.hero h2{font-size:clamp(38px,7vw,68px);margin:7px 0;color:var(--gold2)}
+.hero p{max-width:800px;margin:0 auto;color:#d6e0ec;line-height:1.9;font-size:17px}
+.badge{display:inline-block;border:1px solid #c89b3c55;color:#e7c878;padding:8px 13px;border-radius:999px;margin-top:16px}
+.main-nav{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:22px auto 0}
+.main-nav a{color:#fff;text-decoration:none;border:1px solid #ffffff30;border-radius:999px;padding:10px 14px;background:#ffffff08}
+.main-nav a.active{background:linear-gradient(135deg,#b88627,#e3c16e);color:#10233b;border-color:#ebcf83;font-weight:900}
+.stores{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:24px}
+.store{position:relative;min-height:300px;border-radius:24px;border:1px solid var(--gold);padding:26px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;box-shadow:0 18px 45px #0005}
+.store:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 82% 14%,#d4ab4d25,transparent 38%);pointer-events:none}
+.coins{background:linear-gradient(145deg,#071b35,#0b315a)}.collectibles{background:linear-gradient(145deg,#08251f,#0c4a39)}
+.art{position:absolute;left:26px;top:24px;font-size:76px;filter:drop-shadow(0 10px 16px #0006)}
+.store h3{font-size:34px;margin:0 0 8px;color:var(--gold2);position:relative}
+.store p{color:#dbe5ee;line-height:1.8;max-width:580px;margin:0 0 16px;position:relative}
+.tags{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px;position:relative}
+.tags span{border:1px solid #ffffff2c;border-radius:999px;padding:6px 10px;background:#ffffff0e;font-size:12px}
+.enter{align-self:flex-start;text-decoration:none;background:linear-gradient(135deg,#b88627,#e3c16e);color:#10233b;padding:12px 22px;border-radius:11px;font-weight:900;position:relative}
+.services{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:22px}
+.service{border:1px solid #ffffff1c;background:#071b35bb;padding:18px;border-radius:17px;text-align:center}
+.service b{display:block;color:var(--gold2);margin-bottom:6px}.service span{color:#c5d1df;font-size:13px;line-height:1.6}
+footer{text-align:center;color:#8fa2b8;margin-top:30px}
+@media(max-width:760px){
+ .wrap{padding:12px 10px 28px}.top{align-items:flex-start}.brand small{display:none}.brand h1{font-size:20px}.brand img{width:46px;height:46px}.topnav a{font-size:12px;padding:8px 10px}
+ .hero{padding:24px 12px 28px}.main-logo{width:min(235px,66vw)}.hero p{font-size:15px}.main-nav a{font-size:13px;padding:9px 11px}
+ .stores{grid-template-columns:1fr}.store{min-height:285px}.art{font-size:64px}.services{grid-template-columns:1fr 1fr}
+}
+@media(max-width:430px){.top{display:block}.topnav{margin-top:11px;justify-content:center}.brand{justify-content:center}.services{grid-template-columns:1fr}.store h3{font-size:29px}}
 </style>
 </head>
 <body>
 <main class="wrap">
-<header class="top"><div class="brand"><div class="mark">د</div><div><h1>دار المقتنيات</h1><small>منصة واحدة لعالم المقتنيات النادرة</small></div></div><nav class="topnav"><a href="/account">حسابي</a><a href="/notifications">الإشعارات</a><a href="/announcements">الإعلانات</a></nav></header>
-<section class="hero"><span class="eyebrow">DAR AL MUQTANYAT</span><h2>دار المقتنيات</h2><p>المظلة الرئيسية التي تجمع الأسواق المتخصصة في نظام واحد. حساب واحد، إدارة واحدة، سلة وطلبات ومزادات مشتركة، مع فصل كامل بين العملات الأصلية وبقية المقتنيات.</p><span class="badge">اكتشف · اقتنِ · وامتلك ما هو نادر</span></section>
-<section class="stores">
-<article class="store coins"><div class="art">🪙</div><h3>نوادر العملات</h3><p>متجر متخصص للعملات الأصلية والرسمية والمسكوكات والأوراق النقدية، المقيمة وغير المقيمة، والأرقام المميزة والإصدارات الانتقالية.</p><div class="tags"><span>عملات ورقية</span><span>مسكوكات</span><span>تقييم</span><span>أرقام مميزة</span><span>إصدارات انتقالية</span></div><a class="enter" href="/coins">دخول نوادر العملات</a></article>
-<article class="store collectibles"><div class="art">🏺</div><h3>نوادر المقتنيات</h3><p>متجر مستقل للفنتازيا والتحف والسبح والمجسمات والسيارات والطائرات والسفن والخواتم والأحجار الكريمة والألعاب وغيرها.</p><div class="tags"><span>فنتازيا</span><span>تحف</span><span>سبح</span><span>مجسمات</span><span>أحجار وخواتم</span><span>ألعاب</span></div><a class="enter" href="/collectibles">دخول نوادر المقتنيات</a></article>
+<header class="top">
+  <div class="brand">
+    <img src="/assets/dar-al-muqtanyat-logo.webp" alt="">
+    <div><h1>دار المقتنيات</h1><small>منصة واحدة لعالم المقتنيات النادرة</small></div>
+  </div>
+  <nav class="topnav" aria-label="الخدمات">
+    <a href="/announcements">الإعلانات</a>
+    <a href="/notifications">الإشعارات</a>
+    <a href="/account">حسابي</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <img class="main-logo" src="/assets/dar-al-muqtanyat-logo.webp" alt="شعار دار المقتنيات">
+  <span class="eyebrow">DAR AL MUQTANYAT</span>
+  <h2>دار المقتنيات</h2>
+  <p>المظلة الرئيسية التي تجمع «نوادر العملات» و«نوادر المقتنيات» في نظام واحد، مع فصل واضح لكل متجر في العرض والتصنيفات والسوق والمزادات.</p>
+  <span class="badge">نوادر الماضي… قيمة المستقبل</span>
+  <nav class="main-nav" aria-label="متاجر دار المقتنيات">
+    <a class="active" href="/dar" aria-current="page">دار المقتنيات</a>
+    <a href="/coins">نوادر العملات</a>
+    <a href="/collectibles">نوادر المقتنيات</a>
+  </nav>
 </section>
-<section class="services"><div class="service"><b>🔐 حساب واحد</b><span>الدخول والهوية موحدان بين المتجرين</span></div><div class="service"><b>⚖ مزادات موحدة</b><span>نفس محرك المزاد مع فصل المعروض حسب المتجر</span></div><div class="service"><b>🛒 سلة وطلبات</b><span>دورة شراء وشحن وفواتير واحدة</span></div><div class="service"><b>🛡 إدارة مركزية</b><span>إدارة واحدة لجميع البائعين والمقتنيات</span></div></section>
+
+<section class="stores" aria-label="متاجر دار المقتنيات">
+  <article class="store coins">
+    <div class="art">🪙</div>
+    <h3>نوادر العملات</h3>
+    <p>للعملات الأصلية والرسمية والمسكوكات والأوراق النقدية، مع التقييم والأرقام المميزة والأخطاء النادرة والإصدارات الانتقالية.</p>
+    <div class="tags"><span>عملات ورقية</span><span>مسكوكات</span><span>تقييم</span><span>أرقام مميزة</span><span>إصدارات انتقالية</span></div>
+    <a class="enter" href="/coins">دخول نوادر العملات</a>
+  </article>
+
+  <article class="store collectibles">
+    <div class="art">🏺</div>
+    <h3>نوادر المقتنيات</h3>
+    <p>للتحف والسبح والمجسمات والفنتازيا والخواتم والأحجار والألعاب وغيرها من المقتنيات النادرة، بعيدًا عن تصنيفات العملات الأصلية.</p>
+    <div class="tags"><span>تحف</span><span>سبح</span><span>مجسمات</span><span>فنتازيا</span><span>خواتم وأحجار</span><span>ألعاب</span></div>
+    <a class="enter" href="/collectibles">دخول نوادر المقتنيات</a>
+  </article>
+</section>
+
+<section class="services" aria-label="مزايا المنصة">
+  <div class="service"><b>🔐 حساب واحد</b><span>دخول وهوية واحدة بين المتجرين.</span></div>
+  <div class="service"><b>🏪 أسواق مستقلة</b><span>كل متجر يعرض مقتنياته وتصنيفاته بشكل منفصل.</span></div>
+  <div class="service"><b>⚖ مزادات لكل متجر</b><span>نفس محرك المزاد مع فصل العروض حسب المتجر.</span></div>
+  <div class="service"><b>🛒 سلة وطلبات موحدة</b><span>دورة شراء وشحن ومتابعة واحدة.</span></div>
+</section>
+
 <footer>دار المقتنيات — نوادر العملات · نوادر المقتنيات</footer>
 </main>
-</body></html>
+</body>
+</html>

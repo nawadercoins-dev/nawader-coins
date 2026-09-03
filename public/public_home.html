@@ -4,37 +4,58 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#071b35">
-<title>نوادر العملات</title>
+<title>نوادر العملات | دار المقتنيات</title>
 <link rel="stylesheet" href="/visitor.css">
 <style>
 :root{--navy:#071b35;--navy2:#0b315a;--gold:#c89b3c;--gold2:#e7c878;--paper:#fffdf8;--muted:#667085;--line:#d7ba72}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Tahoma,"Segoe UI",Arial,sans-serif;background:linear-gradient(145deg,#06172d,#0b315a 55%,#10233f);min-height:100vh;color:#fff}.wrap{max-width:1180px;margin:auto;padding:4vh 20px 24px}.hero{text-align:center;padding:14px 20px 8px}.logo{width:min(315px,70vw);aspect-ratio:1;object-fit:cover;border-radius:50%;border:3px solid var(--gold2);box-shadow:0 18px 60px #0008}.brand-title{font-size:clamp(34px,6vw,60px);margin:14px 0 4px;color:var(--gold2)}.hero p{font-size:18px;color:#dce6f2;line-height:1.8;margin:8px auto;max-width:780px}.start,.whatsapp{display:inline-block;border-radius:999px;text-decoration:none;font-weight:900}.start{margin-top:14px;background:linear-gradient(135deg,#b88728,#e0bd68);color:#10233c;padding:13px 27px;font-size:17px}.whatsapp{margin-top:17px;background:#fff;color:var(--navy);border:2px solid var(--gold2);padding:12px 21px}
 .home-row{margin:20px 0;border:1px solid #d7ba7288;border-radius:22px;padding:14px;background:linear-gradient(160deg,#092644cc,#061a31cc);box-shadow:0 14px 35px #0002}.home-row.promo-row{border-color:#e7c878;background:linear-gradient(135deg,#122b48,#3f2e0d 125%)}.row-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 12px}.row-copy{min-width:0}.row-head h2{margin:0;color:var(--gold2);font-size:22px}.row-head p{margin:5px 0 0;color:#c9d6e6;font-size:13px;line-height:1.6}.row-actions{display:flex;gap:7px;align-items:center;flex:0 0 auto}.all-link,.rail-btn{border:1px solid #d7ba72;background:#fff;color:#0a2441;text-decoration:none;border-radius:999px;font-weight:900;white-space:nowrap}.all-link{padding:8px 13px}.rail-btn{width:34px;height:34px;cursor:pointer;font-size:18px;line-height:1}.rail-btn:hover,.all-link:hover{background:#fff5d9}.item-rail{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:thin;padding:2px 2px 9px;min-height:156px;overscroll-behavior-inline:contain}.rail-card{position:relative;flex:0 0 190px;height:146px;border-radius:16px;overflow:hidden;border:1px solid #d7ba72;background:#fff;scroll-snap-align:start;box-shadow:0 7px 20px #0005;text-decoration:none;color:#fff}.rail-card img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .25s}.rail-card:hover img{transform:scale(1.035)}.rail-card::after{content:"";position:absolute;inset:36% 0 0;background:linear-gradient(transparent,#071b35f2)}.rail-meta{position:absolute;z-index:2;inset:auto 9px 8px;display:flex;flex-direction:column;gap:3px;text-shadow:0 1px 3px #000}.rail-meta b{font-size:14px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rail-meta small{font-size:11px;color:#eef4fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.promo-badge{position:absolute;z-index:3;top:8px;right:8px;background:linear-gradient(135deg,#9d6817,#e5c36d);color:#12243a;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:900;box-shadow:0 3px 9px #0004}.strip-empty{display:flex;align-items:center;justify-content:center;min-height:140px;min-width:100%;color:#dce6f2;text-align:center;padding:24px;line-height:1.7}.loading-row{opacity:.78}.utility-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:22px 0}.utility-card{background:#fff;color:#10233f;text-decoration:none;border-radius:19px;padding:20px;border:2px solid #d7ba72;box-shadow:0 13px 35px #0004;transition:.2s}.utility-card:hover{transform:translateY(-2px)}.utility-card b{display:block;font-size:21px;color:var(--navy);margin-bottom:7px}.utility-card span{color:#667085;line-height:1.65;font-size:14px}.utility-card.gold{background:linear-gradient(145deg,#fffaf0,#fff3cf)}footer{text-align:center;margin-top:32px;color:#b9c8da}.hidden{display:none!important}
 @media(max-width:760px){.wrap{padding:20px 10px 12px}.hero{padding:8px}.logo{width:min(255px,70vw)}.row-head{align-items:flex-start}.row-head h2{font-size:18px}.row-head p{font-size:12px}.rail-card{flex-basis:145px;height:118px}.rail-btn{display:none}.all-link{padding:7px 10px;font-size:12px}.item-rail{min-height:128px}.utility-grid{grid-template-columns:1fr}.home-row{padding:11px;border-radius:18px}}
+
+/* V5.6.2-R5 — Dar Al Muqtanyat identity + ordered store navigation */
+.hero{padding:10px 20px 14px}
+.hero .umbrella-kicker{display:block;color:var(--gold2);font-weight:900;font-size:14px;letter-spacing:.03em;margin-bottom:10px}
+.logo{width:min(230px,58vw);border:2px solid var(--gold2);background:#060606}
+.brand-title{font-size:clamp(34px,6vw,56px);margin:12px 0 4px}
+.store-nav{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:18px auto 4px;max-width:930px}
+.store-nav a{color:#fff;text-decoration:none;border:1px solid #ffffff32;border-radius:999px;padding:10px 14px;line-height:1;white-space:nowrap;background:#ffffff08}
+.store-nav a:hover{background:#ffffff14}
+.store-nav a.active{background:linear-gradient(135deg,#b88728,#e0bd68);color:#10233c;border-color:#e7c878;font-weight:900}
+.hero .whatsapp{margin-top:13px}
+@media(max-width:760px){.logo{width:min(190px,56vw)}.store-nav{gap:7px;margin-top:15px}.store-nav a{font-size:13px;padding:9px 11px}}
+
 </style>
 </head>
 <body>
 <main class="wrap">
 <section class="hero">
-<img class="logo" src="/assets/nawader-logo.jpg" alt="شعار نوادر العملات">
+<span class="umbrella-kicker">دار المقتنيات</span>
+<img class="logo" src="/assets/dar-al-muqtanyat-logo.webp" alt="شعار دار المقتنيات">
 <h1 class="brand-title">نوادر العملات</h1>
-<p>السوق المتخصص للعملات الأصلية والرسمية والمسكوكات والإصدارات النقدية النادرة. التصفح مفتوح، أما المزايدة والشراء فيتطلبان تسجيل رقم الجوال والتحقق.</p>
-<a class="start" href="#promotions">ابدأ التصفح</a> <a class="start" style="background:#fff;color:#071b35" href="/dar">دار المقتنيات</a><br>
+<p>المتجر المتخصص بالعملات الأصلية والرسمية والمسكوكات والأوراق النقدية والإصدارات النادرة، ضمن منظومة دار المقتنيات.</p>
+<nav class="store-nav" aria-label="التنقل الرئيسي">
+<a href="/dar">دار المقتنيات</a>
+<a class="active" href="/coins" aria-current="page">نوادر العملات</a>
+<a href="/collectibles">نوادر المقتنيات</a>
+<a href="/market?store=coins">السوق</a>
+<a href="/auction?store=coins">المزادات</a>
+<a href="/account">حسابي</a>
+</nav>
 <a class="whatsapp" href="https://wa.me/966551892409" target="_blank" rel="noopener">تواصل معنا عبر واتساب</a>
 </section>
 
 <section class="home-row promo-row" id="promotions" aria-label="العروض والصفقات المميزة">
-<div class="row-head"><div class="row-copy"><h2>⚡ العروض والصفقات المميزة والسريعة</h2><p>العروض المخفضة والقطع المميزة والمزادات التي قاربت على الانتهاء.</p></div><div class="row-actions"><button class="rail-btn" type="button" data-dir="next" data-target="promoRail" aria-label="التالي">‹</button><button class="rail-btn" type="button" data-dir="prev" data-target="promoRail" aria-label="السابق">›</button></div></div>
+<div class="row-head"><div class="row-copy"><h2>⚡ أحدث عروض نوادر العملات</h2><p>العروض المخفضة والقطع المميزة والمزادات التي قاربت على الانتهاء.</p></div><div class="row-actions"><button class="rail-btn" type="button" data-dir="next" data-target="promoRail" aria-label="التالي">‹</button><button class="rail-btn" type="button" data-dir="prev" data-target="promoRail" aria-label="السابق">›</button></div></div>
 <div class="item-rail loading-row" id="promoRail"><span class="strip-empty">جارٍ تحميل العروض…</span></div>
 </section>
 
 <section class="home-row" id="marketRow" data-section="market">
-<div class="row-head"><div class="row-copy"><h2>🛍 السوق العام</h2><p>أحدث القطع والأطقم والحزم المتاحة للبيع المباشر.</p></div><div class="row-actions"><a class="all-link" href="/market?store=coins">عرض الكل</a><button class="rail-btn" type="button" data-dir="next" data-target="marketRail">‹</button><button class="rail-btn" type="button" data-dir="prev" data-target="marketRail">›</button></div></div>
+<div class="row-head"><div class="row-copy"><h2>🛍 سوق نوادر العملات</h2><p>أحدث القطع والأطقم والحزم المتاحة للبيع المباشر.</p></div><div class="row-actions"><a class="all-link" href="/market?store=coins">عرض الكل</a><button class="rail-btn" type="button" data-dir="next" data-target="marketRail">‹</button><button class="rail-btn" type="button" data-dir="prev" data-target="marketRail">›</button></div></div>
 <div class="item-rail loading-row" id="marketRail"><span class="strip-empty">جارٍ تحميل السوق…</span></div>
 </section>
 
 <section class="home-row" id="auctionRow" data-section="auction">
-<div class="row-head"><div class="row-copy"><h2>⚖ المزادات</h2><p>المزادات النشطة مرتبة حسب الأقرب انتهاءً.</p></div><div class="row-actions"><a class="all-link live-nav-link" href="/live-auction?store=coins" id="liveNavLink" hidden>🔴 مزادات مباشرة</a><a href="/auction?store=coins">عرض الكل</a><button class="rail-btn" type="button" data-dir="next" data-target="auctionRail">‹</button><button class="rail-btn" type="button" data-dir="prev" data-target="auctionRail">›</button></div></div>
+<div class="row-head"><div class="row-copy"><h2>⚖ مزادات نوادر العملات</h2><p>المزادات النشطة مرتبة حسب الأقرب انتهاءً.</p></div><div class="row-actions"><a class="all-link live-nav-link" href="/live-auction?store=coins" id="liveNavLink" hidden>🔴 مزادات مباشرة</a><a href="/auction?store=coins">عرض الكل</a><button class="rail-btn" type="button" data-dir="next" data-target="auctionRail">‹</button><button class="rail-btn" type="button" data-dir="prev" data-target="auctionRail">›</button></div></div>
 <div class="item-rail loading-row" id="auctionRail"><span class="strip-empty">جارٍ تحميل المزادات…</span></div>
 </section>
 
@@ -55,7 +76,7 @@
 <a class="utility-card" href="/notifications"><b>🔔 الإشعارات</b><span>تنبيهات المزادات والاعتمادات والسوق والمستحقات.</span></a>
 <a class="utility-card gold" href="/account"><b>👤 حسابي</b><span>مشترياتي وطلباتي وبيانات الحساب وبوابة البائع حسب الصلاحية.</span></a>
 </section>
-<footer>نوادر العملات — الكحلي والذهبي</footer>
+<footer>دار المقتنيات — نوادر العملات</footer>
 </main>
 <script src="/visitor.js"></script>
 <script>
