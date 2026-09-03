@@ -8,8 +8,9 @@ let db,
   backImageRemoved = false,
   promptInstall,
   isSaving = false,
- mediaPicking = false,
-editingItemId = "";
+  mediaPicking = false,
+  pendingImageUploads = { front: null, back: null },
+  editingItemId = "";
 let latestItems = [];
 function newId() {
   try {
@@ -367,10 +368,14 @@ async function compressImageForUpload(f) {
     throw new Error(
       "الصورة أكبر من 50 ميجابايت؛ خفّض دقة الكاميرا أو اختر صورة أصغر",
     );
-  if (f.size <= 900 * 1024 && /image\/(jpeg|webp)/i.test(f.type || ""))
+
+  // R3: صور المتجر لا تحتاج دقة الكاميرا الأصلية. ضغطها قبل الشبكة هو
+  // أسرع بكثير على الجوال ويخفف الذاكرة ومساحة التخزين.
+  // الصور الصغيرة الجاهزة لا نعيد ضغطها.
+  if (f.size <= 360 * 1024 && /image\/(jpeg|webp)/i.test(f.type || ""))
     return f;
-  let source,
-    url = "";
+
+  let source, url = "";
   try {
     if (typeof createImageBitmap === "function")
       source = await createImageBitmap(f);
@@ -385,7 +390,8 @@ async function compressImageForUpload(f) {
     }
     let w = source.width || source.naturalWidth,
       h = source.height || source.naturalHeight,
-      scale = Math.min(1, 1600 / Math.max(w, h)),
+      maxSide = 1280,
+      scale = Math.min(1, maxSide / Math.max(w, h)),
       canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(w * scale));
     canvas.height = Math.max(1, Math.round(h * scale));
@@ -393,15 +399,22 @@ async function compressImageForUpload(f) {
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
-    let blob = await new Promise((ok) => canvas.toBlob(ok, "image/jpeg", 0.8));
+
+    let quality = 0.72;
+    let blob = await new Promise((ok) => canvas.toBlob(ok, "image/jpeg", quality));
     if (!blob) throw new Error("تعذر ضغط الصورة");
+
+    // إذا بقيت الصورة كبيرة، نضغط مرة ثانية فقط بدل رفع ملف ضخم عبر 4G.
+    if (blob.size > 520 * 1024) {
+      quality = 0.62;
+      let second = await new Promise((ok) => canvas.toBlob(ok, "image/jpeg", quality));
+      if (second) blob = second;
+    }
+
     return new File(
       [blob],
       (f.name || "photo").replace(/\.[^.]+$/, "") + ".jpg",
-      {
-        type: "image/jpeg",
-        lastModified: Date.now(),
-      },
+      { type: "image/jpeg", lastModified: Date.now() },
     );
   } catch (e) {
     throw new Error(
@@ -2015,27 +2028,48 @@ function wirePhotoInput(id, which) {
   el.onchange = async (e) => {
     mediaPicking = true;
     let status = $("analysisStatus");
+    let f = e.target.files && e.target.files[0];
+    if (!f) { mediaPicking = false; return; }
+
+    // اعرض الصورة فورًا من الجهاز ولا تجعل المستخدم ينتظر الشبكة حتى يراها.
+    let localUrl = "";
     try {
-      let f = e.target.files && e.target.files[0];
-      if (!f) return;
-      status.textContent = "جارٍ رفع الصورة...";
-      status.className = "muted";
-      let url = await imgFile(f);
-      if (which === "front") frontImg = url;
-      else backImg = url;
-      if (which === "front") frontImageRemoved = false;
-      else backImageRemoved = false;
-      setPreview(which, url);
-      status.textContent =
-        "✅ تم رفع الصورة وحفظها. يمكنك الآن تدويرها وقصها أو متابعة الحفظ.";
-      status.className = "analysis-ok";
+      localUrl = URL.createObjectURL(f);
+      setPreview(which, localUrl);
+    } catch (_e) {}
+
+    const task = (async () => {
+      try {
+        status.textContent = "جارٍ ضغط الصورة ورفع نسخة خفيفة...";
+        status.className = "muted";
+        let url = await imgFile(f);
+        if (which === "front") frontImg = url;
+        else backImg = url;
+        if (which === "front") frontImageRemoved = false;
+        else backImageRemoved = false;
+        setPreview(which, url);
+        status.textContent =
+          "✅ تم رفع نسخة خفيفة من الصورة وحفظها. يمكنك متابعة الحفظ مباشرة.";
+        status.className = "analysis-ok";
+        return url;
+      } catch (x) {
+        console.error(x);
+        status.textContent = "⚠️ " + x.message;
+        status.className = "analysis-warn";
+        throw x;
+      } finally {
+        if (localUrl) { try { URL.revokeObjectURL(localUrl); } catch (_e) {} }
+      }
+    })();
+
+    pendingImageUploads[which] = task;
+    try {
+      await task;
     } catch (x) {
-      console.error(x);
       alert(x.message);
-      status.textContent = "⚠️ " + x.message;
-      status.className = "analysis-warn";
     } finally {
-      mediaPicking = false;
+      if (pendingImageUploads[which] === task) pendingImageUploads[which] = null;
+      mediaPicking = !!(pendingImageUploads.front || pendingImageUploads.back);
       e.target.value = "";
     }
   };
@@ -2051,6 +2085,14 @@ $("form").onsubmit = async (e) => {
   btn.disabled = true;
   btn.textContent = "جارٍ الحفظ والتحقق...";
   try {
+    // إذا ضغط المستخدم حفظ أثناء رفع الصورة، ننتظر الرفع الجاري بدل حفظ السجل بلا صورة.
+    const pending = [pendingImageUploads.front, pendingImageUploads.back].filter(Boolean);
+    if (pending.length) {
+      btn.textContent = "جارٍ إنهاء رفع الصور...";
+      await Promise.all(pending);
+      btn.textContent = "جارٍ الحفظ والتحقق...";
+    }
+
   let id = editingItemId || v("id") || newId(),
     old = (await all()).find((x) => String(x.id) === String(id));
     let year = composedYear();
@@ -2084,8 +2126,16 @@ $("form").onsubmit = async (e) => {
       if ((n("marketQuantity") || 0) < 1)
         throw new Error("الكمية المعروضة في السوق يجب أن تكون 1 على الأقل");
     }
-    if (!selectedCountryValue()) throw new Error("اختر الدولة من القائمة، أو اكتب اسم دولة / جهة إصدار أخرى");
-    if ($("country")?.value === "__other__" && !v("countryOther")) throw new Error("اكتب اسم الدولة / جهة الإصدار الأخرى");
+    const currentStore = v("storeType") || "coins";
+    if (currentStore === "coins") {
+      if (!selectedCountryValue()) throw new Error("اختر الدولة من القائمة، أو اكتب اسم دولة / جهة إصدار أخرى");
+      if (!v("denomination")) throw new Error("اكتب الفئة / القيمة للعملة");
+      if ($("country")?.value === "__other__" && !v("countryOther")) throw new Error("اكتب اسم الدولة / جهة الإصدار الأخرى");
+    } else {
+      if (!v("collectibleCategory")) throw new Error("اختر تصنيف نوادر المقتنيات");
+      if (!v("denomination")) throw new Error("اكتب اسم المقتنى");
+      if ($("country")?.value === "__other__" && !v("countryOther")) throw new Error("اكتب بلد المنشأ / الصنع، أو اتركه غير محدد");
+    }
     if ($("autoSerialEnabled")?.checked) {
       if (!generatedSerials.length) generatedSerials = generateSerialSequence(v("serialStart"), n("serialCount"));
       if (generatedSerials.length !== Math.max(1, n("serialCount") || 1)) throw new Error("تعذر إكمال التسلسل الآلي بالأعداد المطلوبة");
@@ -2104,7 +2154,7 @@ $("form").onsubmit = async (e) => {
       collectibleMaterial: v('storeType')==='collectibles'?v('collectibleMaterial'):'',
       collectibleModel: v('storeType')==='collectibles'?v('collectibleModel'):'',
       collectibleScale: v('storeType')==='collectibles'?v('collectibleScale'):'',
-      country: selectedCountryValue(),
+      country: currentStore === "collectibles" ? (selectedCountryValue() || "غير محدد") : selectedCountryValue(),
       denomination: v("denomination"),
       issueEdition: v("issueEdition"),
       issueEditionOther: v("issueEditionOther"),
@@ -2333,7 +2383,8 @@ editingItemId = "";
   if ($("yearTo")) $("yearTo").value = "";
   if ($("isGraded")) $("isGraded").checked = false;
   if ($("specialNumberEnabled")) $("specialNumberEnabled").checked = false;
-  if ($("storeType")) $("storeType").value = "coins";
+  // لا تعِد المستخدم إلى نوادر العملات بعد كل حفظ/تفريغ إذا كان يعمل داخل نوادر المقتنيات.
+  if ($("storeType")) $("storeType").value = adminStoreFilter === "collectibles" ? "collectibles" : "coins";
   if ($("collectibleCategory")) $("collectibleCategory").value = "";
   if ($("collectibleCategoryWrap")) $("collectibleCategoryWrap").hidden = true;
   if ($("fantasiaEnabled")) $("fantasiaEnabled").checked = false;
@@ -4498,9 +4549,13 @@ function syncDarStoreFields(){
   if($('collectibleDetailsBox'))$('collectibleDetailsBox').hidden=!isCollectibles;
   // نفس حقلي الدولة/الفئة يُعاد استخدامهما دون تغيير قاعدة البيانات: الدولة=المنشأ، الفئة=اسم المقتنى.
   const countryLabel=$('country')?.closest('label'), denomLabel=$('denomination')?.closest('label');
-  if(countryLabel)countryLabel.childNodes[0].nodeValue=isCollectibles?'بلد المنشأ / الصنع':'الدولة';
+  if(countryLabel)countryLabel.childNodes[0].nodeValue=isCollectibles?'بلد المنشأ / الصنع (اختياري)':'الدولة';
   if(denomLabel)denomLabel.childNodes[0].nodeValue=isCollectibles?'اسم المقتنى':'الفئة / القيمة';
-  if($('denomination'))$('denomination').placeholder=isCollectibles?'مثال: مجسم لاندكروزر أو سبحة كهرمان':'مثال: 1 ريال أو 500 ليرة';
+  if($('country')) $('country').required=!isCollectibles;
+  if($('denomination')) {
+    $('denomination').required=true;
+    $('denomination').placeholder=isCollectibles?'مثال: مجسم أسد نحاسي أو سبحة كهرمان':'مثال: 1 ريال أو 500 ليرة';
+  }
   ['issueEdition','issueEditionOther','yearMode','yearFrom','yearTo','type'].forEach(id=>setControlContainerHidden(id,isCollectibles));
   const grading=$('isGraded')?.closest('.grading-box');if(grading)grading.hidden=isCollectibles;
   if($('advancedSerialSection'))$('advancedSerialSection').hidden=isCollectibles;
