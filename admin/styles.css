@@ -6301,3 +6301,10 @@ nav.admin-nav .admin-logout-link{
 .collectible-details-box{border:1px solid #d8bf78;border-radius:18px;padding:16px;background:#fffbef}.collectible-details-box h3{margin-top:0;color:#082b56}.collectible-details-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 body[data-admin-store="collectibles"] .coin-only-admin{display:none!important}
 @media(max-width:720px){.admin-store-switcher{position:sticky;top:0;z-index:30;border-radius:10px}.admin-store-switcher button{flex:1 1 45%;font-size:.86rem}.admin-store-switcher [data-admin-store-current]{width:100%;margin:2px 0 0}.collectible-details-grid{grid-template-columns:1fr}}
+
+
+/* V5.6.2-R4 — إخفاء حقول العملات نهائياً من نموذج نوادر المقتنيات.
+   مهم: بعض الأنماط القديمة تستخدم display:flex!important، لذلك نحتاج قاعدة أقوى. */
+body[data-admin-store="collectibles"] #add .coin-only-admin,
+#add[data-store-type="collectibles"] .coin-only-admin { display:none !important; }
+#add .coin-only-admin[hidden] { display:none !important; }

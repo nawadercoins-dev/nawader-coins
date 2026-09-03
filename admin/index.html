@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#071b35" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="/admin/styles.css?v=5.6.2" />
+    <link rel="stylesheet" href="/admin/styles.css?v=5.6.2-r4" />
     <title>دار المقتنيات — الإدارة V5.6.2</title>
   </head>
   <body>
@@ -553,7 +553,7 @@
               value="0"
           /></label>
           <label>الكمية التالفة أو المفقودة<input id="damagedQuantity" type="number" min="0" value="0" /></label>
-          <div class="wide grading-box">
+          <div class="wide grading-box coin-only-admin">
             <h3>التقييم والتغليف الاحترافي <button type="button" class="mini-help" data-help="فعّل التقييم فقط إذا كانت العملة مغلفة أو معتمدة من جهة تقييم، ثم أدخل بيانات الشهادة.">؟</button></h3>
             <label class="check"
               ><input id="isGraded" type="checkbox" /> المقتنى مُقيَّم / مغلف من
@@ -611,7 +611,7 @@
               /></label>
             </div>
           </div>
-          <details id="advancedSerialSection" class="wide compact-details serial-entry-box">
+          <details id="advancedSerialSection" class="wide compact-details serial-entry-box coin-only-admin">
             <summary>الأرقام التسلسلية <button type="button" class="mini-help" data-help="افتح هذا القسم عند الحاجة لإدخال الأرقام يدويًا أو توليد تسلسل كامل تلقائيًا.">؟</button></summary>
             <p class="muted">إدخال يدوي أو توليد تلقائي للتسلسل.</p>
             <label class="check"><input id="autoSerialEnabled" type="checkbox" /> توليد تسلسل آلي</label>
@@ -623,17 +623,17 @@
             </div>
             <div id="serialFields" class="serial-grid"></div>
           </details>
-          <div class="wide form-section-title">
+          <div class="wide form-section-title coin-only-admin">
             <h3>✦ الأرقام المميزة والأخطاء النادرة <button type="button" class="mini-help" data-help="مفتاح واحد يفتح جميع أنواع الأرقام المميزة والأخطاء النادرة، ولا يحذف أي بيانات عند إغلاقه.">؟</button></h3>
             <p class="muted">فعّل المفتاح لتظهر التفاصيل عند الحاجة.</p>
           </div>
-          <label class="wide special-number-toggle"
+          <label class="wide special-number-toggle coin-only-admin"
             ><input id="specialNumberEnabled" type="checkbox" /> إضافة هذا
             المقتنى إلى صفحة الأرقام المميزة والأخطاء النادرة</label
           >
           <div
             id="specialNumberFields"
-            class="wide special-number-fields"
+            class="wide special-number-fields coin-only-admin"
             hidden
           >
             <div class="special-type-grid">
@@ -708,12 +708,12 @@
             <label>الجهة / الاسم المُصدر<input id="fantasiaIssuer" placeholder="مثال: اسم المملكة أو الجهة الخيالية" /></label>
             <label class="wide">ملاحظات الفانتازيا<input id="fantasiaNotes" placeholder="وصف أو معلومات إضافية" /></label>
           </div></div>
-          <div class="wide form-section-title transitional-section-title">
+          <div class="wide form-section-title transitional-section-title coin-only-admin">
             <h3>⇄ الإصدارات الانتقالية <button type="button" class="mini-help" data-help="تصنيف بحثي اختياري للمقتنيات التي تمثل مرحلة انتقال بين إصدارين أو توقيعين. لا ينشئ مخزونًا جديدًا ولا يغيّر الكميات.">؟</button></h3>
             <p class="muted">فعّل التصنيف فقط عندما يكون للمقتنى سبب انتقالي واضح وموثق.</p>
           </div>
-          <label class="wide transitional-toggle"><input id="transitionalIssueEnabled" type="checkbox" /> تصنيف هذا المقتنى كـ «إصدار انتقالي»</label>
-          <div id="transitionalIssueFields" class="wide transitional-fields" hidden>
+          <label class="wide transitional-toggle coin-only-admin"><input id="transitionalIssueEnabled" type="checkbox" /> تصنيف هذا المقتنى كـ «إصدار انتقالي»</label>
+          <div id="transitionalIssueFields" class="wide transitional-fields coin-only-admin" hidden>
             <div class="transitional-grid">
               <label>نوع الانتقال<select id="transitionalIssueType">
                 <option value="signature-change">انتقال توقيع</option>
