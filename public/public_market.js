@@ -1,9 +1,9 @@
-document.documentElement.dataset.marketVersion='5.6.1';console.info('Dar Al Muqtanyat Market V5.6.1 loaded');
+document.documentElement.dataset.marketVersion='5.6.2-r2';console.info('Dar Al Muqtanyat Market V5.6.2-r2 loaded');
 const STORE=(new URLSearchParams(location.search).get('store')||'coins').toLowerCase()==='collectibles'?'collectibles':'coins';
 const STORE_LABEL=STORE==='collectibles'?'نوادر المقتنيات':'نوادر العملات';
 const STORE_HOME=STORE==='collectibles'?'/collectibles':'/coins';
 const STORE_Q='?store='+STORE;
-const $=id=>document.getElementById(id);let ITEMS=[],SETTINGS={},CURRENT=null,HASH_DONE=false,CATEGORY='all';
+const $=id=>document.getElementById(id);const QUERY=new URLSearchParams(location.search);let ITEMS=[],SETTINGS={},CURRENT=null,HASH_DONE=false,CATEGORY=(QUERY.get('category')||'all').trim()||'all';
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const money=x=>Number(x||0).toLocaleString('ar-SA',{maximumFractionDigits:2})+' ر.س';
 function applyStoreBranding(){
@@ -25,6 +25,13 @@ function applyStoreBranding(){
   if(STORE==='collectibles'){[$('grader'),$('grade')].forEach(x=>{if(x)x.hidden=true})}
 }
 applyStoreBranding();
+function syncCategoryTab(){
+  const tabs=[...document.querySelectorAll('#marketCategoryTabs [data-category]')];
+  const wanted=tabs.some(b=>b.dataset.category===CATEGORY)?CATEGORY:'all';
+  CATEGORY=wanted;
+  tabs.forEach(b=>b.classList.toggle('active',b.dataset.category===CATEGORY));
+}
+syncCategoryTab();
 function typeLabel(t){return t==='bundle'?'حزمة / بندل':t==='set'?'طقم':'قطعة واحدة'}
 function itemCategoryKey(i){
   if(STORE==='coins')return i?.specialNumberEnabled?'special':'coins';
@@ -215,7 +222,7 @@ $('requestQty').oninput=()=>setQty($('requestQty').value);function closeRequestD
 $('sendRequest').onclick=async()=>{let btn=$('sendRequest'),msg=$('msg');try{btn.disabled=true;msg.textContent='جارٍ إرسال الطلب...';msg.className='';let body={itemId:$('itemId').value,action:$('action').value,name:$('buyerName').value.trim(),phone:$('buyerPhone').value.trim(),quantity:Number($('requestQty').value||1),offeredAmount:Number($('offerAmount').value||0)};let r=await fetch('/api/market/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'}),d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر إرسال الطلب');let rr=d.request||{};$('requestReceipt').hidden=false;$('requestReceipt').innerHTML=`<b>تم تسجيل الطلب بنجاح</b><br>السلعة: ${esc(rr.itemTitle||CURRENT?.marketTitle||'')}<br>المشتري: ${esc(rr.name||body.name)} — ${esc(rr.phone||body.phone)}<br>الكمية: ${Number(rr.quantity||body.quantity)} ${qtyUnitLabel(CURRENT,Number(rr.quantity||body.quantity))}<br>${body.action==='offer'?'عرض التفاوض':'قيمة الشراء'}: ${money(body.action==='offer'?(rr.offeredAmount||body.offeredAmount):(rr.listedAmount||totalFor(CURRENT,body.quantity)))}`;msg.textContent='✅ وصل الطلب إلى الإدارة.';msg.className='ok';setTimeout(()=>load(),300)}catch(e){msg.textContent='⚠️ '+e.message;msg.className='err'}finally{btn.disabled=false}};
 async function load(){try{let [m,s]=await Promise.all([get('/api/public/market'+STORE_Q),get('/api/settings/public')]);ITEMS=m.items||[];SETTINGS=s||{};populateGradingFilters();render();let hash=decodeURIComponent(location.hash.slice(1));if(hash&&!HASH_DONE){HASH_DONE=true;setTimeout(()=>document.getElementById(hash)?.scrollIntoView({behavior:'smooth',block:'center'}),100)}}catch(e){$('items').innerHTML='<div class="empty">تعذر تحميل السوق. تحقق من تشغيل البرنامج ثم حاول مرة أخرى.</div>'}}
 $('search').oninput=render;$('type').onchange=render;if($('grader'))$('grader').onchange=render;if($('grade'))$('grade').onchange=render;
-document.querySelectorAll('#marketCategoryTabs [data-category]').forEach(b=>b.onclick=()=>{document.querySelectorAll('#marketCategoryTabs [data-category]').forEach(x=>x.classList.remove('active'));b.classList.add('active');CATEGORY=b.dataset.category||'all';render()});
+document.querySelectorAll('#marketCategoryTabs [data-category]').forEach(b=>b.onclick=()=>{CATEGORY=b.dataset.category||'all';syncCategoryTab();const qs=new URLSearchParams(location.search);qs.set('store',STORE);if(CATEGORY==='all')qs.delete('category');else qs.set('category',CATEGORY);history.replaceState({},'',location.pathname+'?'+qs.toString()+location.hash);render()});
 load();setInterval(load,12000);
 
 
@@ -281,7 +288,7 @@ async function checkoutCart(){
     NawaderVisitor.clear();msg.textContent='✅ تم تسجيل الطلب بنجاح. يمكنك متابعته من «حسابي».';msg.className='ok';setTimeout(load,300);
   }catch(e){msg.textContent='⚠️ '+e.message;msg.className='err'}
 }
-document.addEventListener('DOMContentLoaded',()=>{ensureCartPanel();document.getElementById('cartOpen')?.addEventListener('click',()=>{renderCart();document.getElementById('visitorCartPanel').hidden=false});let v=NawaderVisitor.get();if(v){if($('buyerName'))$('buyerName').value=v.name||'';if($('buyerPhone'))$('buyerPhone').value=v.phone||''}let qs=new URLSearchParams(location.search);if(qs.get('cart')==='1'){renderCart();document.getElementById('visitorCartPanel').hidden=false;history.replaceState({},'',location.pathname+location.hash)}});
+document.addEventListener('DOMContentLoaded',()=>{ensureCartPanel();document.getElementById('cartOpen')?.addEventListener('click',()=>{renderCart();document.getElementById('visitorCartPanel').hidden=false});let v=NawaderVisitor.get();if(v){if($('buyerName'))$('buyerName').value=v.name||'';if($('buyerPhone'))$('buyerPhone').value=v.phone||''}let qs=new URLSearchParams(location.search);if(qs.get('cart')==='1'){renderCart();document.getElementById('visitorCartPanel').hidden=false;qs.delete('cart');history.replaceState({},'',location.pathname+(qs.toString()?'?'+qs.toString():'')+location.hash)}});
 
 
 document.addEventListener('load',e=>{
