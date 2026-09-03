@@ -1985,6 +1985,9 @@ $("forAuction").onchange = () => {
 };
 if ($("forMarket"))
   $("forMarket").onchange = () => {
+    // من نموذج الإدارة: اختيار «عرض في السوق العام» يعني النشر المباشر.
+    // موافقات مقتنيات العملاء تبقى في مسار الاعتماد المنفصل ولا تمر بهذا النموذج.
+    if ($("marketApproved")) $("marketApproved").checked = !!$("forMarket").checked;
     updateMarketUI();
   };
 if ($("marketOfferType")) $("marketOfferType").onchange = updateMarketUI;
@@ -2055,7 +2058,8 @@ $("form").onsubmit = async (e) => {
     let wantsAuction = $("forAuction").checked,
       wantsMarket = !!$("forMarket")?.checked,
       auctionPublish = wantsAuction && $("auctionApproved").checked,
-      marketPublish = wantsMarket && !!$("marketApproved")?.checked;
+      // الإدارة تنشر السوق مباشرة بمجرد اختيار «عرض هذا المقتنى في السوق العام».
+      marketPublish = wantsMarket;
     // تعديل بيانات المستودع لا يعيد فتح مزاد قديم منتهٍ.
     // الموعد المستقبلي مطلوب فقط للنشر الجديد أو عند تغيير موعد الانتهاء.
     let oldAuctionApproved = !!(old?.forAuction && old?.auctionApproved),
@@ -4511,7 +4515,7 @@ function syncDarStoreFields(){
     if($('fantasiaEnabled'))$('fantasiaEnabled').checked=cat==='fantasia';
     setSelectOptions($('condition'),[['جديد','جديد'],['ممتاز','ممتاز'],['جيد جدًا','جيد جدًا'],['جيد','جيد'],['مستعمل','مستعمل'],['بحاجة ترميم','بحاجة ترميم']],$('condition')?.value);
     setSelectOptions($('inventoryUnitType'),[['piece','قطعة'],['set','طقم'],['lot','مجموعة / لوط'],['bundle','حزمة']],$('inventoryUnitType')?.value);
-    if($('marketCategory')){const opts={fantasia:'فانتازيا',antiques:'تحف','prayer-beads':'سبح ومسابح','vehicles-models':'سيارات ومجسمات','aviation-marine':'طائرات وسفن وقطارات','jewelry-stones':'خواتم وأحجار كريمة',games:'ألعاب ومقتنيات',other:'مقتنيات أخرى'};setSelectOptions($('marketCategory'),Object.entries(opts),cat||$('marketCategory').value||'other');}
+    if($('marketCategory')){const opts={fantasia:'فانتازيا',antiques:'تحف','prayer-beads':'سبح ومسابح','vehicles-models':'سيارات ومجسمات','aviation-marine':'طائرات وسفن وقطارات','jewelry-stones':'خواتم وأحجار كريمة',games:'ألعاب ومقتنيات',other:'مقتنيات أخرى'};setSelectOptions($('marketCategory'),Object.entries(opts),cat||$('marketCategory').value||'other');if(cat)$('marketCategory').value=cat;}
   }else{
     if($('collectibleCategory'))$('collectibleCategory').value='';
     setSelectOptions($('condition'),[['UNC','UNC'],['AU','AU'],['XF','XF'],['VF','VF'],['F','F']],$('condition')?.value);
@@ -4519,6 +4523,7 @@ function syncDarStoreFields(){
     if($('marketCategory'))setSelectOptions($('marketCategory'),[['coins-stamps','العملات والطوابع'],['special','أرقام مميزة وأخطاء نادرة'],['transitional','إصدارات انتقالية'],['other','أخرى']],$('marketCategory').value||'coins-stamps');
   }
   if(!isCollectibles){updateEditionUI();updateYearUI();}
+  if($('forMarket')?.checked && $('marketApproved')) $('marketApproved').checked=true;
   updateInventoryQuantity(); updateMarketUI();
 }
 if ($('storeType')) $('storeType').addEventListener('change',syncDarStoreFields);
