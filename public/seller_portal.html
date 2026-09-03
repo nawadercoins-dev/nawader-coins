@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#071b35">
-  <title>مركز البائع | نوادر العملات</title>
+  <title>مركز البائع | دار المقتنيات</title>
   <link rel="stylesheet" href="/visitor.css">
   <link rel="stylesheet" href="/seller_portal.css">
 </head>
@@ -17,6 +17,7 @@
   <main class="seller-main">
     <section id="loginGate" class="empty-state" hidden><span>🔐</span><h2>سجّل الدخول أولًا</h2><p>مركز البائع مرتبط بحسابك الموثق ومقتنياتك فقط.</p><a href="/account">الانتقال إلى حسابي</a></section>
     <div id="sellerApp" hidden>
+      <div class="seller-store-switch" id="sellerStoreSwitch"><b>المتجر:</b><button type="button" class="active" data-seller-store="coins">🪙 نوادر العملات</button><button type="button" data-seller-store="collectibles">🏺 نوادر المقتنيات</button><button type="button" data-seller-store="all">الكل</button></div>
       <section class="view active" data-view="home">
         <div class="section-heading"><div><span>نظرة سريعة</span><h2>لوحة المبيعات</h2></div><button class="refresh" type="button" data-refresh>تحديث</button></div>
         <div class="metrics">
@@ -70,5 +71,5 @@
     <button class="active" data-go="home"><span>⌂</span>الرئيسية</button><button data-go="orders"><span>▤</span>الطلبات<b id="ordersBadge" hidden>0</b></button><button data-go="shipments"><span>▣</span>الشحنات<b id="shippingBadge" hidden>0</b></button><button data-go="finance"><span>◫</span>المستحقات</button><button data-go="more"><span>☰</span>المزيد</button>
   </nav>
   <dialog id="shippingDialog"><form method="dialog" id="shippingForm"><button class="dialog-close" value="cancel" aria-label="إغلاق">×</button><h2>تحديث الشحنة</h2><p id="shippingOrderName"></p><label>شركة الشحن<input id="shippingCompany" maxlength="120" required></label><label>رقم التتبع أو مرجع الشحنة<input id="trackingNumber" maxlength="120"></label><div class="dialog-actions"><button value="cancel">إلغاء</button><button id="saveShipping" type="button">حفظ وتحديث الحالة</button></div></form></dialog>
-  <script src="/visitor.js"></script><script src="/seller_portal.js"></script>
+  <script src="/visitor.js?v=5.6.2"></script><script src="/seller_portal.js?v=5.6.2"></script>
 </body></html>
