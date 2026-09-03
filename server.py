@@ -1718,18 +1718,13 @@ class H(SimpleHTTPRequestHandler):
         if p=='/admin-logout':
             token=self.cookie_value('KhazinaAdmin'); ADMIN_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','KhazinaAdmin=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/'); self.end_headers(); return
-        # The root URL is the permanent public homepage. Keep /home as a
-        # compatibility alias so old bookmarks and printed links never 404.
-        if p in ('/','/home','/home/','/public_home.html'):
-            host=str(self.headers.get('Host') or '').lower()
-            # The new Dar Al Muqtanyat domain opens the umbrella portal, while
-            # nawadercoins.com remains a direct entrance to Nawader Coins.
-            if 'daralmuqtanyat' in host or 'daralmuqtaniyat' in host:
-                self.send_file(os.path.join(PUBLIC_DIR,'dar_home.html'),'text/html; charset=utf-8'); return
-            self.send_file(os.path.join(PUBLIC_DIR,'public_home.html'),'text/html; charset=utf-8'); return
+        # V5.6.2-R5: Dar Al Muqtanyat is the single umbrella homepage.
+        # Keep Nawader Coins as a dedicated store under /coins.
+        if p in ('/','/home','/home/'):
+            self.send_file(os.path.join(PUBLIC_DIR,'dar_home.html'),'text/html; charset=utf-8'); return
         if p in ('/dar','/dar/','/dar_home.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'dar_home.html'),'text/html; charset=utf-8'); return
-        if p in ('/coins','/coins/'):
+        if p in ('/coins','/coins/','/public_home.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'public_home.html'),'text/html; charset=utf-8'); return
         if p in ('/collectibles','/collectibles/','/collectibles_home.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'collectibles_home.html'),'text/html; charset=utf-8'); return
@@ -3939,7 +3934,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.2-R3-SAVE-IMAGE-SPEED-FIX'
+VERSION='5.6.2-R5-HOME-BRAND'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
