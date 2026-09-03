@@ -18,8 +18,8 @@
 <section class="hero">
 <img class="logo" src="/assets/nawader-logo.jpg" alt="شعار نوادر العملات">
 <h1 class="brand-title">نوادر العملات</h1>
-<p>بيع وشراء العملات والمقتنيات النادرة. التصفح مفتوح، أما المزايدة والشراء فيتطلبان تسجيل رقم الجوال والتحقق.</p>
-<a class="start" href="#promotions">ابدأ التصفح</a><br>
+<p>السوق المتخصص للعملات الأصلية والرسمية والمسكوكات والإصدارات النقدية النادرة. التصفح مفتوح، أما المزايدة والشراء فيتطلبان تسجيل رقم الجوال والتحقق.</p>
+<a class="start" href="#promotions">ابدأ التصفح</a> <a class="start" style="background:#fff;color:#071b35" href="/dar">دار المقتنيات</a><br>
 <a class="whatsapp" href="https://wa.me/966551892409" target="_blank" rel="noopener">تواصل معنا عبر واتساب</a>
 </section>
 
@@ -29,12 +29,12 @@
 </section>
 
 <section class="home-row" id="marketRow" data-section="market">
-<div class="row-head"><div class="row-copy"><h2>🛍 السوق العام</h2><p>أحدث القطع والأطقم والحزم المتاحة للبيع المباشر.</p></div><div class="row-actions"><a class="all-link" href="/market">عرض الكل</a><button class="rail-btn" type="button" data-dir="next" data-target="marketRail">‹</button><button class="rail-btn" type="button" data-dir="prev" data-target="marketRail">›</button></div></div>
+<div class="row-head"><div class="row-copy"><h2>🛍 السوق العام</h2><p>أحدث القطع والأطقم والحزم المتاحة للبيع المباشر.</p></div><div class="row-actions"><a class="all-link" href="/market?store=coins">عرض الكل</a><button class="rail-btn" type="button" data-dir="next" data-target="marketRail">‹</button><button class="rail-btn" type="button" data-dir="prev" data-target="marketRail">›</button></div></div>
 <div class="item-rail loading-row" id="marketRail"><span class="strip-empty">جارٍ تحميل السوق…</span></div>
 </section>
 
 <section class="home-row" id="auctionRow" data-section="auction">
-<div class="row-head"><div class="row-copy"><h2>⚖ المزادات</h2><p>المزادات النشطة مرتبة حسب الأقرب انتهاءً.</p></div><div class="row-actions"><a class="all-link live-nav-link" href="/live-auction" id="liveNavLink" hidden>🔴 مزادات مباشرة</a><a href="/auction">عرض الكل</a><button class="rail-btn" type="button" data-dir="next" data-target="auctionRail">‹</button><button class="rail-btn" type="button" data-dir="prev" data-target="auctionRail">›</button></div></div>
+<div class="row-head"><div class="row-copy"><h2>⚖ المزادات</h2><p>المزادات النشطة مرتبة حسب الأقرب انتهاءً.</p></div><div class="row-actions"><a class="all-link live-nav-link" href="/live-auction?store=coins" id="liveNavLink" hidden>🔴 مزادات مباشرة</a><a href="/auction?store=coins">عرض الكل</a><button class="rail-btn" type="button" data-dir="next" data-target="auctionRail">‹</button><button class="rail-btn" type="button" data-dir="prev" data-target="auctionRail">›</button></div></div>
 <div class="item-rail loading-row" id="auctionRail"><span class="strip-empty">جارٍ تحميل المزادات…</span></div>
 </section>
 
@@ -48,10 +48,7 @@
 <div class="item-rail loading-row" id="transitionalRail"><span class="strip-empty">جارٍ تحميل القسم…</span></div>
 </section>
 
-<section class="home-row" id="fantasiaRow" data-section="fantasia">
-<div class="row-head"><div class="row-copy"><h2>🎭 فانتازيا</h2><p>أوراق وعملات وتوكنات وإصدارات خيالية وخاصة لهواة الجمع.</p></div><div class="row-actions"><a class="all-link" href="/fantasia">عرض الكل</a><button class="rail-btn" type="button" data-dir="next" data-target="fantasiaRail">‹</button><button class="rail-btn" type="button" data-dir="prev" data-target="fantasiaRail">›</button></div></div>
-<div class="item-rail loading-row" id="fantasiaRail"><span class="strip-empty">جارٍ تحميل القسم…</span></div>
-</section>
+
 
 <section class="utility-grid" aria-label="خدمات المنصة">
 <a class="utility-card gold" href="/announcements"><b>📣 الأخبار والإعلانات</b><span>الإعلانات الرسمية والمعارض والمزادات الخاصة والتنبيهات المهمة.</span></a>
@@ -77,10 +74,9 @@ const sectionDefs={
  market:{rail:'marketRail',row:'marketRow',url:'/market',empty:'لا توجد قطع منشورة في السوق حاليًا.'},
  auction:{rail:'auctionRail',row:'auctionRow',url:'/auction',empty:'لا توجد مزادات نشطة حاليًا.'},
  specialNumbers:{rail:'specialRail',row:'specialRow',url:'/special-numbers',empty:'لا توجد قطع منشورة في هذا القسم حاليًا.'},
- transitionalIssues:{rail:'transitionalRail',row:'transitionalRow',url:'/transitional-issues',empty:'لا توجد إصدارات انتقالية منشورة حاليًا.'},
- fantasia:{rail:'fantasiaRail',row:'fantasiaRow',url:'/fantasia',empty:'لا توجد قطع فانتازيا منشورة حاليًا.'}
+ transitionalIssues:{rail:'transitionalRail',row:'transitionalRow',url:'/transitional-issues',empty:'لا توجد إصدارات انتقالية منشورة حاليًا.'}
 };
-const apiMap={market:'/api/public/market',auction:'/api/public/auctions',specialNumbers:'/api/public/special-numbers',transitionalIssues:'/api/public/transitional-issues',fantasia:'/api/public/fantasia'};
+const apiMap={market:'/api/public/market?store=coins',auction:'/api/public/auctions?store=coins',specialNumbers:'/api/public/special-numbers',transitionalIssues:'/api/public/transitional-issues'};
 const datasets={};
 function itemHref(section,i){const base=sectionDefs[section].url;const anchor=(section==='specialNumbers'||section==='fantasia'||section==='transitionalIssues')?'item-'+i.id:i.id;return `${base}#${encodeURIComponent(anchor)}`}
 function metaOf(section,i){
@@ -89,7 +85,6 @@ function metaOf(section,i){
    const time=left>0?(left<86400000?'ينتهي خلال أقل من 24 ساعة':'مزاد نشط'):'مزاد';
    return [money(i.auctionCurrentPrice||i.auctionOpeningPrice),time].filter(Boolean).join(' • ');
  }
- if(section==='fantasia') return [i.fantasiaIssuer,i.fantasiaType,money(priceOf(i))].filter(Boolean).join(' • ');
  if(section==='specialNumbers') return [i.specialNumberType||(Array.isArray(i.specialNumberTypes)?i.specialNumberTypes[0]:''),money(priceOf(i))].filter(Boolean).join(' • ');
  if(section==='transitionalIssues') return [i.transitionalIssueType,money(priceOf(i))].filter(Boolean).join(' • ');
  return [money(priceOf(i)),i.marketNegotiationEnabled?'قابل للتفاوض':''].filter(Boolean).join(' • ');
@@ -125,7 +120,7 @@ function promoTag(section,i){
 }
 function renderPromotions(){
  const box=$('promoRail'),seen=new Set(),promos=[];
- for(const section of ['market','auction','specialNumbers','transitionalIssues','fantasia']){
+ for(const section of ['market','auction','specialNumbers','transitionalIssues']){
    for(const i of datasets[section]||[]){
      const badge=promoTag(section,i);if(!badge||!(i.frontImg||i.backImg))continue;
      const key=String(i.id||'');if(key&&seen.has(key))continue;if(key)seen.add(key);
