@@ -262,6 +262,44 @@ def moderation_status(item):
 def item_is_public(item):
     return moderation_status(item)=='active'
 
+# V5.6.0 — Dar Al Muqtanyat multi-store foundation.
+# One shared platform/database powers two independent storefronts:
+#   coins        = نوادر العملات (official/original currencies)
+#   collectibles = نوادر المقتنيات (fantasia, antiques and other collectibles)
+STORE_TYPES=('coins','collectibles')
+STORE_LABELS={'coins':'نوادر العملات','collectibles':'نوادر المقتنيات'}
+
+def item_store_type(item):
+    raw=str((item or {}).get('storeType') or '').strip().lower()
+    if raw in STORE_TYPES: return raw
+    # Fantasia is deliberately separated from official currency inventory.
+    if (item or {}).get('fantasiaEnabled'): return 'collectibles'
+    text=' '.join(str((item or {}).get(k) or '') for k in ('type','marketCategory','category','notes')).lower()
+    collectible_words=('تحف','تحفة','سبح','سبحة','مسباح','خاتم','خواتم','حجر كريم','أحجار','مجسم','سيارة','طائرة','سفينة','لعبة','ألعاب','ميدالية','فنتازيا','fantasia','collectible')
+    if any(w in text for w in collectible_words): return 'collectibles'
+    # Existing records are currency records unless explicitly classified otherwise.
+    return 'coins'
+
+def normalize_store_type(value,item=None):
+    raw=str(value or '').strip().lower()
+    if raw in STORE_TYPES: return raw
+    return item_store_type(item or {})
+
+def requested_store(path):
+    try:
+        raw=str((parse_qs(urlparse(path).query).get('store') or [''])[0]).strip().lower()
+        return raw if raw in STORE_TYPES else ''
+    except Exception:
+        return ''
+
+def store_auction_path(item):
+    iid=quote(str((item or {}).get('id') or ''))
+    return f'/auction?store={item_store_type(item)}#{iid}'
+
+def store_market_path(item):
+    iid=quote(str((item or {}).get('id') or ''))
+    return f'/market?store={item_store_type(item)}#{iid}'
+
 SELLER_COUNTRY_FLAGS={
     'السعودية':'🇸🇦','المملكة العربية السعودية':'🇸🇦',
     'الكويت':'🇰🇼','البحرين':'🇧🇭','قطر':'🇶🇦',
@@ -729,7 +767,7 @@ def participant_shipping_address(person):
 
 def order_from_auction(due,item,person):
     physical=max(1,inventory_int(item.get('auctionQuantity'),1))
-    return {'id':'ord-'+secrets.token_hex(6),'orderNumber':'NW-'+datetime.datetime.now().strftime('%y%m%d')+'-'+secrets.token_hex(3).upper(),'source':'auction','sourceId':due.get('id'),'auctionRound':due.get('auctionRound'),'participantId':due.get('participantId'),'customerName':person.get('name',''),'customerPhone':person.get('phone',''),'status':'awaiting_payment','paymentStatus':'unpaid','created':datetime.datetime.now().isoformat(),'updated':datetime.datetime.now().isoformat(),'subtotal':float(due.get('amount') or 0),'buyerFee':0,'total':float(due.get('amount') or 0),'items':[{'itemId':item.get('id'),'title':item_title(item),'quantity':1,'physicalQuantity':physical,'unitPrice':float(due.get('amount') or 0),'total':float(due.get('amount') or 0),'images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'storage':storage_location(item)}],'shippingFee':0,'shippingFeeConfirmed':False,'shippingCompany':'','trackingNumber':'','shippingAddress':participant_shipping_address(person),'history':[{'status':'awaiting_payment','at':datetime.datetime.now().isoformat(),'note':'تم إنشاء الطلب تلقائيًا من فوز المزاد'}],'archived':False}
+    return {'id':'ord-'+secrets.token_hex(6),'orderNumber':'NW-'+datetime.datetime.now().strftime('%y%m%d')+'-'+secrets.token_hex(3).upper(),'source':'auction','storeType':item_store_type(item),'sourceId':due.get('id'),'auctionRound':due.get('auctionRound'),'participantId':due.get('participantId'),'customerName':person.get('name',''),'customerPhone':person.get('phone',''),'status':'awaiting_payment','paymentStatus':'unpaid','created':datetime.datetime.now().isoformat(),'updated':datetime.datetime.now().isoformat(),'subtotal':float(due.get('amount') or 0),'buyerFee':0,'total':float(due.get('amount') or 0),'items':[{'itemId':item.get('id'),'title':item_title(item),'quantity':1,'physicalQuantity':physical,'unitPrice':float(due.get('amount') or 0),'total':float(due.get('amount') or 0),'images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'storage':storage_location(item)}],'shippingFee':0,'shippingFeeConfirmed':False,'shippingCompany':'','trackingNumber':'','shippingAddress':participant_shipping_address(person),'history':[{'status':'awaiting_payment','at':datetime.datetime.now().isoformat(),'note':'تم إنشاء الطلب تلقائيًا من فوز المزاد'}],'archived':False}
 
 def create_order_for_due(due):
     orders=load_orders(); existing=next((o for o in orders if o.get('source')=='auction' and str(o.get('sourceId'))==str(due.get('id'))),None)
@@ -767,7 +805,7 @@ def create_order_for_market(req):
     subtotal=float(req.get('offeredAmount') or req.get('listedAmount') or 0); fee=float(req.get('buyerFeeAmount') or 0)
     units=max(1,inventory_int(req.get('quantity'),1)); physical=units*market_physical_per_unit(item)
     person=next((x for x in load_people() if str(x.get('id'))==str(req.get('participantId') or '')),{})
-    row={'id':'ord-'+secrets.token_hex(6),'orderNumber':'NW-'+datetime.datetime.now().strftime('%y%m%d')+'-'+secrets.token_hex(3).upper(),'source':'market','sourceId':req.get('id'),'participantId':str(req.get('participantId') or ''),'customerName':req.get('name',''),'customerPhone':req.get('phone',''),'status':'awaiting_payment','paymentStatus':'unpaid','created':datetime.datetime.now().isoformat(),'updated':datetime.datetime.now().isoformat(),'subtotal':subtotal,'buyerFee':fee,'total':float(req.get('buyerTotal') or subtotal+fee),'items':[{'itemId':item.get('id'),'title':req.get('itemTitle') or item_title(item),'quantity':units,'physicalQuantity':physical,'unitPrice':float(req.get('unitPrice') or 0),'total':subtotal,'images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'storage':storage_location(item),'selectedSerials':list(req.get('selectedSerials') or [])}],'shippingFee':0,'shippingFeeConfirmed':False,'shippingCompany':'','trackingNumber':'','shippingAddress':participant_shipping_address(person),'history':[{'status':'awaiting_payment','at':datetime.datetime.now().isoformat(),'note':'تم إنشاء الطلب من السوق العام'}],'archived':False}
+    row={'id':'ord-'+secrets.token_hex(6),'orderNumber':'NW-'+datetime.datetime.now().strftime('%y%m%d')+'-'+secrets.token_hex(3).upper(),'source':'market','storeType':item_store_type(item),'sourceId':req.get('id'),'participantId':str(req.get('participantId') or ''),'customerName':req.get('name',''),'customerPhone':req.get('phone',''),'status':'awaiting_payment','paymentStatus':'unpaid','created':datetime.datetime.now().isoformat(),'updated':datetime.datetime.now().isoformat(),'subtotal':subtotal,'buyerFee':fee,'total':float(req.get('buyerTotal') or subtotal+fee),'items':[{'itemId':item.get('id'),'title':req.get('itemTitle') or item_title(item),'quantity':units,'physicalQuantity':physical,'unitPrice':float(req.get('unitPrice') or 0),'total':subtotal,'images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'storage':storage_location(item),'selectedSerials':list(req.get('selectedSerials') or [])}],'shippingFee':0,'shippingFeeConfirmed':False,'shippingCompany':'','trackingNumber':'','shippingAddress':participant_shipping_address(person),'history':[{'status':'awaiting_payment','at':datetime.datetime.now().isoformat(),'note':'تم إنشاء الطلب من السوق العام'}],'archived':False}
     orders.append(row); save_json(ORDERS,{'orders':orders}); req['orderId']=row['id']; return row
 
 def reconcile_direct_market_buy_orders(participant_id=''):
@@ -1028,8 +1066,9 @@ def public_item(i):
         try: ended=datetime.datetime.fromisoformat(end) <= auction_local_now()
         except Exception: ended=False
     sold=bool(ended and bids and (target<=0 or top>=target))
-    public_keys=['id','country','denomination','year','type','condition','quantity','serials','frontImg','backImg','auctionEnd','auctionOpeningPrice','auctionBidStep','auctionAdditionalTerms','notes','negotiationEnabled','negotiationPercent','auctionRound','issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason','homeFeatured','homeQuickDeal','homeDiscounted','homeDiscountPercent','homePromoUntil','homePromoBadge','homePromoPriority','updated']
+    public_keys=['id','storeType','collectibleCategory','country','denomination','year','type','condition','quantity','serials','frontImg','backImg','auctionEnd','auctionOpeningPrice','auctionBidStep','auctionAdditionalTerms','notes','negotiationEnabled','negotiationPercent','auctionRound','issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason','homeFeatured','homeQuickDeal','homeDiscounted','homeDiscountPercent','homePromoUntil','homePromoBadge','homePromoPriority','updated']
     out={k:i.get(k) for k in public_keys}
+    out['storeType']=item_store_type(i)
     out.update(public_seller_identity(i))
     out.update({'auctionCurrentPrice':top,'bidCount':len(bids),'reserveState':reserve_state,'auctionEnded':ended,'auctionSold':sold})
     return out
@@ -1038,11 +1077,12 @@ def public_item(i):
 
 def public_market_item(i):
     # السوق العام لا يرسل سعر الشراء أو الموقع الداخلي أو أي بيانات مالية/إدارية سرية.
-    keys=['id','country','denomination','year','type','condition','quantity','frontImg','backImg','notes',
+    keys=['id','storeType','collectibleCategory','country','denomination','year','type','condition','quantity','frontImg','backImg','notes',
           'issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','gradingVerificationStatus','gradingNotes',
           'marketCategory','marketOfferType','marketSalePrice','marketUnitPrice','marketQuantity','marketSetPieces','marketSetSize','marketSetCurrencyMode','marketPriceUnit',
-          'marketPartialAllowed','marketNegotiationEnabled','marketNegotiationPercent','marketTitle','homeFeatured','homeQuickDeal','homeDiscounted','homeDiscountPercent','homePromoUntil','homePromoBadge','homePromoPriority','updated','specialNumberEnabled']
+          'marketPartialAllowed','marketNegotiationEnabled','marketNegotiationPercent','marketTitle','homeFeatured','homeQuickDeal','homeDiscounted','homeDiscountPercent','homePromoUntil','homePromoBadge','homePromoPriority','updated','specialNumberEnabled','fantasiaEnabled']
     out={k:i.get(k) for k in keys}
+    out['storeType']=item_store_type(i)
     out.update(public_seller_identity(i))
     _,_,reserved=item_order_quantities(i.get('id'),item=i)
     per_unit=market_physical_per_unit(i)
@@ -1094,8 +1134,8 @@ def public_special_item(item):
     if serials and not available and reserved and len(sold)<len(serials): status="reserved"
     elif qty<=0: status="sold"
     else: status="available" if sale else "display"
-    keys=("id","country","denomination","year","condition","serial","serials","frontImg","backImg","specialNumberType","specialNumberTypes","specialNumberReason","marketSalePrice","marketUnitPrice","marketNegotiationEnabled","marketNegotiationPercent","marketOfferType","marketTitle","homeFeatured","homeQuickDeal","homeDiscounted","homeDiscountPercent","homePromoUntil","homePromoBadge","homePromoPriority","quantity")
-    out={k:item.get(k) for k in keys}; out.update(public_seller_identity(item)); out.update({"availableSerials":available,"availableQuantity":qty,"unitPrice":price,"saleEnabled":sale,"soldOut":status=="sold","availabilityStatus":status}); return out
+    keys=("id","storeType","country","denomination","year","condition","serial","serials","frontImg","backImg","specialNumberType","specialNumberTypes","specialNumberReason","marketSalePrice","marketUnitPrice","marketNegotiationEnabled","marketNegotiationPercent","marketOfferType","marketTitle","homeFeatured","homeQuickDeal","homeDiscounted","homeDiscountPercent","homePromoUntil","homePromoBadge","homePromoPriority","quantity")
+    out={k:item.get(k) for k in keys}; out['storeType']=item_store_type(item); out.update(public_seller_identity(item)); out.update({"availableSerials":available,"availableQuantity":qty,"unitPrice":price,"saleEnabled":sale,"soldOut":status=="sold","availabilityStatus":status}); return out
 
 def public_portal_url(host):
     # V2.0: QR ثابت لا يعتمد على التاريخ أو رمز مؤقت.
@@ -1575,7 +1615,7 @@ ADMIN_GET_API={
     '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity','/api/archive/items','/api/live-auctions/admin'
 }
 PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/visitor/order/action','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/seller/order/update','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
-PUBLIC_STATIC={'/styles.css','/public_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/seller_portal.css','/seller_portal.js','/invoice.html','/live_auction.html','/live_auction.js','/live_studio.html','/live_studio.js'}
+PUBLIC_STATIC={'/styles.css','/public_home.html','/dar_home.html','/collectibles_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/seller_portal.css','/seller_portal.js','/invoice.html','/live_auction.html','/live_auction.js','/live_studio.html','/live_studio.js'}
 
 class H(SimpleHTTPRequestHandler):
     def cookie_value(self,name):
@@ -1667,7 +1707,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.5.1','channel':'SELLER-CENTER-MARKET-FIX','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.6.1','channel':'DAR-MUQTANYAT-MULTISTORE-AUDITED','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1681,7 +1721,18 @@ class H(SimpleHTTPRequestHandler):
         # The root URL is the permanent public homepage. Keep /home as a
         # compatibility alias so old bookmarks and printed links never 404.
         if p in ('/','/home','/home/','/public_home.html'):
+            host=str(self.headers.get('Host') or '').lower()
+            # The new Dar Al Muqtanyat domain opens the umbrella portal, while
+            # nawadercoins.com remains a direct entrance to Nawader Coins.
+            if 'daralmuqtanyat' in host or 'daralmuqtaniyat' in host:
+                self.send_file(os.path.join(PUBLIC_DIR,'dar_home.html'),'text/html; charset=utf-8'); return
             self.send_file(os.path.join(PUBLIC_DIR,'public_home.html'),'text/html; charset=utf-8'); return
+        if p in ('/dar','/dar/','/dar_home.html'):
+            self.send_file(os.path.join(PUBLIC_DIR,'dar_home.html'),'text/html; charset=utf-8'); return
+        if p in ('/coins','/coins/'):
+            self.send_file(os.path.join(PUBLIC_DIR,'public_home.html'),'text/html; charset=utf-8'); return
+        if p in ('/collectibles','/collectibles/','/collectibles_home.html'):
+            self.send_file(os.path.join(PUBLIC_DIR,'collectibles_home.html'),'text/html; charset=utf-8'); return
         if p in ('/admin','/admin/','/index.html'):
             if not self.require_admin(): return
             self.send_file(os.path.join(ADMIN_DIR,'index.html'),'text/html; charset=utf-8'); return
@@ -1712,7 +1763,7 @@ class H(SimpleHTTPRequestHandler):
             for i in load():
                 if str(i.get('ownerParticipantId') or '')!=pid or i.get('ownerArchived'): continue
                 y={k:i.get(k) for k in (
-                    'id','country','denomination','issueEdition','year','type','condition','notes','frontImg','backImg',
+                    'id','storeType','collectibleCategory','country','denomination','issueEdition','year','type','condition','notes','frontImg','backImg',
                     'inventoryUnitType','inventoryUnitCount','piecesPerUnit','quantity','availableQuantity',
                     'forMarket','marketApproved','marketSalePrice','marketPriceUnit','marketNegotiationEnabled','marketNegotiationPercent',
                     'forAuction','auctionApproved','auctionEnd','auctionOpeningPrice','auctionStartPrice','auctionCurrentPrice',
@@ -1855,7 +1906,10 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/items':
             with LOCK:
                 ensure_auction_outcomes()
-                self.sendj({'items':load()}); return
+                rows=[]
+                for i in load():
+                    x=dict(i); x['storeType']=item_store_type(i); rows.append(x)
+                self.sendj({'items':rows}); return
         if p=='/api/participants':
             with LOCK:
                 people=load_people(); rows=[participant_public(x) for x in people]; active=[x for x in rows if x['approvalStatus']!='cancelled']; archived=[x for x in rows if x['approvalStatus']=='cancelled']
@@ -1884,7 +1938,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/public/special-numbers':
             if not effective_visitor_sections()['specialNumbers']:
                 self.sendj({'items':[],'hidden':True,'launchMode':True}); return
-            rows=[public_special_item(i) for i in load() if i.get('specialNumberEnabled') and item_is_public(i)]
+            rows=[public_special_item(i) for i in load() if i.get('specialNumberEnabled') and item_is_public(i) and item_store_type(i)=='coins']
             self.sendj({'items':rows}); return
         if p=='/api/public/fantasia':
             if not effective_visitor_sections()['fantasia']:
@@ -1892,14 +1946,14 @@ class H(SimpleHTTPRequestHandler):
             rows=[public_special_item(i) for i in load() if i.get('fantasiaEnabled') and item_is_public(i)]
             for row in rows:
                 src=next((x for x in load() if str(x.get('id'))==str(row.get('id'))),{})
-                row['fantasiaType']=src.get('fantasiaType') or 'other'; row['fantasiaIssuer']=src.get('fantasiaIssuer') or ''; row['fantasiaNotes']=src.get('fantasiaNotes') or ''
+                row['storeType']='collectibles'; row['fantasiaType']=src.get('fantasiaType') or 'other'; row['fantasiaIssuer']=src.get('fantasiaIssuer') or ''; row['fantasiaNotes']=src.get('fantasiaNotes') or ''
             self.sendj({'items':rows}); return
         if p=='/api/public/transitional-issues':
             if not effective_visitor_sections()['transitionalIssues']:
                 self.sendj({'items':[],'hidden':True,'launchMode':True}); return
             rows=[]
             for i in load():
-                if not i.get('transitionalIssueEnabled') or not item_is_public(i): continue
+                if not i.get('transitionalIssueEnabled') or not item_is_public(i) or item_store_type(i)!='coins': continue
                 market_public=bool(i.get('forMarket') and i.get('marketApproved'))
                 auction_public=bool(i.get('forAuction') and i.get('auctionApproved'))
                 special_public=bool(i.get('specialNumberEnabled'))
@@ -1976,8 +2030,10 @@ class H(SimpleHTTPRequestHandler):
                 except Exception as e:
                     print('خطأ تحميل مصدر المزادات العامة:',e)
                     self.sendj({'items':[],'error':'تعذر قراءة مصدر المزادات مؤقتًا','retryable':True},503); return
+                store=requested_store(self.path)
                 for i in source_items:
                     if not (i.get('forAuction') and i.get('auctionApproved') and item_is_public(i)): continue
+                    if store and item_store_type(i)!=store: continue
                     try:
                         public=public_item(i)
                         # المزادات المنتهية تُفصل عن صفحة المزادات النشطة العامة.
@@ -1986,7 +2042,7 @@ class H(SimpleHTTPRequestHandler):
                     except Exception as e:
                         skipped+=1; print('تنبيه مقتنى مزاد عام غير صالح:',i.get('id'),e)
                 items.sort(key=lambda x:str(x.get('auctionEnd') or ''))
-                self.sendj({'items':items,'skipped':skipped,'ok':True,'generatedAt':datetime.datetime.now().isoformat()}); return
+                self.sendj({'items':items,'store':store,'skipped':skipped,'ok':True,'generatedAt':datetime.datetime.now().isoformat()}); return
         if p=='/api/visitor/auction-activity':
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
             person=self.require_participant(pid)
@@ -2003,7 +2059,7 @@ class H(SimpleHTTPRequestHandler):
                 try: ended=bool(endraw and datetime.datetime.fromisoformat(endraw)<=now)
                 except Exception: ended=False
                 if ended: continue
-                row=grouped.setdefault(iid,{'itemId':iid,'title':item_title(item),'auctionEnd':endraw,'myHighestBid':0.0,'currentBid':0.0,'url':'/auction#'+iid})
+                row=grouped.setdefault(iid,{'itemId':iid,'title':item_title(item),'auctionEnd':endraw,'myHighestBid':0.0,'currentBid':0.0,'url':store_auction_path(item)})
                 row['myHighestBid']=max(float(row['myHighestBid'] or 0),float(b.get('amount') or 0))
             all_bids=load_bids()
             for iid,row in grouped.items():
@@ -2043,12 +2099,17 @@ class H(SimpleHTTPRequestHandler):
             shipping=float(order.get('shippingFee') or order.get('deliveryFee') or 0)
             total=float(order.get('total') or subtotal+buyer_fee+shipping)
             paid=total if str(order.get('paymentStatus') or order.get('status')) in ('paid','completed','received','shipped','preparing','ready_to_ship') else float(order.get('paidAmount') or 0)
+            first_item_id=str(((order.get('items') or [{}])[0] or {}).get('itemId') or '')
+            first_item=next((i for i in load() if str(i.get('id') or '')==first_item_id),{}) if first_item_id else {}
+            order_store=normalize_store_type(order.get('storeType'),first_item)
+            store_label=STORE_LABELS.get(order_store,'نوادر العملات')
             self.sendj({'invoice':{
                 'invoiceNumber':'INV-'+str(order.get('orderNumber') or order.get('id') or '').replace('NW-',''),
                 'orderNumber':order.get('orderNumber'),'orderId':order.get('id'),'source':order.get('source'),
+                'storeType':order_store,'storeLabel':store_label,
                 'created':order.get('created'),'paidAt':order.get('paidAt'),'customerName':order.get('customerName') or person.get('name') or '',
                 'customerPhone':order.get('customerPhone') or person.get('phone') or '',
-                'sellerName':'نوادر العملات','platformName':'نوادر العملات','items':items,
+                'sellerName':store_label,'platformName':'دار المقتنيات','items':items,
                 'subtotal':subtotal,'buyerFee':buyer_fee,'shippingFee':shipping,'total':total,'paid':paid,
                 'balance':max(0,total-paid),'status':order.get('status'),'statusLabel':labels.get(order.get('status'),order.get('status')),
                 'shippingCompany':order.get('shippingCompany') or '','trackingNumber':order.get('trackingNumber') or '',
@@ -2056,8 +2117,9 @@ class H(SimpleHTTPRequestHandler):
             }}); return
         if p=='/api/public/market':
             with LOCK:
-                items=[public_market_item(i) for i in load() if i.get('forMarket') and i.get('marketApproved') and item_is_public(i)]
-                self.sendj({'items':items}); return
+                store=requested_store(self.path)
+                items=[public_market_item(i) for i in load() if i.get('forMarket') and i.get('marketApproved') and item_is_public(i) and (not store or item_store_type(i)==store)]
+                self.sendj({'items':items,'store':store}); return
         if p=='/api/market/requests':
             with LOCK:
                 all_req=load_market_requests()
@@ -2441,6 +2503,8 @@ class H(SimpleHTTPRequestHandler):
                 sid=str(d.get('id') or '').strip()
                 destination=str(d.get('desiredDestination') or 'vault').strip()
                 if destination not in ('vault','market','auction'): destination='vault'
+                requested_store_type=normalize_store_type(d.get('storeType'),d)
+                collectible_category=str(d.get('collectibleCategory') or '').strip().lower()
 
                 inv=submission_inventory_values(d)
                 serial=str(d.get('serial') or '').strip()
@@ -2498,7 +2562,8 @@ class H(SimpleHTTPRequestHandler):
                 special_types=[str(x).strip() for x in special_types if str(x).strip()]
                 special_reason=str(d.get('specialNumberReason') or '').strip()[:1000]
 
-                fantasia_enabled=bool(d.get('fantasiaEnabled'))
+                fantasia_enabled=bool(d.get('fantasiaEnabled')) or collectible_category=='fantasia'
+                if fantasia_enabled: requested_store_type='collectibles'
                 fantasia_type=str(d.get('fantasiaType') or '').strip()
                 fantasia_issuer=str(d.get('fantasiaIssuer') or '').strip()[:300]
                 fantasia_notes=str(d.get('fantasiaNotes') or '').strip()[:1000]
@@ -2517,6 +2582,8 @@ class H(SimpleHTTPRequestHandler):
                     self.sendj({'error':'اختر نوع الحالة الانتقالية'},400); return
 
                 base_fields={
+                    'storeType':requested_store_type,
+                    'collectibleCategory':collectible_category if requested_store_type=='collectibles' else '',
                     'country':country,'denomination':denomination,
                     'year':str(d.get('year') or '').strip(),
                     'issueEdition':str(d.get('issueEdition') or '').strip(),
@@ -2584,7 +2651,7 @@ class H(SimpleHTTPRequestHandler):
                     rows.append(row)
 
                 row.update({
-                    'participantId':pid,'participantName':person.get('name',''),'participantPhone':person.get('phone',''),
+                    'storeType':requested_store_type,'collectibleCategory':collectible_category if requested_store_type=='collectibles' else '','participantId':pid,'participantName':person.get('name',''),'participantPhone':person.get('phone',''),
                     'country':country,'denomination':denomination,'year':base_fields['year'],
                     'issueEdition':base_fields['issueEdition'],'type':base_fields['type'],
                     'condition':base_fields['condition'],'serial':serial,'notes':base_fields['notes'],
@@ -2600,7 +2667,7 @@ class H(SimpleHTTPRequestHandler):
                 save(items)
                 save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
                 append_operation('إضافة/تعديل مقتنى مباشر بواسطة العميل',{
-                    'submissionId':sid,'itemId':item_id,'participantId':pid,
+                    'submissionId':sid,'itemId':item_id,'participantId':pid,'storeType':requested_store_type,
                     'destination':destination,'marketPublished':destination=='market',
                     'auctionPublished':destination=='auction',
                     'specialNumberEnabled':special_enabled,
@@ -2989,7 +3056,7 @@ class H(SimpleHTTPRequestHandler):
                     if offered<=0 or offered+1e-9<minimum: self.sendj({'error':f'أقل عرض تفاوض مسموح {minimum:.2f} ر.س'},409); return
                 else: offered=base
                 fee_pct=float(load_settings().get('buyerFeePercent') or 0); fee=round((offered if action=='offer' else base)*fee_pct/100,2); total=round((offered if action=='offer' else base)+fee,2); now=datetime.datetime.now(); reserve_until=now+datetime.timedelta(minutes=30)
-                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or item_title(item),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':price,'name':person.get('name',''),'phone':person.get('phone',''),'action':action,'quantity':qty,'selectedSerials':selected,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':fee,'buyerTotal':total,'status':'pending','sourcePage':'special_numbers','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'reservedUntil':reserve_until.isoformat(),'created':now.isoformat()}
+                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'storeType':item_store_type(item),'itemTitle':item.get('marketTitle') or item_title(item),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':price,'name':person.get('name',''),'phone':person.get('phone',''),'action':action,'quantity':qty,'selectedSerials':selected,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':fee,'buyerTotal':total,'status':'pending','sourcePage':'special_numbers','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'reservedUntil':reserve_until.isoformat(),'created':now.isoformat()}
                 a=load_market_requests(); a.append(row); save_json(MARKET_REQUESTS,{'requests':a}); add_notification('admin','','market','🛒 طلب من صفحة الأرقام المميزة',f"{person.get('name','عميل')} طلب {item_title(item)}"+((' — الأرقام: '+', '.join(selected)) if selected else f' — الكمية: {qty}'),'','/admin'); add_notification('participant',pid,'order','تم تسجيل طلبك',f"تم حجز اختيارك من {item_title(item)} مؤقتًا وإرسال الطلب للإدارة.",item_id,'/account'); self.sendj({'ok':True,'request':row}); return
             if p=='/api/fantasia/request':
                 pid=str(d.get('participantId') or ''); person=next((x for x in load_people() if str(x.get('id'))==pid),None)
@@ -3018,7 +3085,7 @@ class H(SimpleHTTPRequestHandler):
                     if offered<=0 or offered+1e-9<minimum: self.sendj({'error':f'أقل عرض تفاوض مسموح {minimum:.2f} ر.س'},409); return
                 else: offered=base
                 fee_pct=float(load_settings().get('buyerFeePercent') or 0); fee=round((offered if action=='offer' else base)*fee_pct/100,2); total=round((offered if action=='offer' else base)+fee,2); now=datetime.datetime.now(); reserve_until=now+datetime.timedelta(minutes=30)
-                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or item_title(item),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':price,'name':person.get('name',''),'phone':person.get('phone',''),'action':action,'quantity':qty,'selectedSerials':selected,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':fee,'buyerTotal':total,'status':'pending','sourcePage':'fantasia','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'reservedUntil':reserve_until.isoformat(),'created':now.isoformat()}
+                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'storeType':item_store_type(item),'itemTitle':item.get('marketTitle') or item_title(item),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':price,'name':person.get('name',''),'phone':person.get('phone',''),'action':action,'quantity':qty,'selectedSerials':selected,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':fee,'buyerTotal':total,'status':'pending','sourcePage':'fantasia','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'reservedUntil':reserve_until.isoformat(),'created':now.isoformat()}
                 a=load_market_requests(); a.append(row); save_json(MARKET_REQUESTS,{'requests':a}); add_notification('admin','','market','🛒 طلب من قسم فانتازيا',f"{person.get('name','عميل')} طلب {item_title(item)}"+((' — الأرقام: '+', '.join(selected)) if selected else f' — الكمية: {qty}'),'','/admin'); add_notification('participant',pid,'order','تم تسجيل طلبك',f"تم حجز اختيارك من {item_title(item)} مؤقتًا وإرسال الطلب للإدارة.",item_id,'/account'); self.sendj({'ok':True,'request':row}); return
             if p=='/api/market/request':
                 item_id=str(d.get('itemId','')); name=str(d.get('name','')).strip(); phone=''.join(ch for ch in str(d.get('phone','')) if ch.isdigit() or ch=='+')
@@ -3073,7 +3140,7 @@ class H(SimpleHTTPRequestHandler):
                 else: offered=base
                 fee_pct=float(load_settings().get('buyerFeePercent') or 0); fee=(offered if action=='offer' else base)*fee_pct/100; total=(offered if action=='offer' else base)+fee
                 now=datetime.datetime.now().isoformat(); direct_buy=(action=='buy')
-                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'itemTitle':item.get('marketTitle') or ((item.get('country') or '')+' — '+(item.get('denomination') or '')),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':unit,'name':name,'phone':phone,'action':action,'quantity':qty,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':round(fee,2),'buyerTotal':round(total,2),'status':'accepted' if direct_buy else 'pending','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'created':now,'updated':now}
+                row={'id':'m-'+secrets.token_hex(6),'itemId':item_id,'storeType':item_store_type(item),'itemTitle':item.get('marketTitle') or ((item.get('country') or '')+' — '+(item.get('denomination') or '')),'ownerName':item.get('ownerName') or 'الإدارة / غير محدد','ownerPhone':item.get('ownerPhone') or '','participantId':pid,'marketOfferType':item.get('marketOfferType') or 'single','unitPrice':unit,'name':name,'phone':phone,'action':action,'quantity':qty,'listedAmount':base,'offeredAmount':offered,'buyerFeePercent':fee_pct,'buyerFeeAmount':round(fee,2),'buyerTotal':round(total,2),'status':'accepted' if direct_buy else 'pending','images':[x for x in [item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')] if x]+list(item.get('additionalImages') or []),'created':now,'updated':now}
                 if direct_buy: row['acceptedAt']=now
                 a=load_market_requests(); a.append(row); save_json(MARKET_REQUESTS,{'requests':a})
                 if direct_buy:
@@ -3276,7 +3343,7 @@ class H(SimpleHTTPRequestHandler):
                     for b in round_bids:
                         pid=str(b.get('participantId') or '')
                         if pid and pid not in notified:
-                            add_notification('participant',pid,'auction','⚙️ تم تحديث إعدادات المزاد',msg,iid,'/auction#'+iid); notified.add(pid)
+                            add_notification('participant',pid,'auction','⚙️ تم تحديث إعدادات المزاد',msg,iid,store_auction_path(item)); notified.add(pid)
                 append_operation('تعديل مزاد نشط',{'itemId':iid,'round':rnd,'changed':changes,'before':before,'after':after,'bidCount':len(round_bids)})
                 self.sendj({'ok':True,'item':item,'changed':changes,'bidCount':len(round_bids),'notifiedCount':len(notified)}); return
             if p=='/api/auction/exception':
@@ -3698,9 +3765,9 @@ class H(SimpleHTTPRequestHandler):
                 previous_top=max(item_bids,key=lambda b:float(b.get('amount') or 0)) if item_bids else None
                 bid={'id':'b-'+secrets.token_hex(6),'itemId':itemId,'auctionRound':round_no,'participantId':pid,'amount':amount,'created':datetime.datetime.now().isoformat()}; bids.append(bid); save_json(BIDS,{'bids':bids})
                 title=item_title(item)
-                add_notification('participant',pid,'auction','✅ تم تسجيل مزايدتك',f"تم قبول مزايدتك على {title} بقيمة {amount:g} ر.س.",itemId,'/auction#'+str(itemId))
+                add_notification('participant',pid,'auction','✅ تم تسجيل مزايدتك',f"تم قبول مزايدتك على {title} بقيمة {amount:g} ر.س.",itemId,store_auction_path(item))
                 if previous_top and str(previous_top.get('participantId'))!=str(pid):
-                    add_notification('participant',previous_top.get('participantId'),'auction','⚡ تمت المزايدة عليك',f"مزايدتك لم تعد الأعلى في {title}. السعر الحالي {amount:g} ر.س، ويمكنك العودة للمزاد والزيادة.",itemId,'/auction#'+str(itemId))
+                    add_notification('participant',previous_top.get('participantId'),'auction','⚡ تمت المزايدة عليك',f"مزايدتك لم تعد الأعلى في {title}. السعر الحالي {amount:g} ر.س، ويمكنك العودة للمزاد والزيادة.",itemId,store_auction_path(item))
                 items=load();
                 for i in items:
                     if i.get('id')==itemId: i['auctionCurrentPrice']=amount; i['updated']=int(datetime.datetime.now().timestamp()*1000)
@@ -3714,6 +3781,11 @@ class H(SimpleHTTPRequestHandler):
                 if not iid or not country or not denom:
                     self.sendj({'ok':False,'error':'بيانات الحفظ الأساسية ناقصة: رقم السجل أو الدولة أو الفئة'},400); return
                 old_item=next((i for i in items if str(i.get('id'))==iid),None)
+                x['storeType']=normalize_store_type(x.get('storeType'),old_item or x)
+                x['collectibleCategory']=str(x.get('collectibleCategory') or '').strip().lower()
+                if x.get('fantasiaEnabled') or x.get('collectibleCategory')=='fantasia':
+                    x['storeType']='collectibles'
+                    if x.get('collectibleCategory')=='fantasia': x['fantasiaEnabled']=True
                 # نموذج الإدارة يرسل الحقول القابلة للتعديل فقط. نحافظ على حقول
                 # التاريخ والنتائج والمعرّفات التي لا تظهر في النموذج.
                 if old_item:
@@ -3833,14 +3905,14 @@ os.chdir(ROOT); backup_data('startup')
 # تشغيل آمن: تأكد من وجود ملفات الواجهات الأساسية قبل بدء الخدمة.
 _required_runtime_files=[
     os.path.join(ADMIN_DIR,'index.html'), os.path.join(ADMIN_DIR,'app.js'), os.path.join(ADMIN_DIR,'styles.css'),
-    os.path.join(PUBLIC_DIR,'public_home.html'), os.path.join(PUBLIC_DIR,'public_auction.html'), os.path.join(PUBLIC_DIR,'public_market.html')
+    os.path.join(PUBLIC_DIR,'public_home.html'), os.path.join(PUBLIC_DIR,'dar_home.html'), os.path.join(PUBLIC_DIR,'collectibles_home.html'), os.path.join(PUBLIC_DIR,'public_auction.html'), os.path.join(PUBLIC_DIR,'public_market.html')
 ]
 _missing_runtime=[p for p in _required_runtime_files if not os.path.isfile(p)]
 if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.5.1-SELLER-CENTER-MARKET-FIX'
+VERSION='5.6.1-DAR-MUQTANYAT-MULTISTORE-AUDITED'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
