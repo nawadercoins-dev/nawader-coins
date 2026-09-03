@@ -2465,19 +2465,24 @@ class H(SimpleHTTPRequestHandler):
                         f.write(chunk); remain-=len(chunk)
                 if remain: raise IOError('رفع الصورة غير مكتمل')
                 os.replace(tmp,dst)
-                # Reduce storage and mobile-memory pressure after upload when Pillow can decode the image.
-                try:
-                    from PIL import Image, ImageOps
-                    im=Image.open(dst); im=ImageOps.exif_transpose(im); im.thumbnail((1800,1800))
-                    if im.mode not in ('RGB','L'): im=im.convert('RGB')
-                    jpg=os.path.join(UPLOAD_DIR,'photo_'+stamp+'.jpg')
-                    im.save(jpg,'JPEG',quality=82,optimize=True)
-                    if os.path.abspath(jpg)!=os.path.abspath(dst):
-                        try: os.remove(dst)
-                        except OSError: pass
-                    name=os.path.basename(jpg); dst=jpg
-                except Exception:
-                    pass
+                # R3: تطبيق الإدارة يرسل JPEG مضغوطًا وخفيفًا غالبًا. لا نعيد
+                # فتحه وضغطه على الخادم إذا كان صغيرًا؛ فهذا كان يضيف انتظارًا
+                # واضحًا على الجوال بعد اكتمال الرفع. الصور الكبيرة/غير JPEG
+                # تستمر في المرور بمعالجة Pillow للحماية من الأحجام الضخمة.
+                already_light = ('jpeg' in ctype or 'jpg' in ctype) and n <= 700*1024
+                if not already_light:
+                    try:
+                        from PIL import Image, ImageOps
+                        im=Image.open(dst); im=ImageOps.exif_transpose(im); im.thumbnail((1600,1600))
+                        if im.mode not in ('RGB','L'): im=im.convert('RGB')
+                        jpg=os.path.join(UPLOAD_DIR,'photo_'+stamp+'.jpg')
+                        im.save(jpg,'JPEG',quality=80,optimize=False)
+                        if os.path.abspath(jpg)!=os.path.abspath(dst):
+                            try: os.remove(dst)
+                            except OSError: pass
+                        name=os.path.basename(jpg); dst=jpg
+                    except Exception:
+                        pass
                 self.sendj({'ok':True,'url':'/uploads/'+name}); return
             except Exception as e:
                 try:
@@ -3782,13 +3787,29 @@ class H(SimpleHTTPRequestHandler):
             if p=='/api/item':
                 x=d.get('item',{}) if isinstance(d,dict) else {}
                 iid=str(x.get('id') or '').strip()
-                country=str(x.get('country') or '').strip()
-                denom=str(x.get('denomination') or '').strip()
-                if not iid or not country or not denom:
-                    self.sendj({'ok':False,'error':'بيانات الحفظ الأساسية ناقصة: رقم السجل أو الدولة أو الفئة'},400); return
-                old_item=next((i for i in items if str(i.get('id'))==iid),None)
+                old_item=next((i for i in items if str(i.get('id'))==iid),None) if iid else None
                 x['storeType']=normalize_store_type(x.get('storeType'),old_item or x)
                 x['collectibleCategory']=str(x.get('collectibleCategory') or '').strip().lower()
+                country=str(x.get('country') or '').strip()
+                denom=str(x.get('denomination') or '').strip()
+
+                # R3: متطلبات الحفظ تختلف بين المتجرين.
+                # العملات تحتاج دولة + فئة، أما المقتنيات فتحتاج تصنيف + اسم،
+                # وبلد المنشأ اختياري ويُحفظ كـ «غير محدد» عند تركه فارغًا.
+                if not iid:
+                    self.sendj({'ok':False,'error':'تعذر الحفظ: رقم السجل غير موجود'},400); return
+                if x.get('storeType')=='collectibles':
+                    if not x.get('collectibleCategory'):
+                        self.sendj({'ok':False,'error':'اختر تصنيف نوادر المقتنيات'},400); return
+                    if not denom:
+                        self.sendj({'ok':False,'error':'اكتب اسم المقتنى'},400); return
+                    if not country:
+                        country='غير محدد'; x['country']=country
+                else:
+                    if not country:
+                        self.sendj({'ok':False,'error':'اختر الدولة للعملة'},400); return
+                    if not denom:
+                        self.sendj({'ok':False,'error':'اكتب الفئة / القيمة للعملة'},400); return
                 if x.get('fantasiaEnabled') or x.get('collectibleCategory')=='fantasia':
                     x['storeType']='collectibles'
                     if x.get('collectibleCategory')=='fantasia': x['fantasiaEnabled']=True
@@ -3918,7 +3939,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.2-R2-COLLECTIBLES-ROUTING-FIX'
+VERSION='5.6.2-R3-SAVE-IMAGE-SPEED-FIX'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
