@@ -1077,7 +1077,7 @@ def public_item(i):
 
 def public_market_item(i):
     # السوق العام لا يرسل سعر الشراء أو الموقع الداخلي أو أي بيانات مالية/إدارية سرية.
-    keys=['id','storeType','collectibleCategory','country','denomination','year','type','condition','quantity','frontImg','backImg','notes',
+    keys=['id','storeType','collectibleCategory','collectibleBrand','collectibleMaterial','collectibleModel','collectibleScale','country','denomination','year','type','condition','quantity','frontImg','backImg','notes',
           'issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','gradingVerificationStatus','gradingNotes',
           'marketCategory','marketOfferType','marketSalePrice','marketUnitPrice','marketQuantity','marketSetPieces','marketSetSize','marketSetCurrencyMode','marketPriceUnit',
           'marketPartialAllowed','marketNegotiationEnabled','marketNegotiationPercent','marketTitle','homeFeatured','homeQuickDeal','homeDiscounted','homeDiscountPercent','homePromoUntil','homePromoBadge','homePromoPriority','updated','specialNumberEnabled','fantasiaEnabled']
@@ -1707,7 +1707,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.6.1','channel':'DAR-MUQTANYAT-MULTISTORE-AUDITED','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.6.2','channel':'DAR-MUQTANYAT-SEPARATED-OPERATIONS','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1883,14 +1883,14 @@ class H(SimpleHTTPRequestHandler):
                 if subtotal<=0: subtotal=float(order.get('subtotal') or 0)
                 paid=str(order.get('paymentStatus') or '')=='paid'
                 address=order.get('shippingAddress') if paid and isinstance(order.get('shippingAddress'),dict) else {}
-                orders.append({'id':order.get('id'),'orderNumber':order.get('orderNumber'),'source':order.get('source'),'status':order.get('status'),'statusLabel':labels.get(order.get('status'),order.get('status')),'paymentStatus':order.get('paymentStatus','unpaid'),'created':order.get('created'),'updated':order.get('updated'),'customerName':order.get('customerName') or 'مشتري','subtotal':subtotal,'sellerFee':round(subtotal*.025,2),'sellerNet':round(subtotal*.975,2),'shippingCompany':order.get('shippingCompany') or '','trackingNumber':order.get('trackingNumber') or '','shippingAddress':address,'items':[{'itemId':x.get('itemId'),'title':x.get('title') or 'مقتنى','quantity':int(x.get('quantity') or 1),'image':((x.get('images') or [''])[0] or '')} for x in lines]})
+                orders.append({'id':order.get('id'),'orderNumber':order.get('orderNumber'),'source':order.get('source'),'storeType':normalize_store_type(order.get('storeType'),next((z for z in inventory if str(z.get('id'))==str((lines[0] or {}).get('itemId') or '')),{})),'status':order.get('status'),'statusLabel':labels.get(order.get('status'),order.get('status')),'paymentStatus':order.get('paymentStatus','unpaid'),'created':order.get('created'),'updated':order.get('updated'),'customerName':order.get('customerName') or 'مشتري','subtotal':subtotal,'sellerFee':round(subtotal*.025,2),'sellerNet':round(subtotal*.975,2),'shippingCompany':order.get('shippingCompany') or '','trackingNumber':order.get('trackingNumber') or '','shippingAddress':address,'items':[{'itemId':x.get('itemId'),'title':x.get('title') or 'مقتنى','quantity':int(x.get('quantity') or 1),'image':((x.get('images') or [''])[0] or '')} for x in lines]})
             orders.sort(key=lambda x:str(x.get('created') or ''),reverse=True)
             paid_orders=[x for x in orders if x.get('paymentStatus')=='paid' and x.get('status') not in ('cancelled','returned')]
             open_orders=[x for x in orders if x.get('status') in OPEN_ORDER_STATUSES]
             requests=[x for x in load_market_requests() if str(x.get('itemId') or '') in owned_ids]
             permissions=participant_permissions(pid)
             seller_country=person.get('country') or 'المملكة العربية السعودية'
-            self.sendj({'seller':{'id':pid,'name':person.get('alias') or person.get('displayName') or person.get('name') or 'بائع','country':seller_country,'flag':SELLER_COUNTRY_FLAGS.get(_norm_country(seller_country),'🇸🇦'),'avatarUrl':person.get('avatarUrl') or '','verified':bool(person.get('verified') or person.get('approved'))},'permissions':permissions,'metrics':{'inventory':len(inventory),'marketActive':sum(1 for x in inventory if x.get('forMarket') and x.get('marketApproved')),'auctionActive':sum(1 for x in inventory if x.get('forAuction') and x.get('auctionApproved')),'orders':len(orders),'openOrders':len(open_orders),'paidGross':round(sum(float(x.get('subtotal') or 0) for x in paid_orders),2),'sellerNet':round(sum(float(x.get('sellerNet') or 0) for x in paid_orders),2),'pendingPayments':sum(1 for x in orders if x.get('paymentStatus')!='paid' and x.get('status') not in ('cancelled','returned','completed')),'readyToShip':sum(1 for x in orders if x.get('status')=='ready_to_ship'),'shipped':sum(1 for x in orders if x.get('status')=='shipped'),'completed':sum(1 for x in orders if x.get('status')=='completed'),'offers':sum(1 for x in requests if x.get('action')=='offer' and str(x.get('status') or 'pending') not in ('completed','cancelled','rejected'))},'orders':orders,'inventory':[{'id':x.get('id'),'title':item_title(x),'image':x.get('frontImg') or x.get('backImg') or '','forMarket':bool(x.get('forMarket')),'marketApproved':bool(x.get('marketApproved')),'marketPrice':float(x.get('marketSalePrice') or x.get('marketUnitPrice') or 0),'forAuction':bool(x.get('forAuction')),'auctionApproved':bool(x.get('auctionApproved')),'auctionEnd':x.get('auctionEnd') or '','auctionOutcome':x.get('auctionOutcome') or '','availableQuantity':inventory_snapshot(x).get('current',0)} for x in inventory],'requests':[{k:v for k,v in x.items() if k not in ('ownerPhone','phone')} for x in requests[-100:]]}); return
+            self.sendj({'seller':{'id':pid,'name':person.get('alias') or person.get('displayName') or person.get('name') or 'بائع','country':seller_country,'flag':SELLER_COUNTRY_FLAGS.get(_norm_country(seller_country),'🇸🇦'),'avatarUrl':person.get('avatarUrl') or '','verified':bool(person.get('verified') or person.get('approved'))},'permissions':permissions,'metrics':{'inventory':len(inventory),'marketActive':sum(1 for x in inventory if x.get('forMarket') and x.get('marketApproved')),'auctionActive':sum(1 for x in inventory if x.get('forAuction') and x.get('auctionApproved')),'orders':len(orders),'openOrders':len(open_orders),'paidGross':round(sum(float(x.get('subtotal') or 0) for x in paid_orders),2),'sellerNet':round(sum(float(x.get('sellerNet') or 0) for x in paid_orders),2),'pendingPayments':sum(1 for x in orders if x.get('paymentStatus')!='paid' and x.get('status') not in ('cancelled','returned','completed')),'readyToShip':sum(1 for x in orders if x.get('status')=='ready_to_ship'),'shipped':sum(1 for x in orders if x.get('status')=='shipped'),'completed':sum(1 for x in orders if x.get('status')=='completed'),'offers':sum(1 for x in requests if x.get('action')=='offer' and str(x.get('status') or 'pending') not in ('completed','cancelled','rejected'))},'orders':orders,'inventory':[{'id':x.get('id'),'storeType':item_store_type(x),'collectibleCategory':x.get('collectibleCategory') or '','title':item_title(x),'image':x.get('frontImg') or x.get('backImg') or '','forMarket':bool(x.get('forMarket')),'marketApproved':bool(x.get('marketApproved')),'marketPrice':float(x.get('marketSalePrice') or x.get('marketUnitPrice') or 0),'forAuction':bool(x.get('forAuction')),'auctionApproved':bool(x.get('auctionApproved')),'auctionEnd':x.get('auctionEnd') or '','auctionOutcome':x.get('auctionOutcome') or '','availableQuantity':inventory_snapshot(x).get('current',0)} for x in inventory],'requests':[{k:v for k,v in x.items() if k not in ('ownerPhone','phone')} for x in requests[-100:]]}); return
         if p=='/api/negotiations':
             q=urlparse(self.path).query
             qs=parse_qs(q); item_id=(qs.get('itemId') or [''])[0]; pid=(qs.get('participantId') or [''])[0]
@@ -2339,7 +2339,7 @@ class H(SimpleHTTPRequestHandler):
             if row is not None and not live_session_owned_by(row,person): self.sendj({'error':'لا تملك هذه الجلسة'},403); return
             if row is None:
                 row={'id':sid,'created':datetime.datetime.now().isoformat(),'status':'scheduled','currentItemId':'','currentLot':None,'currentPrice':0,'latestBidderName':'','history':[],'broadcasterType':'participant','broadcasterParticipantId':str(person.get('id')),'broadcasterName':str(person.get('alias') or person.get('displayName') or person.get('name') or 'بائع موثق')[:120]}; sessions.append(row)
-            owned={str(i.get('id')) for i in load() if not i.get('archived') and str(i.get('ownerParticipantId') or '')==str(person.get('id'))}
+            owned={str(i.get('id')) for i in load() if not i.get('archived') and item_store_type(i)=='coins' and str(i.get('ownerParticipantId') or '')==str(person.get('id'))}
             ids=[]
             for iid in (d.get('itemIds') or []):
                 iid=str(iid)
@@ -2370,6 +2370,8 @@ class H(SimpleHTTPRequestHandler):
             elif action=='open-item':
                 iid=str(d.get('itemId') or '')
                 if iid not in [str(x) for x in (row.get('itemIds') or [])]: self.sendj({'error':'المقتنى غير مدرج في هذه الجلسة'},403); return
+                src=next((i for i in load() if str(i.get('id'))==iid),None)
+                if not src or item_store_type(src)!='coins': self.sendj({'error':'البث المباشر مخصص حاليًا لنوادر العملات فقط'},409); return
                 try: price=max(0,float(d.get('price') or 0))
                 except Exception: price=0
                 row['currentItemId']=iid; row['currentLot']=None; row['currentPrice']=price; row['lotEndsAt']=''; row['latestBidderName']=''; row['latestBidderId']=''; row['status']='live'
@@ -2385,7 +2387,7 @@ class H(SimpleHTTPRequestHandler):
             if row is None:
                 row={'id':sid,'created':datetime.datetime.now().isoformat(),'status':'scheduled','currentItemId':'','currentPrice':0,'latestBidderName':'','history':[]}; sessions.append(row)
             ids=[]
-            valid={str(i.get('id')) for i in load() if not i.get('archived')}
+            valid={str(i.get('id')) for i in load() if not i.get('archived') and item_store_type(i)=='coins'}
             for iid in (d.get('itemIds') or []):
                 iid=str(iid)
                 if iid in valid and iid not in ids: ids.append(iid)
@@ -2413,7 +2415,11 @@ class H(SimpleHTTPRequestHandler):
                 row['status']={'start':'live','end':'ended','cancel':'cancelled'}[action]
                 if action=='start': row['startedAt']=row.get('startedAt') or datetime.datetime.now().isoformat()
                 if action in ('end','cancel'): row['endedAt']=datetime.datetime.now().isoformat(); row['archivedAt']=row['endedAt']
-            if action=='open-item': row['currentItemId']=str(d.get('itemId') or ''); row['currentPrice']=float(d.get('price') or 0); row['latestBidderName']=''
+            if action=='open-item':
+                iid=str(d.get('itemId') or '')
+                src=next((i for i in load() if str(i.get('id'))==iid),None)
+                if not src or item_store_type(src)!='coins': self.sendj({'error':'البث المباشر مخصص حاليًا لنوادر العملات فقط'},409); return
+                row['currentItemId']=iid; row['currentPrice']=float(d.get('price') or 0); row['latestBidderName']=''
             if action=='price': row['currentPrice']=float(d.get('price') or 0); row['latestBidderName']=str(d.get('bidderName') or '').strip()[:120]
             if action=='open-free-lot':
                 title=str(d.get('title') or '').strip()
@@ -3912,7 +3918,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.1-DAR-MUQTANYAT-MULTISTORE-AUDITED'
+VERSION='5.6.2-DAR-MUQTANYAT-SEPARATED-OPERATIONS'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
