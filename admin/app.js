@@ -745,6 +745,7 @@ document.querySelectorAll("nav button").forEach(
       )
         await refresh(true);
       if (b.dataset.v === "participants") await renderParticipants();
+      if (b.dataset.v === "permissions") await renderPermissions();
       if (b.dataset.v === "warehouse") await renderWarehouse();
       if (b.dataset.v === "special") await renderSpecialAdmin();
       if (b.dataset.v === "transitional") await renderTransitionalAdmin();

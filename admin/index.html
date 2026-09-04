@@ -37,6 +37,7 @@
         <span id="pendingParticipantsBadge" class="nav-badge" hidden
           >0</span
         ></button
+      ><button data-v="permissions">الصلاحيات</button
       ><button data-v="collectible-approvals">
         اعتماد المقتنيات
         <span id="collectibleApprovalsBadge" class="nav-badge" hidden
@@ -1343,6 +1344,21 @@
           <div id="participantsList" class="participants-list"></div>
         </div>
       </section>
+      <section id="permissions" class="view">
+        <div class="panel">
+          <div class="auction-title-row">
+            <div>
+              <h2>🔐 صلاحيات المستخدمين</h2>
+              <p class="muted">فعّل هنا دور «مسؤول إدخال البيانات» للحساب المطلوب، ثم اضغط «حفظ الصلاحيات». بعد ذلك يستخدم الموظف صفحة /data-entry بحسابه نفسه.</p>
+            </div>
+            <button type="button" id="refreshPermissions" class="ghost">↻ تحديث</button>
+          </div>
+          <div class="panel" style="margin:12px 0;background:rgba(212,164,71,.08)">
+            <b>طريقة التفعيل:</b> الحساب يجب أن يكون مسجلًا في المنصة أولًا، ثم فعّل بطاقة «مسؤول إدخال البيانات» أمام اسمه واحفظ.
+          </div>
+          <div id="permissionsList" class="permissions-list"></div>
+        </div>
+      </section>
       <section id="warehouseView" class="view warehouse-view">
         <div class="panel warehouse-panel">
           <div class="auction-title-row">
@@ -1806,6 +1822,6 @@
       <div id="quickResults"></div>
       <div id="recent"></div>
     </div>
-    <script src="/admin/app.js?v=5.6.2-r9"></script>
+    <script src="/admin/app.js?v=5.6.2-r9.3a"></script>
   </body>
 </html>
