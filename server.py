@@ -30,6 +30,7 @@ USER_PERMISSIONS=os.path.join(DATA_ROOT,'user_permissions.json')
 OPERATIONS_LOG=os.path.join(DATA_ROOT,'operations_log.json')
 ORDERS=os.path.join(DATA_ROOT,'orders_shipping.json')
 COLLECTIBLE_SUBMISSIONS=os.path.join(DATA_ROOT,'collectible_submissions.json')
+IMAGE_VAULT=os.path.join(DATA_ROOT,'image_vault.json')
 LIVE_AUCTIONS=os.path.join(DATA_ROOT,'live_auctions.json')
 LIVEKIT_URL=str(os.environ.get('LIVEKIT_URL') or '').strip()
 LIVEKIT_API_KEY=str(os.environ.get('LIVEKIT_API_KEY') or '').strip()
@@ -50,7 +51,7 @@ os.makedirs(UPLOAD_DIR,exist_ok=True)
 
 # تهيئة القرص في أول تشغيل فقط من الملفات المرفقة مع المشروع، دون استبدال أي بيانات دائمة.
 if DATA_ROOT != ROOT:
-    for _dst in (DATA,PEOPLE,BIDS,NEGOTIATIONS,MARKET_REQUESTS,SUBSCRIPTIONS,SAVE_AUDIT,SETTINGS,NOTIFICATIONS,AUCTION_DUES,USER_PERMISSIONS,OPERATIONS_LOG,ORDERS,COLLECTIBLE_SUBMISSIONS,AUTH_FILE):
+    for _dst in (DATA,PEOPLE,BIDS,NEGOTIATIONS,MARKET_REQUESTS,SUBSCRIPTIONS,SAVE_AUDIT,SETTINGS,NOTIFICATIONS,AUCTION_DUES,USER_PERMISSIONS,OPERATIONS_LOG,ORDERS,COLLECTIBLE_SUBMISSIONS,IMAGE_VAULT,AUTH_FILE):
         _src=os.path.join(ROOT,os.path.basename(_dst))
         if not os.path.exists(_dst) and os.path.isfile(_src):
             shutil.copy2(_src,_dst)
@@ -99,6 +100,7 @@ def load_user_permissions(): return load_json(USER_PERMISSIONS,{'users':{}}).get
 def load_operations_log(): return load_json(OPERATIONS_LOG,{'events':[]}).get('events',[])
 def load_orders(): return load_json(ORDERS,{'orders':[]}).get('orders',[])
 def load_collectible_submissions(): return load_json(COLLECTIBLE_SUBMISSIONS,{'submissions':[]}).get('submissions',[])
+def load_image_vault(): return load_json(IMAGE_VAULT,{'images':[]}).get('images',[])
 def load_live_auctions(): return load_json(LIVE_AUCTIONS,{'sessions':[]}).get('sessions',[])
 
 def live_timer_remaining(row):
@@ -380,6 +382,39 @@ def participant_permissions(pid):
     x=load_user_permissions().get(str(pid),{})
     defaults.update(x if isinstance(x,dict) else {})
     return defaults
+
+
+def image_vault_cleanup(rows=None, stale_seconds=4*60*60):
+    """Release abandoned temporary reservations without duplicating image files."""
+    rows=rows if isinstance(rows,list) else load_image_vault()
+    now=time.time(); changed=False
+    for row in rows:
+        if row.get('status')!='reserved' or row.get('linkedSubmissionId'): continue
+        raw=str(row.get('reservedAt') or '').strip()
+        try: ts=datetime.datetime.fromisoformat(raw).timestamp() if raw else 0
+        except Exception: ts=0
+        if ts and now-ts <= stale_seconds: continue
+        row['status']='available'; row['reservedByParticipantId']=''; row['reservedByName']=''; row['reservedAt']=''; row['updatedAt']=datetime.datetime.now().isoformat(); changed=True
+    return rows,changed
+
+def image_vault_record_by_url(url, rows=None):
+    path=urlparse(str(url or '')).path
+    if not path: return None
+    for row in (rows if isinstance(rows,list) else load_image_vault()):
+        if urlparse(str(row.get('url') or '')).path==path: return row
+    return None
+
+def image_vault_release_for_submission(submission_id, rows=None, reason=''):
+    rows=rows if isinstance(rows,list) else load_image_vault(); changed=False; now=datetime.datetime.now().isoformat()
+    sid=str(submission_id or '')
+    for row in rows:
+        if str(row.get('linkedSubmissionId') or '')!=sid: continue
+        hist=row.setdefault('linkHistory',[])
+        hist.append({'submissionId':sid,'itemId':str(row.get('linkedItemId') or ''),'releasedAt':now,'reason':str(reason or '')[:300]})
+        if len(hist)>20: del hist[:-20]
+        row.update({'status':'available','linkedSubmissionId':'','linkedItemId':'','reservedByParticipantId':'','reservedByName':'','reservedAt':'','updatedAt':now})
+        changed=True
+    return rows,changed
 
 def livekit_configured():
     return bool(LIVEKIT_URL and LIVEKIT_API_KEY and LIVEKIT_API_SECRET)
@@ -1001,13 +1036,13 @@ BACKUP_FILES=[
     ('khazina_shared_data.json',DATA),('auction_participants.json',PEOPLE),
     ('auction_bids.json',BIDS),('auction_negotiations.json',NEGOTIATIONS),
     ('market_requests.json',MARKET_REQUESTS),('subscription_ledger.json',SUBSCRIPTIONS),('save_audit.json',SAVE_AUDIT),('platform_settings.json',SETTINGS),
-    ('notifications.json',NOTIFICATIONS),('auction_dues.json',AUCTION_DUES),('user_permissions.json',USER_PERMISSIONS),('operations_log.json',OPERATIONS_LOG),('orders_shipping.json',ORDERS),('collectible_submissions.json',COLLECTIBLE_SUBMISSIONS),('live_auctions.json',LIVE_AUCTIONS)
+    ('notifications.json',NOTIFICATIONS),('auction_dues.json',AUCTION_DUES),('user_permissions.json',USER_PERMISSIONS),('operations_log.json',OPERATIONS_LOG),('orders_shipping.json',ORDERS),('collectible_submissions.json',COLLECTIBLE_SUBMISSIONS),('image_vault.json',IMAGE_VAULT),('live_auctions.json',LIVE_AUCTIONS)
 ]
 
 def create_full_backup_bytes():
     mem=io.BytesIO()
     with zipfile.ZipFile(mem,'w',compression=zipfile.ZIP_DEFLATED) as z:
-        manifest={'format':'khazina-full-backup','version':2,'created':datetime.datetime.now().isoformat(),'includes':['data','participants','bids','negotiations','market_requests','orders_shipping','collectible_submissions','subscriptions','settings','uploads']}
+        manifest={'format':'khazina-full-backup','version':2,'created':datetime.datetime.now().isoformat(),'includes':['data','participants','bids','negotiations','market_requests','orders_shipping','collectible_submissions','image_vault','subscriptions','settings','uploads']}
         z.writestr('manifest.json',json.dumps(manifest,ensure_ascii=False,indent=2))
         for arc,path in BACKUP_FILES:
             if os.path.exists(path): z.write(path,'data/'+arc)
@@ -1640,9 +1675,9 @@ def platform_integrity_report():
 ADMIN_GET_API={
     '/api/negotiations','/api/backup/full','/api/items','/api/participants','/api/participants/summary',
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
-    '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity','/api/archive/items','/api/live-auctions/admin'
+    '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/image-vault/admin','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity','/api/archive/items','/api/live-auctions/admin'
 }
-PUBLIC_POST_API={'/api/special/request','/api/fantasia/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/visitor/order/action','/api/visitor/payment-proof','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/data-entry/submissions','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/seller/order/update','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
+PUBLIC_POST_API={'/api/special/request','/api/fantasia/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/visitor/order/action','/api/visitor/payment-proof','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/data-entry/submissions','/api/image-vault/pull','/api/image-vault/release','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/seller/order/update','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
 PUBLIC_STATIC={'/styles.css','/public_home.html','/dar_home.html','/collectibles_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/seller_portal.css','/seller_portal.js','/data_entry.html','/invoice.html','/live_auction.html','/live_auction.js','/live_studio.html','/live_studio.js'}
 
 class H(SimpleHTTPRequestHandler):
@@ -1735,7 +1770,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.6.2-R9.3','channel':'DAR-MUQTANYAT-R9.3-DATA-ENTRY-APPROVAL','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.6.2-R9.4','channel':'DAR-MUQTANYAT-R9.4-IMAGE-VAULT-DATA-ENTRY','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1946,6 +1981,30 @@ class H(SimpleHTTPRequestHandler):
             person=self.require_participant('')
             if not person: return
             self.sendj({'ok':True,'participant':participant_public(person)}); return
+        if p=='/api/image-vault/admin':
+            q=parse_qs(urlparse(self.path).query); status=str((q.get('status') or ['all'])[0] or 'all').strip().lower()
+            try: limit=max(1,min(100,int((q.get('limit') or ['60'])[0]))); offset=max(0,int((q.get('offset') or ['0'])[0]))
+            except Exception: limit,offset=60,0
+            rows,changed=image_vault_cleanup(load_image_vault())
+            if changed: save_json(IMAGE_VAULT,{'images':rows})
+            ordered=sorted(rows,key=lambda x:str(x.get('createdAt') or ''),reverse=True)
+            counts={'total':len(ordered),'available':sum(1 for x in ordered if x.get('status')=='available'),'reserved':sum(1 for x in ordered if x.get('status')=='reserved'),'used':sum(1 for x in ordered if x.get('status')=='used')}
+            filtered=ordered if status not in ('available','reserved','used') else [x for x in ordered if x.get('status')==status]
+            self.sendj({'ok':True,'counts':counts,'totalFiltered':len(filtered),'offset':offset,'limit':limit,'images':filtered[offset:offset+limit]}); return
+        if p=='/api/image-vault/available':
+            person=self.require_participant('')
+            if not person: return
+            pid=str(person.get('id') or '')
+            if not participant_permissions(pid).get('dataEntry'):
+                self.sendj({'error':'صلاحية مسؤول إدخال البيانات غير مفعلة لهذا الحساب'},403); return
+            q=parse_qs(urlparse(self.path).query)
+            try: limit=max(1,min(100,int((q.get('limit') or ['100'])[0]))); offset=max(0,int((q.get('offset') or ['0'])[0]))
+            except Exception: limit,offset=100,0
+            rows,changed=image_vault_cleanup(load_image_vault())
+            if changed: save_json(IMAGE_VAULT,{'images':rows})
+            visible=[x for x in rows if x.get('status')=='available' or (x.get('status')=='reserved' and str(x.get('reservedByParticipantId') or '')==pid)]
+            visible.sort(key=lambda x:str(x.get('createdAt') or ''),reverse=True)
+            self.sendj({'ok':True,'total':len(visible),'offset':offset,'limit':limit,'images':visible[offset:offset+limit]}); return
         if p=='/api/data-entry/submissions':
             person=self.require_participant('')
             if not person: return
@@ -2244,7 +2303,11 @@ class H(SimpleHTTPRequestHandler):
             self.send_file(os.path.join(ADMIN_DIR,'app.js'),'application/javascript; charset=utf-8'); return
         if p.startswith('/uploads/'):
             rel=os.path.basename(p); full=os.path.join(UPLOAD_DIR,rel)
-            if self.is_admin() or is_public_upload_url(p):
+            allowed=self.is_admin() or is_public_upload_url(p)
+            if not allowed:
+                person=self.participant_person()
+                if person and participant_permissions(person.get('id')).get('dataEntry') and image_vault_record_by_url(p): allowed=True
+            if allowed:
                 self.send_file(full); return
             self.send_error(403,'Private image'); return
         if p in PUBLIC_STATIC:
@@ -2484,6 +2547,40 @@ class H(SimpleHTTPRequestHandler):
                 self.sendj({'error':'ملف النسخة الاحتياطية تالف أو ليس ملف خزينة كامل'},400); return
             except Exception as e:
                 self.sendj({'error':'تعذر استعادة النسخة الكاملة: '+str(e)},400); return
+        if p=='/api/image-vault/upload':
+            try:
+                n=int(self.headers.get('Content-Length','0'))
+                if n<=0 or n>50*1024*1024: self.sendj({'error':'حجم الصورة غير مناسب (الحد 50 ميجابايت)'},413); return
+                ctype=(self.headers.get('Content-Type') or '').lower(); ext='.jpg'
+                if 'png' in ctype: ext='.png'
+                elif 'webp' in ctype: ext='.webp'
+                elif 'heic' in ctype or 'heif' in ctype: ext='.heic'
+                stamp=datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f'); name='vault_'+stamp+ext; dst=os.path.join(UPLOAD_DIR,name); tmp=dst+'.tmp'; remain=n
+                with open(tmp,'wb') as f:
+                    while remain:
+                        chunk=self.rfile.read(min(1024*1024,remain))
+                        if not chunk: break
+                        f.write(chunk); remain-=len(chunk)
+                if remain: raise IOError('رفع الصورة غير مكتمل')
+                os.replace(tmp,dst)
+                already_light=('jpeg' in ctype or 'jpg' in ctype) and n<=700*1024
+                if not already_light:
+                    try:
+                        from PIL import Image, ImageOps
+                        im=Image.open(dst); im=ImageOps.exif_transpose(im); im.thumbnail((1600,1600))
+                        if im.mode not in ('RGB','L'): im=im.convert('RGB')
+                        jpg=os.path.join(UPLOAD_DIR,'vault_'+stamp+'.jpg'); im.save(jpg,'JPEG',quality=80,optimize=False)
+                        if os.path.abspath(jpg)!=os.path.abspath(dst):
+                            try: os.remove(dst)
+                            except OSError: pass
+                        name=os.path.basename(jpg); dst=jpg
+                    except Exception: pass
+                now=datetime.datetime.now().isoformat(); rows=load_image_vault(); rec={'id':'iv-'+secrets.token_hex(7),'url':'/uploads/'+name,'filename':name,'status':'available','createdAt':now,'updatedAt':now,'sizeBytes':os.path.getsize(dst) if os.path.exists(dst) else n,'reservedByParticipantId':'','reservedByName':'','reservedAt':'','linkedSubmissionId':'','linkedItemId':'','linkHistory':[]}; rows.append(rec); save_json(IMAGE_VAULT,{'images':rows}); append_operation('رفع صورة إلى خزينة الصور',{'imageVaultId':rec['id'],'url':rec['url']},actor='الإدارة'); self.sendj({'ok':True,'image':rec}); return
+            except Exception as e:
+                try:
+                    if 'tmp' in locals() and os.path.exists(tmp): os.remove(tmp)
+                except OSError: pass
+                self.sendj({'error':'تعذر حفظ صورة الخزينة: '+str(e)},500); return
         if p in ('/api/upload','/api/visitor/upload'):
             try:
                 if p=='/api/visitor/upload':
@@ -2531,6 +2628,59 @@ class H(SimpleHTTPRequestHandler):
         try: d=self.body()
         except Exception: self.sendj({'error':'bad json'},400); return
         with LOCK:
+            if p=='/api/image-vault/pull':
+                person=self.require_participant('')
+                if not person: return
+                pid=str(person.get('id') or '')
+                if not participant_permissions(pid).get('dataEntry'):
+                    self.sendj({'error':'صلاحية مسؤول إدخال البيانات غير مفعلة لهذا الحساب'},403); return
+                ids=d.get('ids') if isinstance(d.get('ids'),list) else []
+                ids=[str(x or '').strip() for x in ids if str(x or '').strip()][:8]
+                if not ids: self.sendj({'error':'حدد صورة واحدة على الأقل من الخزينة'},400); return
+                rows,_=image_vault_cleanup(load_image_vault()); chosen=[]; now=datetime.datetime.now().isoformat()
+                for iid in ids:
+                    row=next((x for x in rows if str(x.get('id'))==iid),None)
+                    if not row: self.sendj({'error':'إحدى صور الخزينة غير موجودة'},404); return
+                    if row.get('status')=='reserved' and str(row.get('reservedByParticipantId') or '')!=pid:
+                        self.sendj({'error':'إحدى الصور سحبها مسؤول إدخال آخر بالفعل'},409); return
+                    if row.get('status')=='used': self.sendj({'error':'إحدى الصور مرتبطة بمقتنى بالفعل'},409); return
+                    if row.get('status') not in ('available','reserved'): self.sendj({'error':'إحدى الصور غير متاحة للسحب'},409); return
+                    chosen.append(row)
+                for row in chosen:
+                    row.update({'status':'reserved','reservedByParticipantId':pid,'reservedByName':person.get('alias') or person.get('name') or 'مسؤول إدخال البيانات','reservedAt':now,'updatedAt':now})
+                save_json(IMAGE_VAULT,{'images':rows}); append_operation('سحب صور من خزينة الصور',{'operatorId':pid,'imageIds':ids},actor='مسؤول إدخال البيانات'); self.sendj({'ok':True,'images':chosen}); return
+            if p=='/api/image-vault/release':
+                person=self.require_participant('')
+                if not person: return
+                pid=str(person.get('id') or '')
+                if not participant_permissions(pid).get('dataEntry'):
+                    self.sendj({'error':'صلاحية مسؤول إدخال البيانات غير مفعلة لهذا الحساب'},403); return
+                ids=d.get('ids') if isinstance(d.get('ids'),list) else []
+                ids={str(x or '').strip() for x in ids if str(x or '').strip()}; rows=load_image_vault(); released=[]; now=datetime.datetime.now().isoformat()
+                for row in rows:
+                    if str(row.get('id')) not in ids: continue
+                    if row.get('status')=='reserved' and str(row.get('reservedByParticipantId') or '')==pid and not row.get('linkedSubmissionId'):
+                        row.update({'status':'available','reservedByParticipantId':'','reservedByName':'','reservedAt':'','updatedAt':now}); released.append(row.get('id'))
+                if released: save_json(IMAGE_VAULT,{'images':rows})
+                self.sendj({'ok':True,'released':released}); return
+            if p=='/api/image-vault/action':
+                action=str(d.get('action') or '').strip().lower(); iid=str(d.get('id') or '').strip(); rows=load_image_vault(); row=next((x for x in rows if str(x.get('id'))==iid),None)
+                if not row: self.sendj({'error':'صورة الخزينة غير موجودة'},404); return
+                now=datetime.datetime.now().isoformat()
+                if action=='release':
+                    if row.get('status')!='reserved': self.sendj({'error':'يمكن إعادة الصور المحجوزة فقط'},409); return
+                    row.update({'status':'available','reservedByParticipantId':'','reservedByName':'','reservedAt':'','updatedAt':now}); save_json(IMAGE_VAULT,{'images':rows}); append_operation('إعادة صورة محجوزة إلى خزينة الصور',{'imageVaultId':iid},actor='الإدارة'); self.sendj({'ok':True}); return
+                if action=='delete':
+                    if row.get('status')!='available' or row.get('linkedSubmissionId') or row.get('linkedItemId'):
+                        self.sendj({'error':'لا يمكن حذف صورة مرتبطة أو قيد الاستخدام'},409); return
+                    url=str(row.get('url') or ''); referenced=any(url in [str(x.get('frontImage') or ''),str(x.get('backImage') or '')]+[str(z or '') for z in (x.get('additionalImages') or [])] for x in load_collectible_submissions()) or any(url in [str(x.get('frontImg') or ''),str(x.get('backImg') or '')]+[str(z or '') for z in (x.get('additionalImages') or [])] for x in load())
+                    if referenced: self.sendj({'error':'الصورة ما زالت مرتبطة بسجل ولا يمكن حذفها'},409); return
+                    full=os.path.join(UPLOAD_DIR,os.path.basename(urlparse(url).path))
+                    try:
+                        if os.path.isfile(full): os.remove(full)
+                    except OSError: pass
+                    rows=[x for x in rows if str(x.get('id'))!=iid]; save_json(IMAGE_VAULT,{'images':rows}); append_operation('حذف صورة متاحة من خزينة الصور',{'imageVaultId':iid},actor='الإدارة'); self.sendj({'ok':True}); return
+                self.sendj({'error':'إجراء خزينة الصور غير معروف'},400); return
             if p=='/api/data-entry/submissions':
                 person=self.require_participant('')
                 if not person: return
@@ -2565,16 +2715,30 @@ class H(SimpleHTTPRequestHandler):
                         if not isinstance(vals,list): vals=[vals]
                         if normalized_serial in {re.sub(r'\s+','',str(v or '')).upper() for v in vals if str(v or '').strip()}:
                             self.sendj({'error':'الرقم التسلسلي مسجل مسبقًا في المستودع'},409); return
-                front=str(d.get('frontImage') or '').strip(); back=str(d.get('backImage') or '').strip()
-                extras=d.get('additionalImages') if isinstance(d.get('additionalImages'),list) else []
-                extras=[str(x).strip() for x in extras if str(x).strip()][:6]
-                valid_images=[]
-                for label,img in [('الوجه/الصورة الأولى',front),('الخلف/الصورة الثانية',back)]+[(f'صورة إضافية {n+1}',x) for n,x in enumerate(extras)]:
-                    if img and not img.startswith('/uploads/'):
-                        self.sendj({'error':f'{label} يجب رفعها أولًا إلى خادم المنصة'},400); return
-                    if img: valid_images.append(img)
-                now=datetime.datetime.now().isoformat(); inv=submission_inventory_values(d)
-                purchase=max(0,float(d.get('purchase') or 0)); shipping=max(0,float(d.get('shipping') or 0)); other_cost=max(0,float(d.get('other') or 0)); expected=max(0,float(d.get('expectedPrice') or 0))
+                # R9.4: الصور لا تُنسخ إلى سجل الإدخال؛ تُسحب من خزينة الصور ويُحفظ نفس رابط الملف الأصلي.
+                vault_ids=d.get('imageVaultIds') if isinstance(d.get('imageVaultIds'),list) else []
+                vault_ids=[str(x or '').strip() for x in vault_ids if str(x or '').strip()][:8]
+                now=datetime.datetime.now().isoformat()
+                if row is None and not sid: sid='de-'+secrets.token_hex(7)
+                vault_rows=load_image_vault(); selected_vault=[]
+                for iid in vault_ids:
+                    vr=next((x for x in vault_rows if str(x.get('id'))==iid),None)
+                    if not vr: self.sendj({'error':'إحدى الصور المختارة لم تعد موجودة في خزينة الصور'},404); return
+                    st=str(vr.get('status') or 'available')
+                    owned_reserved=st=='reserved' and str(vr.get('reservedByParticipantId') or '')==pid
+                    owned_used=st=='used' and str(vr.get('linkedSubmissionId') or '')==sid
+                    if not (st=='available' or owned_reserved or owned_used): self.sendj({'error':'إحدى الصور أصبحت مستخدمة أو محجوزة لمسؤول آخر'},409); return
+                    selected_vault.append(vr)
+                if mode=='submit' and not selected_vault and not (row and (row.get('frontImage') or row.get('backImage'))):
+                    self.sendj({'error':'اسحب صورة واحدة على الأقل من خزينة الصور قبل الإرسال للاعتماد'},400); return
+                if selected_vault:
+                    urls=[str(x.get('url') or '') for x in selected_vault]
+                    front=urls[0] if urls else ''; back=urls[1] if len(urls)>1 else ''; extras=urls[2:8]
+                else:
+                    # توافق مع مسودات R9.3 القديمة التي رفعت صورها مباشرة قبل إنشاء الخزينة.
+                    front=str((row or {}).get('frontImage') or '').strip(); back=str((row or {}).get('backImage') or '').strip(); extras=list((row or {}).get('additionalImages') or [])[:6]
+                inv=submission_inventory_values(d)
+                purchase=max(0,float(d.get('purchase') or 0)); shipping=max(0,float(d.get('shipping') or 0)); other_cost=max(0,float(d.get('other') or 0)); sale_price=max(0,float(d.get('salePrice') if d.get('salePrice') not in (None,'') else d.get('expectedPrice') or 0))
                 payload={
                     'submissionSource':'data_entry','createdByRole':'data_entry','dataEntryParticipantId':pid,
                     'dataEntryName':person.get('alias') or person.get('name') or 'مسؤول إدخال البيانات',
@@ -2584,15 +2748,26 @@ class H(SimpleHTTPRequestHandler):
                     'condition':str(d.get('condition') or '').strip()[:120],'serial':serial,'serials':[serial] if serial else [],
                     'notes':str(d.get('notes') or '').strip()[:3000],
                     'frontImage':front,'backImage':back,'additionalImages':extras,
-                    'desiredDestination':'vault','purchase':purchase,'shipping':shipping,'other':other_cost,'expectedPrice':expected,
+                    'desiredDestination':'vault','purchase':purchase,'shipping':shipping,'other':other_cost,'salePrice':sale_price,'expectedPrice':sale_price,'vaultImageIds':vault_ids,
                     'warehouse':str(d.get('warehouse') or 'المستودع الرئيسي').strip()[:120] or 'المستودع الرئيسي',
                     'cabinet':str(d.get('cabinet') or '').strip()[:120],'shelf':str(d.get('shelf') or '').strip()[:120],
                     'box':str(d.get('box') or '').strip()[:120],'album':str(d.get('album') or '').strip()[:120],'pocket':str(d.get('pocket') or '').strip()[:120],
                     **inv
                 }
                 if row is None:
-                    sid='de-'+secrets.token_hex(7); row={'id':sid,'created':now,'itemId':'','adminNote':'','reviewHistory':[]}; rows.append(row)
-                previous=row.get('status') or 'draft'; row.update(payload); row['updated']=now; row['status']='pending' if mode=='submit' else 'draft'
+                    row={'id':sid,'created':now,'itemId':'','adminNote':'','reviewHistory':[]}; rows.append(row)
+                previous=row.get('status') or 'draft'
+                old_vault_ids={str(x or '') for x in (row.get('vaultImageIds') or []) if str(x or '')}
+                selected_ids={str(x.get('id')) for x in selected_vault}
+                # الصور التي أزيلت من مسودة قابلة للتعديل ترجع إلى المتاحة؛ الملف نفسه لا يُنسخ ولا يُحذف.
+                for vr in vault_rows:
+                    vid=str(vr.get('id') or '')
+                    if vid in old_vault_ids-selected_ids and str(vr.get('linkedSubmissionId') or '')==sid and not vr.get('linkedItemId'):
+                        vr.update({'status':'available','linkedSubmissionId':'','reservedByParticipantId':'','reservedByName':'','reservedAt':'','updatedAt':now})
+                for vr in selected_vault:
+                    vr.update({'status':'used','linkedSubmissionId':sid,'linkedItemId':'','reservedByParticipantId':'','reservedByName':'','reservedAt':'','usedAt':vr.get('usedAt') or now,'updatedAt':now})
+                if selected_vault or old_vault_ids: save_json(IMAGE_VAULT,{'images':vault_rows})
+                row.update(payload); row['updated']=now; row['status']='pending' if mode=='submit' else 'draft'
                 if mode=='submit':
                     row['submittedAt']=now; row['adminNote']=''
                     add_notification('admin','','approval','📥 مقتنى بانتظار الاعتماد',f"أرسل مسؤول إدخال البيانات {payload['dataEntryName']} — {country or '—'} / {denomination or '—'} — للمراجعة.",sid,'/admin')
@@ -2876,7 +3051,7 @@ class H(SimpleHTTPRequestHandler):
                             'type':str(row.get('type') or ''),'condition':str(row.get('condition') or ''),'serial':serial,'serials':[serial] if serial else [],
                             'frontImg':str(row.get('frontImage') or ''),'backImg':str(row.get('backImage') or ''),'additionalImages':list(row.get('additionalImages') or [])[:6],
                             'notes':str(row.get('notes') or ''),'purchase':max(0,float(row.get('purchase') or 0)),'shipping':max(0,float(row.get('shipping') or 0)),
-                            'other':max(0,float(row.get('other') or 0)),'expectedPrice':max(0,float(row.get('expectedPrice') or 0)),
+                            'other':max(0,float(row.get('other') or 0)),'salePrice':max(0,float(row.get('salePrice') if row.get('salePrice') not in (None,'') else row.get('expectedPrice') or 0)),'expectedPrice':max(0,float(row.get('salePrice') if row.get('salePrice') not in (None,'') else row.get('expectedPrice') or 0)),'vaultImageIds':list(row.get('vaultImageIds') or [])[:8],
                             'warehouse':str(row.get('warehouse') or 'المستودع الرئيسي'),'cabinet':str(row.get('cabinet') or ''),'shelf':str(row.get('shelf') or ''),
                             'box':str(row.get('box') or ''),'album':str(row.get('album') or ''),'pocket':str(row.get('pocket') or ''),
                             'storageStatus':'warehouse','forMarket':False,'marketApproved':False,'forAuction':False,'auctionApproved':False,
@@ -2886,6 +3061,11 @@ class H(SimpleHTTPRequestHandler):
                             'created':now,'updated':int(time.time()*1000),**inv
                         }
                         items.append(item); row['status']='approved'; row['itemId']=item_id; row['warehouseVerified']=True; row['warehouseVerifiedAt']=now
+                        vault_rows=load_image_vault(); vault_changed=False
+                        for vr in vault_rows:
+                            if str(vr.get('id') or '') in {str(x or '') for x in (row.get('vaultImageIds') or [])}:
+                                vr.update({'status':'used','linkedSubmissionId':sid,'linkedItemId':item_id,'updatedAt':now}); vault_changed=True
+                        if vault_changed: save_json(IMAGE_VAULT,{'images':vault_rows})
                         row['approvedAt']=now; row['adminNote']=note; row['reviewedAt']=now; row['reviewedBy']='الإدارة'
                         row.setdefault('reviewHistory',[]).append({'action':'approve','at':now,'note':note,'actor':'الإدارة','itemId':item_id})
                         append_operation('اعتماد مقتنى من مسؤول إدخال البيانات وإرساله للمستودع',{'submissionId':sid,'itemId':item_id,'operatorId':operator_id},actor='الإدارة')
@@ -2898,6 +3078,8 @@ class H(SimpleHTTPRequestHandler):
                         if operator_id: add_notification('participant',operator_id,'approval','✏️ إعادة للتعديل',f"{row.get('country','')} — {row.get('denomination','')}: {note}",sid,'/data-entry')
                         results.append({'id':sid,'ok':True,'status':'needs_changes'}); changed=True
                     else:
+                        vault_rows,vault_changed=image_vault_release_for_submission(sid,load_image_vault(),'رفض الإدخال من الإدارة')
+                        if vault_changed: save_json(IMAGE_VAULT,{'images':vault_rows})
                         row['status']='rejected'; row['adminNote']=note; row['reviewedAt']=now; row['reviewedBy']='الإدارة'; row['rejectedAt']=now
                         row.setdefault('reviewHistory',[]).append({'action':'reject','at':now,'note':note,'actor':'الإدارة'})
                         append_operation('رفض مقتنى من مسؤول إدخال البيانات',{'submissionId':sid,'operatorId':operator_id,'note':note},actor='الإدارة')
@@ -4229,7 +4411,7 @@ if _missing_runtime:
     print('Startup warning - missing UI files:', ', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.2-R9.3-DATA-ENTRY-APPROVAL'
+VERSION='5.6.2-R9.4-IMAGE-VAULT-DATA-ENTRY'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
