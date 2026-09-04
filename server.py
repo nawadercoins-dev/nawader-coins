@@ -6,8 +6,9 @@
 # V4.6.4 — approved collectible lifecycle, owner records/actions, destination routing, clean activity feed.
 # V4.6.3 — public seller identity uses flag icon on cards; country retained in API for shipping/filtering.
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs, quote
+from urllib.parse import urlparse, parse_qs, quote, urlencode
 import json, os, threading, shutil, datetime, atexit, re, secrets, mimetypes, socket, webbrowser, time, io, hashlib, hmac, zipfile, tempfile, subprocess, glob, base64
+import urllib.request, urllib.error
 
 ROOT=os.path.dirname(os.path.abspath(__file__))
 ADMIN_DIR=os.path.join(ROOT,'admin')
@@ -35,6 +36,14 @@ LIVE_AUCTIONS=os.path.join(DATA_ROOT,'live_auctions.json')
 LIVEKIT_URL=str(os.environ.get('LIVEKIT_URL') or '').strip()
 LIVEKIT_API_KEY=str(os.environ.get('LIVEKIT_API_KEY') or '').strip()
 LIVEKIT_API_SECRET=str(os.environ.get('LIVEKIT_API_SECRET') or '').strip()
+# V5.6.2-R9.5 — Google OAuth is configured only through environment variables.
+# Never store the client secret in browser files or the data JSON.
+GOOGLE_CLIENT_ID=str(os.environ.get('GOOGLE_CLIENT_ID') or '').strip()
+GOOGLE_CLIENT_SECRET=str(os.environ.get('GOOGLE_CLIENT_SECRET') or '').strip()
+GOOGLE_REDIRECT_URI=str(os.environ.get('GOOGLE_REDIRECT_URI') or '').strip()
+GOOGLE_OAUTH_STATES={}
+GOOGLE_PENDING_LINKS={}
+GOOGLE_FLOW_TTL_SECONDS=10*60
 AUTH_FILE=os.path.join(DATA_ROOT,'admin_auth.json')
 PARTICIPANT_SESSION_SECRET_FILE=os.path.join(DATA_ROOT,'.participant_session_secret')
 ADMIN_CREDENTIALS=''
@@ -1672,12 +1681,62 @@ def platform_integrity_report():
         ])
     }
 
+
+def _oauth_prune():
+    now=time.time()
+    for bag in (GOOGLE_OAUTH_STATES,GOOGLE_PENDING_LINKS):
+        for key,val in list(bag.items()):
+            if now-float(val.get('created') or 0)>GOOGLE_FLOW_TTL_SECONDS:
+                bag.pop(key,None)
+
+def _safe_next_path(value):
+    value=str(value or '').strip()
+    if value.startswith('/') and not value.startswith('//') and '\\' not in value:
+        return value[:500]
+    return '/account'
+
+def _google_redirect_uri(handler):
+    if GOOGLE_REDIRECT_URI: return GOOGLE_REDIRECT_URI
+    proto=(handler.headers.get('X-Forwarded-Proto') or '').split(',')[0].strip().lower()
+    if proto not in ('http','https'): proto='https'
+    host=(handler.headers.get('Host') or '').strip()
+    return f'{proto}://{host}/auth/google/callback'
+
+def _google_http_json(url, method='GET', data=None, headers=None, timeout=15):
+    body=None
+    hdr={'Accept':'application/json','User-Agent':'DarAlMuqtanyat/1.0'}
+    if headers: hdr.update(headers)
+    if data is not None:
+        body=urlencode(data).encode('utf-8')
+        hdr.setdefault('Content-Type','application/x-www-form-urlencoded')
+    req=urllib.request.Request(url,data=body,headers=hdr,method=method)
+    with urllib.request.urlopen(req,timeout=timeout) as resp:
+        raw=resp.read()
+    return json.loads(raw.decode('utf-8'))
+
+def _google_profile_from_code(code, redirect_uri):
+    token=_google_http_json('https://oauth2.googleapis.com/token','POST',{
+        'code':code,'client_id':GOOGLE_CLIENT_ID,'client_secret':GOOGLE_CLIENT_SECRET,
+        'redirect_uri':redirect_uri,'grant_type':'authorization_code'
+    })
+    access=str(token.get('access_token') or '')
+    if not access: raise ValueError('لم يصل رمز دخول صالح من Google')
+    profile=_google_http_json('https://openidconnect.googleapis.com/v1/userinfo','GET',headers={'Authorization':'Bearer '+access})
+    sub=str(profile.get('sub') or '').strip(); email=str(profile.get('email') or '').strip().lower()
+    if not sub or not email or profile.get('email_verified') is False:
+        raise ValueError('تعذر التحقق من هوية حساب Google')
+    return {'sub':sub,'email':email[:240],'name':str(profile.get('name') or '').strip()[:120],
+            'picture':str(profile.get('picture') or '').strip()[:500]}
+
+def _google_public_profile(p):
+    return {'name':p.get('name',''),'email':p.get('email',''),'picture':p.get('picture','')}
+
 ADMIN_GET_API={
     '/api/negotiations','/api/backup/full','/api/items','/api/participants','/api/participants/summary',
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
     '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/image-vault/admin','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity','/api/archive/items','/api/live-auctions/admin'
 }
-PUBLIC_POST_API={'/api/special/request','/api/fantasia/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/visitor/order/action','/api/visitor/payment-proof','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/data-entry/submissions','/api/image-vault/pull','/api/image-vault/release','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/seller/order/update','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
+PUBLIC_POST_API={'/api/special/request','/api/fantasia/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/google/link/start','/api/participant/profile','/api/bid','/api/visitor/receive','/api/visitor/order/action','/api/visitor/payment-proof','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/data-entry/submissions','/api/image-vault/pull','/api/image-vault/release','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/seller/order/update','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
 PUBLIC_STATIC={'/styles.css','/public_home.html','/dar_home.html','/collectibles_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/seller_portal.css','/seller_portal.js','/data_entry.html','/invoice.html','/live_auction.html','/live_auction.js','/live_studio.html','/live_studio.js'}
 
 class H(SimpleHTTPRequestHandler):
@@ -1769,8 +1828,42 @@ class H(SimpleHTTPRequestHandler):
             self.send_error(404,'File not found')
     def do_GET(self):
         p=urlparse(self.path).path
+        if p=='/api/google/status':
+            _oauth_prune(); token=self.cookie_value('NawaderGooglePending'); pending=GOOGLE_PENDING_LINKS.get(token) if token else None
+            self.sendj({'ok':True,'configured':bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),'pending':_google_public_profile(pending) if pending else None}); return
+        if p=='/auth/google':
+            if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+                self.send_response(302); self.send_header('Location','/account?google=not-configured'); self.end_headers(); return
+            _oauth_prune(); qs=parse_qs(urlparse(self.path).query); nxt=_safe_next_path((qs.get('next') or ['/account'])[0])
+            state=secrets.token_urlsafe(24); GOOGLE_OAUTH_STATES[state]={'created':time.time(),'next':nxt}
+            redirect_uri=_google_redirect_uri(self)
+            params={'client_id':GOOGLE_CLIENT_ID,'redirect_uri':redirect_uri,'response_type':'code','scope':'openid email profile','state':state,'prompt':'select_account'}
+            self.send_response(302); self.send_header('Location','https://accounts.google.com/o/oauth2/v2/auth?'+urlencode(params)); self.end_headers(); return
+        if p=='/auth/google/callback':
+            _oauth_prune(); qs=parse_qs(urlparse(self.path).query); state=str((qs.get('state') or [''])[0]); code=str((qs.get('code') or [''])[0]); err=str((qs.get('error') or [''])[0])
+            flow=GOOGLE_OAUTH_STATES.pop(state,None)
+            if err or not flow or not code:
+                self.send_response(302); self.send_header('Location','/account?google=cancelled'); self.end_headers(); return
+            try:
+                gp=_google_profile_from_code(code,_google_redirect_uri(self))
+                person=next((x for x in load_people() if str(x.get('googleSub') or '')==gp['sub']),None)
+                if person and not person.get('blocked') and participant_approval_status(person) not in ('stopped','cancelled'):
+                    person['lastSeen']=datetime.datetime.now().isoformat(); people=load_people()
+                    for x in people:
+                        if str(x.get('id'))==str(person.get('id')): x['lastSeen']=person['lastSeen']; break
+                    save_json(PEOPLE,{'participants':people})
+                    token=_participant_session_token(person); PARTICIPANT_SESSIONS[token]={'participantId':str(person.get('id')),'created':time.time(),'last':time.time(),'persistent':True}
+                    secure='; Secure' if (self.headers.get('X-Forwarded-Proto') or '').lower()=='https' else ''
+                    self.send_response(302); self.send_header('Set-Cookie',f'NawaderParticipant={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={PARTICIPANT_SESSION_TTL_SECONDS}{secure}')
+                    self.send_header('Location',_safe_next_path(flow.get('next'))); self.end_headers(); return
+                pending_token=secrets.token_urlsafe(28); GOOGLE_PENDING_LINKS[pending_token]={**gp,'created':time.time(),'next':_safe_next_path(flow.get('next'))}
+                secure='; Secure' if (self.headers.get('X-Forwarded-Proto') or '').lower()=='https' else ''
+                self.send_response(302); self.send_header('Set-Cookie',f'NawaderGooglePending={pending_token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={GOOGLE_FLOW_TTL_SECONDS}{secure}')
+                self.send_header('Location','/account?google=link-phone'); self.end_headers(); return
+            except Exception as e:
+                print('Google OAuth error:',repr(e)); self.send_response(302); self.send_header('Location','/account?google=error'); self.end_headers(); return
         if p=='/api/version':
-            self.sendj({'version':'5.6.2-R9.4','channel':'DAR-MUQTANYAT-R9.4-IMAGE-VAULT-DATA-ENTRY','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.6.2-R9.5','channel':'DAR-MUQTANYAT-R9.5-GOOGLE-WHATSAPP-LOGIN','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -3938,8 +4031,14 @@ class H(SimpleHTTPRequestHandler):
                 save_json(NEGOTIATIONS,{'negotiations':a}); self.sendj({'ok':True,'negotiation':row}); return
             if p=='/api/analyze':
                 ok,data,note=analyze_image(d.get('url','')); self.sendj({'ok':ok,'data':data,'note':note}); return
-            if p=='/api/participant/register':
-                name=str(d.get('name','')).strip()[:120]
+            if p in ('/api/participant/register','/api/google/link/start'):
+                google_link=(p=='/api/google/link/start') or bool(d.get('googleLink'))
+                google_pending=None
+                if google_link:
+                    _oauth_prune(); gtoken=self.cookie_value('NawaderGooglePending'); google_pending=GOOGLE_PENDING_LINKS.get(gtoken) if gtoken else None
+                    if not google_pending:
+                        self.sendj({'error':'انتهت جلسة ربط Google. اضغط الدخول عبر Google من جديد.'},401); return
+                name=str((google_pending or {}).get('name') or d.get('name','')).strip()[:120]
                 reg_country=str(d.get('country','')).strip()[:80]
                 raw_phone=str(d.get('phone','')).strip()
                 phone=''.join(ch for ch in raw_phone if ch.isdigit() or ch=='+')
@@ -3950,6 +4049,8 @@ class H(SimpleHTTPRequestHandler):
                 matches=[x for x in people if _norm_phone(x.get('phone'))==phone_key]
                 person=max(matches,key=lambda x:str(x.get('lastSeen') or x.get('created') or '')) if matches else None
                 now=datetime.datetime.now(); nowiso=now.isoformat()
+                if person and google_pending and person.get('googleSub') and str(person.get('googleSub'))!=str(google_pending.get('sub')):
+                    self.sendj({'error':'رقم الجوال مرتبط بحساب Google آخر. تواصل مع الإدارة إذا تغير حسابك.'},409); return
                 if person and participant_approval_status(person) in ('stopped','cancelled'):
                     self.sendj({'error':'هذا الحساب موقوف أو ملغى. تواصل مع الإدارة.'},403); return
                 if not person:
@@ -3962,6 +4063,12 @@ class H(SimpleHTTPRequestHandler):
                     if reg_country: person['country']=reg_country
                     person['lastSeen']=nowiso
                     person['verificationMode']='whatsapp-admin'
+                if google_pending:
+                    person['pendingGoogleSub']=google_pending.get('sub','')
+                    person['pendingGoogleEmail']=google_pending.get('email','')
+                    person['pendingGoogleName']=google_pending.get('name','')
+                    person['pendingGooglePicture']=google_pending.get('picture','')
+                    person['pendingGoogleRequestedAt']=nowiso
 
                 reqs=[]
                 for old_req in list(person.get('whatsappVerificationRequests') or []):
@@ -3978,7 +4085,7 @@ class H(SimpleHTTPRequestHandler):
                             pending_req=candidate; break
                     except Exception:
                         continue
-                if pending_req:
+                if pending_req and not google_pending:
                     request_id=str(pending_req.get('id') or '')
                     request_code=str(pending_req.get('code') or '')
                     expires=str(pending_req.get('expires') or '')
@@ -3988,15 +4095,17 @@ class H(SimpleHTTPRequestHandler):
                     request_token=secrets.token_urlsafe(24)
                     request_code='NW-'+secrets.token_hex(3).upper()
                     expires=(now+datetime.timedelta(hours=24)).isoformat()
-                    reqs.append({'id':request_id,'tokenHash':hashlib.sha256(request_token.encode()).hexdigest(),'code':request_code,'status':'pending','created':nowiso,'expires':expires,'approvedAt':'','rejectedAt':'','consumedAt':''})
+                    reqs.append({'id':request_id,'tokenHash':hashlib.sha256(request_token.encode()).hexdigest(),'code':request_code,'status':'pending','created':nowiso,'expires':expires,'approvedAt':'','rejectedAt':'','consumedAt':'','googleLink':bool(google_pending),'googleSub':(google_pending or {}).get('sub',''),'googleEmail':(google_pending or {}).get('email','')})
                     person['whatsappVerificationRequests']=reqs[-12:]
                     save_json(PEOPLE,{'participants':people})
 
                 st=load_settings()
                 wa=''.join(ch for ch in str(st.get('whatsappVerificationNumber') or '966551892409') if ch.isdigit())
-                message=(f"طلب توثيق حساب نوادر العملات\n"
+                google_line=(f"\nGoogle: {google_pending.get('email','')}" if google_pending else '')
+                message=(f"طلب توثيق حساب دار المقتنيات\n"
                          f"الاسم: {person.get('name','')}\n"
-                         f"رقم الجوال المسجل: {person.get('phone','')}\n"
+                         f"رقم الجوال المسجل: {person.get('phone','')}"
+                         f"{google_line}\n"
                          f"رمز الطلب: {request_code}\n"
                          f"أرجو اعتماد التوثيق الكامل لهذا الحساب.")
                 whatsapp_url='https://wa.me/'+wa+'?text='+quote(message,safe='')
@@ -4091,6 +4200,19 @@ class H(SimpleHTTPRequestHandler):
                 if participant_approval_status(person)!='final':
                     self.sendj({'error':'لم يكتمل التوثيق الكامل للحساب بعد'},403); return
                 req['status']='consumed'; req['consumedAt']=datetime.datetime.now().isoformat()
+                if req.get('googleLink'):
+                    req_sub=str(req.get('googleSub') or person.get('pendingGoogleSub') or '')
+                    if req_sub:
+                        conflict=next((x for x in people if str(x.get('id'))!=str(person.get('id')) and str(x.get('googleSub') or '')==req_sub),None)
+                        if conflict:
+                            self.sendj({'error':'حساب Google مرتبط مسبقًا بحساب آخر. تواصل مع الإدارة.'},409); return
+                        person['googleSub']=req_sub
+                        person['googleEmail']=str(req.get('googleEmail') or person.get('pendingGoogleEmail') or '')[:240]
+                        person['googleName']=str(person.get('pendingGoogleName') or person.get('name') or '')[:120]
+                        person['googlePicture']=str(person.get('pendingGooglePicture') or '')[:500]
+                        person['googleLinkedAt']=datetime.datetime.now().isoformat()
+                    for k in ('pendingGoogleSub','pendingGoogleEmail','pendingGoogleName','pendingGooglePicture','pendingGoogleRequestedAt'):
+                        person.pop(k,None)
                 save_json(PEOPLE,{'participants':people})
                 self.sendj_participant({'ok':True,'status':'approved','verified':True,'approved':True,'participant':participant_public(person),'message':'تم التوثيق الكامل وتسجيل الدخول بنجاح.'},person); return
 
@@ -4411,7 +4533,7 @@ if _missing_runtime:
     print('Startup warning - missing UI files:', ', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.2-R9.4-IMAGE-VAULT-DATA-ENTRY'
+VERSION='5.6.2-R9.5-GOOGLE-WHATSAPP-LOGIN'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
