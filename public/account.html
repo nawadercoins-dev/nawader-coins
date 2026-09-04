@@ -411,7 +411,7 @@ if(ACCOUNT_STORE==='coins'||ACCOUNT_STORE==='collectibles'){
    document.querySelectorAll('a[href="/transitional-issues"]').forEach(a=>a.remove());
  }
 }
-const waPendingKey='nawaderWhatsAppVerificationV510';let waPollTimer=null;
+const waPendingKey='nawaderWhatsAppVerificationV511';let waPollTimer=null;
 function saveWaPending(x){localStorage.setItem(waPendingKey,JSON.stringify(x||{}))}
 function getWaPending(){try{return JSON.parse(localStorage.getItem(waPendingKey)||'null')}catch(e){return null}}
 function clearWaPending(){localStorage.removeItem(waPendingKey);if(waPollTimer){clearInterval(waPollTimer);waPollTimer=null}}
@@ -437,7 +437,7 @@ async function loadGoogleLoginState(){
 }
 if($('showWaLogin'))$('showWaLogin').onclick=()=>{$('phoneLoginFields').scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>$('phone')?.focus(),250)};
 if($('googleLogin'))$('googleLogin').onclick=e=>{if($('googleLogin').style.opacity==='.55'){e.preventDefault();$('msg').textContent='⚠️ Google غير مهيأ على الخادم بعد.'}};
-$('register').onclick=async()=>{try{let phone=$('phone').value.trim();if(!phone){$('msg').textContent='⚠️ رقم الجوال مطلوب';return}let r=await fetch(googleLinkMode?'/api/google/link/start':'/api/participant/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('name').value.trim(),phone,country:$('regCountry')?.value||'',googleLink:googleLinkMode})}),d=await r.json();if(!r.ok)throw Error(d.error||'تعذر إنشاء طلب التوثيق');let pending={requestId:d.requestId,requestToken:d.requestToken,requestCode:d.requestCode,whatsappUrl:d.whatsappUrl,phone};saveWaPending(pending);showWaPending(pending);startWaPolling();$('msg').textContent=googleLinkMode?'✅ تم إنشاء طلب ربط Google بالجوال. افتح واتساب وأرسل الرسالة الجاهزة من نفس الرقم.':'✅ تم إنشاء طلب التوثيق. افتح واتساب وأرسل الرسالة الجاهزة من نفس الرقم.'}catch(e){$('msg').textContent='⚠️ '+e.message}};
+$('register').onclick=async()=>{try{clearWaPending();$('waVerifyBox').hidden=true;let phone=$('phone').value.trim();if(!phone){$('msg').textContent='⚠️ رقم الجوال مطلوب';return}let r=await fetch(googleLinkMode?'/api/google/link/start':'/api/participant/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('name').value.trim(),phone,country:$('regCountry')?.value||'',googleLink:googleLinkMode})}),d=await r.json();if(!r.ok)throw Error(d.error||'تعذر إنشاء طلب التوثيق');if(!d.requestToken)throw Error('تعذر إنشاء مفتاح تحقق جديد. حدّث الصفحة وأعد المحاولة.');let pending={requestId:d.requestId,requestToken:d.requestToken,requestCode:d.requestCode,whatsappUrl:d.whatsappUrl,phone};saveWaPending(pending);showWaPending(pending);startWaPolling();$('msg').textContent=googleLinkMode?'✅ تم إنشاء طلب ربط Google بالجوال. افتح واتساب وأرسل الرسالة الجاهزة من نفس الرقم.':'✅ تم إنشاء طلب التوثيق. افتح واتساب وأرسل الرسالة الجاهزة من نفس الرقم.'}catch(e){$('msg').textContent='⚠️ '+e.message}};
 $('waCheck').onclick=checkWaApproval;let restoredWa=getWaPending();if(restoredWa){showWaPending(restoredWa);startWaPolling();checkWaApproval()}
 loadGoogleLoginState();
 sync();window.addEventListener('storage',sync);
