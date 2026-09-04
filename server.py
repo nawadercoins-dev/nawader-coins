@@ -845,7 +845,9 @@ def update_order_status(order,status,note=''):
     if status not in ORDER_FLOW and status not in ORDER_EXCEPTION: raise ValueError('حالة الطلب غير صالحة')
     previous=str(order.get('status') or ''); now=datetime.datetime.now().isoformat(); order['status']=status; order['updated']=now
     order.setdefault('history',[]).append({'status':status,'at':now,'note':note})
-    if status=='paid': order['paymentStatus']='paid'; order['paidAt']=now
+    if status=='paid':
+        order['paymentStatus']='paid'; order['paidAt']=now
+        if str(order.get('paymentProofStatus') or '')=='pending': order['paymentProofStatus']='approved'; order['paymentProofApprovedAt']=now
     if status=='shipped': order['shippedAt']=now
     if status=='received': order['receivedAt']=now
     if status=='completed':
@@ -925,16 +927,19 @@ def ensure_auction_outcomes():
     return dues
 
 def overdue_due_for(pid):
-    now=datetime.datetime.now(); dues=ensure_auction_outcomes()
+    now=datetime.datetime.now(); dues=ensure_auction_outcomes(); orders=load_orders()
     for x in dues:
         if str(x.get('participantId'))!=str(pid) or x.get('status')!='unpaid': continue
+        # R9: العميل الذي رفع إثبات السداد في المهلة لا يُعاقب أثناء انتظار مراجعة الإدارة.
+        linked=next((o for o in orders if o.get('source')=='auction' and str(o.get('sourceId') or '')==str(x.get('id') or '')),None)
+        if linked and (str(linked.get('paymentStatus') or '')=='proof_submitted' or str(linked.get('paymentProofStatus') or '')=='pending'): continue
         try:
             if datetime.datetime.fromisoformat(str(x.get('paymentDeadline')))<=now: return x
         except Exception: pass
     return None
 
 def load_settings():
-    defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':True,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','whatsappVerificationNumber':'966551892409','duesTrackingStartedAt':'','visitorSections':{'market':True,'auction':True,'specialNumbers':True,'transitionalIssues':True,
+    defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':True,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','whatsappVerificationNumber':'966551892409','duesTrackingStartedAt':'','paymentBankName':'','paymentAccountName':'','paymentIban':'','paymentInstructions':'حوّل المبلغ النهائي بعد اعتماد الشحن، ثم ارفع صورة إشعار التحويل من صفحة المستحقات.','paymentWhatsapp':'','visitorSections':{'market':True,'auction':True,'specialNumbers':True,'transitionalIssues':True,
             'fantasia':True},'fullPublicEnableV493':False}
     x=load_json(SETTINGS,defaults.copy())
     defaults.update(x if isinstance(x,dict) else {})
@@ -1614,7 +1619,7 @@ ADMIN_GET_API={
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
     '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity','/api/archive/items','/api/live-auctions/admin'
 }
-PUBLIC_POST_API={'/api/special/request','/api/fantasia/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/visitor/order/action','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/seller/order/update','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
+PUBLIC_POST_API={'/api/special/request','/api/fantasia/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/visitor/order/action','/api/visitor/payment-proof','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/seller/order/update','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
 PUBLIC_STATIC={'/styles.css','/public_home.html','/dar_home.html','/collectibles_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/seller_portal.css','/seller_portal.js','/invoice.html','/live_auction.html','/live_auction.js','/live_studio.html','/live_studio.js'}
 
 class H(SimpleHTTPRequestHandler):
@@ -1707,7 +1712,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.6.2-R8','channel':'DAR-MUQTANYAT-R8-STABILITY','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.6.2-R9','channel':'DAR-MUQTANYAT-R9-PAYMENT-PROOF','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1740,7 +1745,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
         if p=='/api/settings/public':
-            st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'visitorSections':effective_visitor_sections(st),'marketFirstLaunch':MARKET_FIRST_LAUNCH,'whatsappVerificationNumber':st.get('whatsappVerificationNumber','966551892409')}); return
+            st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'visitorSections':effective_visitor_sections(st),'marketFirstLaunch':MARKET_FIRST_LAUNCH,'whatsappVerificationNumber':st.get('whatsappVerificationNumber','966551892409'),'payment':{'method':'bank_transfer','bankName':st.get('paymentBankName',''),'accountName':st.get('paymentAccountName',''),'iban':st.get('paymentIban',''),'instructions':st.get('paymentInstructions',''),'whatsapp':st.get('paymentWhatsapp','')}}); return
         if p=='/api/settings/admin':
             if not self.require_admin(api=True): return
             self.sendj({'settings':load_settings()}); return
@@ -2072,7 +2077,7 @@ class H(SimpleHTTPRequestHandler):
             for o in load_orders():
                 if str(o.get('participantId') or '')!=pid and str(o.get('customerPhone') or '').replace(' ','')!=phone: continue
                 first=(o.get('items') or [{}])[0]
-                rows.append({'id':o.get('id'),'orderNumber':o.get('orderNumber'),'source':o.get('source'),'itemTitle':first.get('title','مقتنى'),'quantity':sum(int(x.get('quantity') or 1) for x in o.get('items') or []),'buyerTotal':o.get('total',0),'subtotal':o.get('subtotal',0),'buyerFee':o.get('buyerFee',0),'shippingFee':o.get('shippingFee',0),'shippingFeeConfirmed':bool(o.get('shippingFeeConfirmed')),'paymentStatus':o.get('paymentStatus','unpaid'),'paidAt':o.get('paidAt'),'status':o.get('status'),'statusLabel':labels.get(o.get('status'),o.get('status')),'created':o.get('created'),'shippingCompany':o.get('shippingCompany'),'trackingNumber':o.get('trackingNumber'),'shippingAddress':o.get('shippingAddress') or participant_shipping_address(person),'archived':o.get('archived',False),'cancellationRequestedAt':o.get('cancellationRequestedAt'),'refundRequestedAt':o.get('refundRequestedAt'),'refundStatus':o.get('refundStatus')})
+                rows.append({'id':o.get('id'),'orderNumber':o.get('orderNumber'),'source':o.get('source'),'itemTitle':first.get('title','مقتنى'),'quantity':sum(int(x.get('quantity') or 1) for x in o.get('items') or []),'buyerTotal':o.get('total',0),'subtotal':o.get('subtotal',0),'buyerFee':o.get('buyerFee',0),'shippingFee':o.get('shippingFee',0),'shippingFeeConfirmed':bool(o.get('shippingFeeConfirmed')),'paymentStatus':o.get('paymentStatus','unpaid'),'paidAt':o.get('paidAt'),'status':o.get('status'),'statusLabel':labels.get(o.get('status'),o.get('status')),'created':o.get('created'),'shippingCompany':o.get('shippingCompany'),'trackingNumber':o.get('trackingNumber'),'shippingAddress':o.get('shippingAddress') or participant_shipping_address(person),'archived':o.get('archived',False),'cancellationRequestedAt':o.get('cancellationRequestedAt'),'refundRequestedAt':o.get('refundRequestedAt'),'refundStatus':o.get('refundStatus'),'paymentProofStatus':o.get('paymentProofStatus',''),'paymentProofSubmittedAt':o.get('paymentProofSubmittedAt'),'paymentProofRejectedAt':o.get('paymentProofRejectedAt'),'paymentProofRejectNote':o.get('paymentProofRejectNote',''),'paymentReference':o.get('paymentReference',''),'paymentProofBatchId':o.get('paymentProofBatchId','')})
             rows.sort(key=lambda x:x.get('created') or '',reverse=True); self.sendj({'requests':rows}); return
         if p=='/api/visitor/invoice':
             qs=parse_qs(urlparse(self.path).query)
@@ -2899,7 +2904,7 @@ class H(SimpleHTTPRequestHandler):
                 status=str(row.get('status') or ''); payment=str(row.get('paymentStatus') or 'unpaid'); now=datetime.datetime.now().isoformat(); number=row.get('orderNumber') or oid
                 if action=='cancel':
                     if str(row.get('source') or '')!='market': self.sendj({'error':'إلغاء طلب المزاد يحتاج اعتماد الإدارة؛ استخدم زر «طلب إلغاء»'},409); return
-                    if payment=='paid' or status not in ('new','awaiting_payment','stalled'):
+                    if payment in ('paid','proof_submitted') or status not in ('new','awaiting_payment','stalled'):
                         self.sendj({'error':'الإلغاء الفوري متاح فقط لطلب السوق غير المسدد وغير المشحون'},409); return
                     update_order_status(row,'cancelled','ألغاه المشتري قبل السداد؛ أعيدت الكمية إلى المتاح')
                     row['cancelledBy']='participant'; row['cancelledAt']=now
@@ -2910,7 +2915,7 @@ class H(SimpleHTTPRequestHandler):
                     add_notification('admin','','order','أُلغي طلب غير مسدد',f'ألغى العميل الطلب {number} وعادت كميته إلى المتاح.','', '/admin')
                     self.sendj({'ok':True,'message':f'تم إلغاء الطلب {number} وإعادة كميته إلى المتاح.'}); return
                 if action=='cancel_request':
-                    if payment=='paid' or status not in ('new','awaiting_payment','stalled'):
+                    if payment in ('paid','proof_submitted') or status not in ('new','awaiting_payment','stalled'):
                         self.sendj({'error':'لا يمكن طلب الإلغاء في حالة الطلب الحالية'},409); return
                     if row.get('cancellationRequestedAt'): self.sendj({'ok':True,'message':'طلب الإلغاء مسجل بالفعل لدى الإدارة.'}); return
                     row['cancellationRequestedAt']=now; row['cancellationStatus']='requested'; row['updated']=now; row.setdefault('history',[]).append({'status':status,'at':now,'note':'طلب العميل إلغاء الطلب'})
@@ -2924,6 +2929,51 @@ class H(SimpleHTTPRequestHandler):
                     save_json(ORDERS,{'orders':rows}); add_notification('admin','','finance','طلب استرداد',f'طلب العميل استرداد مبلغ الطلب {number} قبل الشحن.','', '/admin'); append_operation('طلب استرداد من العميل',{'orderId':oid,'orderNumber':number,'participantId':pid},actor='العميل')
                     self.sendj({'ok':True,'message':'تم إرسال طلب الاسترداد إلى الإدارة للمراجعة.'}); return
                 self.sendj({'error':'الإجراء المطلوب غير صالح'},400); return
+
+            if p=='/api/visitor/payment-proof':
+                pid=str(d.get('participantId') or ''); person=self.require_participant(pid)
+                if not person: return
+                raw_ids=d.get('orderIds') or []
+                if isinstance(raw_ids,str): raw_ids=[raw_ids]
+                order_ids=[]
+                for oid in raw_ids:
+                    oid=str(oid or '').strip()
+                    if oid and oid not in order_ids: order_ids.append(oid)
+                if not order_ids or len(order_ids)>30: self.sendj({'error':'اختر طلبًا واحدًا على الأقل وبحد أقصى 30 طلبًا في الدفعة'},400); return
+                proof_url=str(d.get('proofUrl') or '').strip(); proof_path=urlparse(proof_url).path
+                if not proof_path.startswith('/uploads/'):
+                    self.sendj({'error':'ارفع صورة إشعار التحويل أولًا'},400); return
+                proof_name=os.path.basename(proof_path); proof_file=os.path.join(UPLOAD_DIR,proof_name)
+                if not proof_name or not os.path.isfile(proof_file): self.sendj({'error':'ملف إثبات التحويل غير موجود؛ أعد رفع الصورة'},400); return
+                reference=' '.join(str(d.get('reference') or '').strip().split())[:100]; note=' '.join(str(d.get('note') or '').strip().split())[:500]
+                phone=''.join(ch for ch in str(person.get('phone') or '') if ch.isdigit()); rows=load_orders(); targets=[]; blocked=[]
+                for oid in order_ids:
+                    row=next((x for x in rows if str(x.get('id') or '')==oid and (str(x.get('participantId') or '')==pid or ''.join(ch for ch in str(x.get('customerPhone') or '') if ch.isdigit())==phone)),None)
+                    if not row: blocked.append(oid+' (غير موجود)'); continue
+                    status=str(row.get('status') or ''); payment=str(row.get('paymentStatus') or 'unpaid')
+                    if payment in ('paid','refunded','proof_submitted') or status not in ('new','awaiting_payment','stalled'):
+                        blocked.append(str(row.get('orderNumber') or oid)+' (غير قابل للسداد أو إثباته قيد المراجعة)'); continue
+                    if row.get('cancellationRequestedAt'):
+                        blocked.append(str(row.get('orderNumber') or oid)+' (طلب إلغاء معلق)'); continue
+                    if not bool(row.get('shippingFeeConfirmed')):
+                        blocked.append(str(row.get('orderNumber') or oid)+' (الشحن لم يُحدد)'); continue
+                    targets.append(row)
+                if blocked: self.sendj({'error':'تعذر إرسال إثبات السداد لهذه الطلبات: '+', '.join(blocked[:8])},409); return
+                if not targets: self.sendj({'error':'لا توجد طلبات جاهزة للسداد'},409); return
+                now=datetime.datetime.now().isoformat(); batch_id='pay-'+secrets.token_hex(6); total=round(sum(float(x.get('total') or 0) for x in targets),2)
+                for row in targets:
+                    previous={'status':row.get('paymentProofStatus'),'proofUrl':row.get('paymentProofUrl'),'submittedAt':row.get('paymentProofSubmittedAt'),'reference':row.get('paymentReference')}
+                    if previous.get('proofUrl'): row.setdefault('paymentProofHistory',[]).append(previous)
+                    row['paymentStatus']='proof_submitted'; row['paymentProofStatus']='pending'; row['paymentProofUrl']=proof_url; row['paymentReference']=reference; row['paymentProofNote']=note; row['paymentProofBatchId']=batch_id; row['paymentProofBatchAmount']=total; row['paymentProofSubmittedAt']=now; row['updated']=now
+                    row.pop('paymentProofRejectedAt',None); row.pop('paymentProofRejectNote',None)
+                    row.setdefault('history',[]).append({'status':str(row.get('status') or 'awaiting_payment'),'at':now,'note':'رفع العميل إثبات تحويل بنكي؛ بانتظار اعتماد الإدارة'})
+                save_json(ORDERS,{'orders':rows})
+                numbers=', '.join(str(x.get('orderNumber') or x.get('id')) for x in targets[:6])
+                if len(targets)>6: numbers+=f' +{len(targets)-6}'
+                add_notification('admin','','finance','💳 إثبات سداد جديد',f'رفع {person.get("name") or "عميل"} إثبات تحويل بقيمة {total:g} ر.س لعدد {len(targets)} طلب: {numbers}.','','/admin')
+                add_notification('participant',pid,'finance','تم إرسال إثبات السداد',f'تم استلام إثبات التحويل لعدد {len(targets)} طلب بقيمة إجمالية {total:g} ر.س وهو الآن بانتظار اعتماد الإدارة.','','/account')
+                append_operation('إرسال إثبات سداد',{'participantId':pid,'batchId':batch_id,'orderIds':[x.get('id') for x in targets],'total':total,'reference':reference},actor='العميل')
+                self.sendj({'ok':True,'batchId':batch_id,'count':len(targets),'total':total,'message':'تم إرسال إثبات السداد للإدارة للمراجعة.'}); return
 
             if p=='/api/notifications/read':
                 pid=str(d.get('participantId') or ''); nid=str(d.get('id') or ''); person=next((x for x in load_people() if str(x.get('id'))==pid and x.get('verified') and not x.get('blocked')),None)
@@ -2941,6 +2991,38 @@ class H(SimpleHTTPRequestHandler):
                     if x.get('recipientType')=='admin' and (not nid or str(x.get('id'))==nid): x['read']=True; changed=True
                 if changed: save_json(NOTIFICATIONS,{'notifications':rows})
                 self.sendj({'ok':True}); return
+            if p=='/api/order/payment-proof':
+                action=str(d.get('action') or ''); oid=str(d.get('id') or ''); batch_id=str(d.get('batchId') or ''); note=' '.join(str(d.get('note') or '').strip().split())[:500]
+                if action not in ('approve','reject'): self.sendj({'error':'إجراء إثبات السداد غير صالح'},400); return
+                rows=load_orders(); targets=[]
+                if batch_id:
+                    targets=[x for x in rows if str(x.get('paymentProofBatchId') or '')==batch_id and str(x.get('paymentProofStatus') or '')=='pending']
+                elif oid:
+                    row=next((x for x in rows if str(x.get('id') or '')==oid and str(x.get('paymentProofStatus') or '')=='pending'),None)
+                    if row: targets=[row]
+                if not targets: self.sendj({'error':'لا يوجد إثبات سداد معلق بهذه البيانات'},404); return
+                now=datetime.datetime.now().isoformat(); dues=load_auction_dues(); affected=[]
+                if action=='approve':
+                    missing=[str(x.get('orderNumber') or x.get('id')) for x in targets if not bool(x.get('shippingFeeConfirmed'))]
+                    if missing: self.sendj({'error':'لا يمكن اعتماد السداد قبل اعتماد الشحن للطلبات: '+', '.join(missing[:8])},409); return
+                    for row in targets:
+                        update_order_status(row,'paid',note or 'اعتمدت الإدارة إثبات التحويل البنكي')
+                        row['paymentProofStatus']='approved'; row['paymentProofApprovedAt']=now; row['paymentProofAdminNote']=note; row['updated']=now
+                        if row.get('source')=='auction':
+                            due=next((x for x in dues if str(x.get('id') or '')==str(row.get('sourceId') or '')),None)
+                            if due: due['status']='paid'; due['paidAt']=now; due['updated']=now
+                        add_notification('participant',row.get('participantId'),'finance','✅ تم اعتماد السداد',f'تم اعتماد سداد الطلب {row.get("orderNumber") or row.get("id")}. انتقل الطلب إلى مرحلة تم السداد.','', '/account')
+                        affected.append(row.get('id'))
+                else:
+                    for row in targets:
+                        row['paymentStatus']='unpaid'; row['paymentProofStatus']='rejected'; row['paymentProofRejectedAt']=now; row['paymentProofRejectNote']=note or 'تعذر التحقق من إثبات التحويل'; row['updated']=now
+                        row.setdefault('history',[]).append({'status':str(row.get('status') or 'awaiting_payment'),'at':now,'note':'رفضت الإدارة إثبات السداد: '+row['paymentProofRejectNote']})
+                        add_notification('participant',row.get('participantId'),'finance','⚠️ يلزم إعادة إثبات السداد',f'تعذر اعتماد إثبات سداد الطلب {row.get("orderNumber") or row.get("id")}. '+row['paymentProofRejectNote'],'', '/account')
+                        affected.append(row.get('id'))
+                save_json(ORDERS,{'orders':rows}); save_json(AUCTION_DUES,{'dues':dues})
+                append_operation('معالجة إثبات سداد',{'action':action,'batchId':batch_id,'orderIds':affected,'note':note})
+                self.sendj({'ok':True,'action':action,'count':len(affected),'orderIds':affected}); return
+
             if p=='/api/order/update':
                 oid=str(d.get('id') or ''); status=str(d.get('status') or ''); rows=load_orders(); row=next((x for x in rows if str(x.get('id'))==oid),None)
                 if not row: self.sendj({'error':'الطلب غير موجود'},404); return
@@ -3438,6 +3520,11 @@ class H(SimpleHTTPRequestHandler):
                 st=load_settings()
                 for k in ('buyerFeePercent','charityProfitPercent','auctionEntryFee','entryFeeEnabled','negotiationPercents','negotiationHours','adminEmail','platformName','ocrTesseractPath','whatsappVerificationNumber'):
                     if k in d: st[k]=d[k]
+                if 'paymentBankName' in d: st['paymentBankName']=str(d.get('paymentBankName') or '').strip()[:120]
+                if 'paymentAccountName' in d: st['paymentAccountName']=str(d.get('paymentAccountName') or '').strip()[:160]
+                if 'paymentIban' in d: st['paymentIban']=''.join(ch for ch in str(d.get('paymentIban') or '').upper() if ch.isalnum())[:40]
+                if 'paymentInstructions' in d: st['paymentInstructions']=str(d.get('paymentInstructions') or '').strip()[:800]
+                if 'paymentWhatsapp' in d: st['paymentWhatsapp']=''.join(ch for ch in str(d.get('paymentWhatsapp') or '') if ch.isdigit() or ch=='+')[:24]
                 incoming=d.get('visitorSections')
                 if isinstance(incoming,dict):
                     current=dict(st.get('visitorSections') or {})
@@ -3945,7 +4032,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.2-R8-STABILITY'
+VERSION='5.6.2-R9-PAYMENT-PROOF'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
