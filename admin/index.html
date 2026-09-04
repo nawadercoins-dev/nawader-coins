@@ -6,8 +6,11 @@
     <meta name="theme-color" content="#071b35" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="/admin/styles.css?v=5.6.2-r4" />
-    <title>دار المقتنيات — الإدارة V5.6.2</title>
-  </head>
+    <title>دار المقتنيات — الإدارة V5.6.2 R9.4</title>
+  <style>
+.image-vault-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}.image-vault-summary article{padding:12px;border:1px solid rgba(212,164,71,.25);border-radius:14px;background:rgba(7,27,53,.55)}.image-vault-summary span{display:block;font-size:.82rem;opacity:.8}.image-vault-summary b{font-size:1.35rem}.image-vault-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:12px 0}.image-vault-tools label{min-width:220px;flex:1}.image-vault-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:12px}.image-vault-card{border:1px solid rgba(255,255,255,.13);border-radius:14px;padding:9px;background:rgba(7,27,53,.65);overflow:hidden}.image-vault-card img{width:100%;height:135px;object-fit:cover;border-radius:10px;background:#071321;cursor:pointer}.image-vault-card .vault-meta{display:flex;justify-content:space-between;gap:6px;align-items:center;margin-top:8px;font-size:.78rem}.image-vault-card .vault-status{padding:4px 7px;border-radius:999px;background:#263b52}.image-vault-card.available{border-color:#2f7459}.image-vault-card.reserved{border-color:#a47a2d}.image-vault-card.used{border-color:#51657b;opacity:.88}.image-vault-pager{display:flex;justify-content:center;gap:8px;align-items:center;margin-top:16px}@media(max-width:760px){.image-vault-summary{grid-template-columns:1fr 1fr}.image-vault-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.image-vault-card img{height:120px}}@media(max-width:430px){.image-vault-grid{grid-template-columns:1fr 1fr}.image-vault-summary{grid-template-columns:1fr 1fr}}
+</style>
+</head>
   <body>
     <header>
       <div class="admin-brand">
@@ -38,6 +41,7 @@
           >0</span
         ></button
       ><button data-v="permissions">الصلاحيات</button
+      ><button data-v="image-vault">خزينة الصور</button
       ><button data-v="collectible-approvals">
         اعتماد المقتنيات
         <span id="collectibleApprovalsBadge" class="nav-badge" hidden
@@ -1359,6 +1363,31 @@
           <div id="permissionsList" class="permissions-list"></div>
         </div>
       </section>
+      <section id="image-vault" class="view">
+        <div class="panel">
+          <div class="auction-title-row">
+            <div>
+              <h2>🖼️ خزينة الصور</h2>
+              <p class="muted">ارفع الصور هنا فقط. مسؤول إدخال البيانات يسحب نفس الصورة من الخزينة إلى المقتنى؛ لا يتم إنشاء نسخة ثانية من الملف.</p>
+            </div>
+            <button type="button" id="refreshImageVault" class="ghost">↻ تحديث</button>
+          </div>
+          <div class="image-vault-summary">
+            <article><span>إجمالي الصور</span><b id="vaultCountTotal">0</b></article>
+            <article><span>متاحة للسحب</span><b id="vaultCountAvailable">0</b></article>
+            <article><span>قيد الاستخدام</span><b id="vaultCountReserved">0</b></article>
+            <article><span>مرتبطة بمقتنى</span><b id="vaultCountUsed">0</b></article>
+          </div>
+          <div class="image-vault-tools">
+            <label>إضافة صور إلى الخزينة<input id="imageVaultFiles" type="file" accept="image/*" multiple></label>
+            <button type="button" id="uploadImageVault" class="gold-action">رفع الصور للخزينة</button>
+            <label>عرض<select id="imageVaultFilter"><option value="all">كل الحالات</option><option value="available">المتاحة</option><option value="reserved">قيد الاستخدام</option><option value="used">المرتبطة</option></select></label>
+          </div>
+          <div id="imageVaultUploadStatus" class="muted"></div>
+          <div id="imageVaultGrid" class="image-vault-grid"></div>
+          <div class="image-vault-pager"><button type="button" id="imageVaultPrev" class="ghost">السابق</button><span id="imageVaultPageInfo" class="muted"></span><button type="button" id="imageVaultNext" class="ghost">التالي</button></div>
+        </div>
+      </section>
       <section id="warehouseView" class="view warehouse-view">
         <div class="panel warehouse-panel">
           <div class="auction-title-row">
@@ -1822,6 +1851,6 @@
       <div id="quickResults"></div>
       <div id="recent"></div>
     </div>
-    <script src="/admin/app.js?v=5.6.2-r9.3a"></script>
+    <script src="/admin/app.js?v=5.6.2-r9.4"></script>
   </body>
 </html>

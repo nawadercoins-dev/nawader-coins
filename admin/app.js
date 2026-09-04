@@ -746,6 +746,7 @@ document.querySelectorAll("nav button").forEach(
         await refresh(true);
       if (b.dataset.v === "participants") await renderParticipants();
       if (b.dataset.v === "permissions") await renderPermissions();
+      if (b.dataset.v === "image-vault") await renderImageVault(true);
       if (b.dataset.v === "warehouse") await renderWarehouse();
       if (b.dataset.v === "special") await renderSpecialAdmin();
       if (b.dataset.v === "transitional") await renderTransitionalAdmin();
@@ -4321,6 +4322,60 @@ document.addEventListener("click", (e) => {
 });
 setTimeout(syncSpecialVisuals, 0);
 
+
+// V5.6.2-R9.4 — Image Vault. One physical image file; data-entry only moves the reference/status.
+let imageVaultOffset=0,imageVaultLimit=60,imageVaultTotalFiltered=0;
+function imageVaultStatusLabel(s){return({available:'متاحة',reserved:'قيد الاستخدام',used:'مرتبطة بمقتنى'})[s]||s||'—'}
+function imageVaultDate(v){try{return new Date(v).toLocaleString('ar-SA')}catch{return String(v||'')}}
+async function renderImageVault(reset=false){
+  if(!$('imageVaultGrid'))return;
+  if(reset)imageVaultOffset=0;
+  const status=$('imageVaultFilter')?.value||'all';
+  try{
+    const r=await api(`/api/image-vault/admin?status=${encodeURIComponent(status)}&offset=${imageVaultOffset}&limit=${imageVaultLimit}`);
+    const c=r.counts||{}; imageVaultTotalFiltered=Number(r.totalFiltered||0);
+    if($('vaultCountTotal'))$('vaultCountTotal').textContent=Number(c.total||0);
+    if($('vaultCountAvailable'))$('vaultCountAvailable').textContent=Number(c.available||0);
+    if($('vaultCountReserved'))$('vaultCountReserved').textContent=Number(c.reserved||0);
+    if($('vaultCountUsed'))$('vaultCountUsed').textContent=Number(c.used||0);
+    const rows=r.images||[];
+    $('imageVaultGrid').innerHTML=rows.map(x=>{
+      const st=x.status||'available';
+      const linked=x.linkedItemId?`مقتنى: ${esc(x.linkedItemId)}`:(x.linkedSubmissionId?`إدخال: ${esc(x.linkedSubmissionId)}`:(x.reservedByName?`مع: ${esc(x.reservedByName)}`:''));
+      const action=st==='reserved'?`<button type="button" class="ghost" onclick="imageVaultAction('${esc(x.id)}','release')">إعادة للمتاحة</button>`:(st==='available'?`<button type="button" class="reject" onclick="imageVaultAction('${esc(x.id)}','delete')">حذف</button>`:'');
+      return `<article class="image-vault-card ${esc(st)}"><img src="${esc(x.url||'')}" alt="صورة خزينة" onclick='openCoinLightbox(${JSON.stringify([x.url||''])},0,"خزينة الصور")'><div class="vault-meta"><span class="vault-status">${esc(imageVaultStatusLabel(st))}</span><small>${esc(imageVaultDate(x.createdAt||''))}</small></div>${linked?`<div class="muted" style="margin-top:6px">${linked}</div>`:''}${action?`<div class="actions" style="margin-top:8px">${action}</div>`:''}</article>`;
+    }).join('')||'<p class="muted">لا توجد صور في هذا القسم.</p>';
+    const start=imageVaultTotalFiltered?imageVaultOffset+1:0,end=Math.min(imageVaultOffset+rows.length,imageVaultTotalFiltered);
+    if($('imageVaultPageInfo'))$('imageVaultPageInfo').textContent=`${start}–${end} من ${imageVaultTotalFiltered}`;
+    if($('imageVaultPrev'))$('imageVaultPrev').disabled=imageVaultOffset<=0;
+    if($('imageVaultNext'))$('imageVaultNext').disabled=imageVaultOffset+imageVaultLimit>=imageVaultTotalFiltered;
+  }catch(e){$('imageVaultGrid').innerHTML=`<p class="muted">تعذر تحميل خزينة الصور: ${esc(e.message)}</p>`}
+}
+window.imageVaultAction=async(id,action)=>{
+  if(action==='delete'&&!confirm('حذف هذه الصورة المتاحة نهائيًا من الخزينة؟'))return;
+  if(action==='release'&&!confirm('إعادة هذه الصورة من «قيد الاستخدام» إلى «متاحة»؟'))return;
+  try{await api('/api/image-vault/action',{method:'POST',body:JSON.stringify({id,action})});await renderImageVault()}catch(e){alert(e.message)}
+};
+async function uploadImagesToVault(){
+  const files=[...($('imageVaultFiles')?.files||[])]; if(!files.length){alert('اختر صورة واحدة على الأقل.');return}
+  const btn=$('uploadImageVault'),status=$('imageVaultUploadStatus'); if(btn)btn.disabled=true;
+  let ok=0;
+  try{
+    for(let i=0;i<files.length;i++){
+      if(status)status.textContent=`جارٍ رفع الصورة ${i+1} من ${files.length}…`;
+      const f=files[i]; const r=await fetch('/api/image-vault/upload',{method:'POST',credentials:'same-origin',headers:{'Content-Type':f.type||'image/jpeg'},body:f});
+      const j=await r.json().catch(()=>({})); if(!r.ok)throw new Error(j.error||`تعذر رفع الصورة ${i+1}`); ok++;
+    }
+    if(status)status.textContent=`✓ تم رفع ${ok} صورة إلى الخزينة.`; if($('imageVaultFiles'))$('imageVaultFiles').value=''; await renderImageVault(true);
+  }catch(e){if(status)status.textContent=`تم رفع ${ok} صورة، ثم توقف الرفع: ${e.message}`}
+  finally{if(btn)btn.disabled=false}
+}
+if($('uploadImageVault'))$('uploadImageVault').onclick=uploadImagesToVault;
+if($('refreshImageVault'))$('refreshImageVault').onclick=()=>renderImageVault();
+if($('imageVaultFilter'))$('imageVaultFilter').onchange=()=>renderImageVault(true);
+if($('imageVaultPrev'))$('imageVaultPrev').onclick=()=>{imageVaultOffset=Math.max(0,imageVaultOffset-imageVaultLimit);renderImageVault()};
+if($('imageVaultNext'))$('imageVaultNext').onclick=()=>{if(imageVaultOffset+imageVaultLimit<imageVaultTotalFiltered){imageVaultOffset+=imageVaultLimit;renderImageVault()}};
+
 // V4.0.10.1 explicit finance refresh on navigation
 document
   .querySelectorAll('[data-v="finance"],.dashboard-go[data-go="finance"]')
@@ -4351,7 +4406,7 @@ async function renderCollectibleApprovals(){
         const imgs=[r.frontImage,r.backImage,...(Array.isArray(r.additionalImages)?r.additionalImages:[])].filter(Boolean);
         const statusLabel=({pending:'بانتظار الاعتماد',needs_changes:'معاد للتعديل',approved:'معتمد للمستودع',rejected:'مرفوض',draft:'مسودة'})[r.status]||r.status||'—';
         const editable=r.status==='pending';
-        const costs=[r.purchase?`شراء: ${money(r.purchase)}`:'',r.shipping?`شحن: ${money(r.shipping)}`:'',r.other?`أخرى: ${money(r.other)}`:'',r.expectedPrice?`بيع متوقع: ${money(r.expectedPrice)}`:''].filter(Boolean).join(' • ');
+        const costs=[r.purchase?`شراء: ${money(r.purchase)}`:'',r.shipping?`شحن: ${money(r.shipping)}`:'',r.other?`أخرى: ${money(r.other)}`:'',(r.salePrice||r.expectedPrice)?`بيع: ${money(r.salePrice||r.expectedPrice)}`:''].filter(Boolean).join(' • ');
         return `<article class="collectible-approval-card data-entry-review-card">
           <div class="collectible-approval-images">${imgs.slice(0,3).map((src,n)=>`<img src="${esc(src)}" onclick='openCoinLightbox(${JSON.stringify(imgs)},${n},${JSON.stringify((r.country||'')+' — '+(r.denomination||''))})'>`).join('')||'<div class="muted">لا صور</div>'}</div>
           <div class="collectible-approval-info">
