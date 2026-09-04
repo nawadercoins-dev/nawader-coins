@@ -386,10 +386,31 @@ def public_seller_identity(item):
         'sellerVerified':bool((person or {}).get('verified') or (person or {}).get('approved')),
     }
 
+def participant_linked_ids(pid):
+    """Return all historical participant ids that belong to the same normalized phone."""
+    pid=str(pid or '').strip()
+    people=load_people()
+    person=next((x for x in people if str(x.get('id') or '')==pid),None)
+    phone_key=_norm_phone((person or {}).get('phone'))
+    ids=[]
+    if pid: ids.append(pid)
+    if phone_key:
+        for row in people:
+            rid=str(row.get('id') or '').strip()
+            if rid and _norm_phone(row.get('phone'))==phone_key and rid not in ids:
+                ids.append(rid)
+    return ids
+
 def participant_permissions(pid):
+    # R9.5D: permissions follow the person by normalized phone, not one duplicate legacy id.
     defaults={'sellerEndedAuctions':False,'sellerMarket':False,'liveBroadcast':False,'marketSupervision':False,'auctionSupervision':False,'ordersView':False,'ordersManage':False,'dataEntry':False}
-    x=load_user_permissions().get(str(pid),{})
-    defaults.update(x if isinstance(x,dict) else {})
+    perms=load_user_permissions()
+    for linked_pid in participant_linked_ids(pid):
+        x=perms.get(str(linked_pid),{})
+        if not isinstance(x,dict): continue
+        for key in defaults:
+            if key in x:
+                defaults[key]=bool(defaults[key] or x.get(key))
     return defaults
 
 
@@ -1863,7 +1884,7 @@ class H(SimpleHTTPRequestHandler):
             except Exception as e:
                 print('Google OAuth error:',repr(e)); self.send_response(302); self.send_header('Location','/account?google=error'); self.end_headers(); return
         if p=='/api/version':
-            self.sendj({'version':'5.6.2-R9.5B','channel':'DAR-MUQTANYAT-R9.5B-WHATSAPP-LOGIN-FIX','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.6.2-R9.5D','channel':'DAR-MUQTANYAT-R9.5D-DATA-ENTRY-PERMISSIONS-FIX','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -3219,7 +3240,10 @@ class H(SimpleHTTPRequestHandler):
                 allowed=('sellerEndedAuctions','sellerMarket','liveBroadcast','marketSupervision','auctionSupervision','ordersView','ordersManage','dataEntry'); perms=load_user_permissions(); current=participant_permissions(pid)
                 for k in allowed:
                     if k in d: current[k]=bool(d.get(k))
-                perms[pid]=current; save_json(USER_PERMISSIONS,{'users':perms}); append_operation('تحديث صلاحيات مستخدم',{'participantId':pid,'permissions':current}); self.sendj({'ok':True,'permissions':current}); return
+                # R9.5D: keep duplicate legacy records for the same phone on one permission set.
+                linked_ids=participant_linked_ids(pid) or [pid]
+                for linked_pid in linked_ids: perms[linked_pid]=dict(current)
+                save_json(USER_PERMISSIONS,{'users':perms}); append_operation('تحديث صلاحيات مستخدم',{'participantId':pid,'linkedParticipantIds':linked_ids,'permissions':current}); self.sendj({'ok':True,'permissions':current,'linkedParticipantIds':linked_ids}); return
             if p=='/api/dues/status':
                 did=str(d.get('id') or ''); status=str(d.get('status') or '');
                 if status not in ('unpaid','paid','cancelled'): self.sendj({'error':'حالة المستحق غير صالحة'},400); return
@@ -4606,7 +4630,7 @@ if _missing_runtime:
     print('Startup warning - missing UI files:', ', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.2-R9.5B-WHATSAPP-LOGIN-FIX'
+VERSION='5.6.2-R9.5D-DATA-ENTRY-PERMISSIONS-FIX'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
