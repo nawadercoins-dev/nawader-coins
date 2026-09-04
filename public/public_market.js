@@ -1,4 +1,4 @@
-document.documentElement.dataset.marketVersion='5.6.2-r2';console.info('Dar Al Muqtanyat Market V5.6.2-r2 loaded');
+document.documentElement.dataset.marketVersion='5.6.2-r8';console.info('Dar Al Muqtanyat Market V5.6.2-R8 loaded');
 const STORE=(new URLSearchParams(location.search).get('store')||'coins').toLowerCase()==='collectibles'?'collectibles':'coins';
 const STORE_LABEL=STORE==='collectibles'?'نوادر المقتنيات':'نوادر العملات';
 const STORE_HOME=STORE==='collectibles'?'/collectibles':'/coins';
@@ -179,9 +179,9 @@ function card(i){
 
     <div class="actions market-card-actions">
       ${available>0
-        ?`<button class="buy" onclick="addToCart('${i.id}')">🛒 أضف للسلة</button>`
+        ?`<button type="button" class="buy js-add-cart" data-cart-add="${esc(i.id)}">🛒 أضف للسلة</button>`
         :`<button class="buy market-unavailable" disabled>${i.availabilityStatus==='reserved'?'محجوز في طلب قائم':'غير متاح حاليًا'}</button>`}
-      ${i.marketNegotiationEnabled&&available>0?`<button class="offer" onclick="openRequest('${i.id}','offer')">تفاوض</button>`:''}
+      ${i.marketNegotiationEnabled&&available>0?`<button type="button" class="offer" data-market-offer="${esc(i.id)}">تفاوض</button>`:''}
     </div>
   </article>`
 }
@@ -245,16 +245,38 @@ document.getElementById('closeImageDlg')?.addEventListener('click',()=>imageDlg?
 
 
 window.addToCart=id=>{
-  let i=ITEMS.find(x=>x.id===id);
-  if(!i)return;
+  const i=ITEMS.find(x=>String(x.id)===String(id));
+  if(!i){window.nawaderToast?.('تعذر العثور على المقتنى');return false}
   if(Number(i.availableQuantity||0)<=0){
-    nawaderToast(i.availabilityStatus==='reserved'?'هذا المقتنى محجوز في طلب قائم':'هذا المقتنى غير متاح حاليًا');
-    return;
+    window.nawaderToast?.(i.availabilityStatus==='reserved'?'هذا المقتنى محجوز في طلب قائم':'هذا المقتنى غير متاح حاليًا');
+    return false;
   }
-  NawaderVisitor.add({id:i.id,title:i.marketTitle||`${i.country} — ${i.denomination}`,quantity:1,max:Number(i.availableQuantity),unitPrice:displayPrice(i),unitLabel:qtyUnitLabel(i,1)});
+  try{
+    if(!window.NawaderVisitor||typeof NawaderVisitor.add!=='function')throw Error('تعذر تشغيل السلة. حدّث الصفحة مرة واحدة.');
+    const ok=NawaderVisitor.add({id:String(i.id),storeType:STORE,title:i.marketTitle||`${i.country} — ${i.denomination}`,quantity:1,max:Number(i.availableQuantity),unitPrice:displayPrice(i),unitLabel:qtyUnitLabel(i,1)});
+    if(!ok)throw Error('تعذر إضافة المقتنى إلى السلة');
+    renderCart();
+    const cartBtn=document.getElementById('cartOpen');if(cartBtn){cartBtn.classList.remove('cart-pulse');void cartBtn.offsetWidth;cartBtn.classList.add('cart-pulse');setTimeout(()=>cartBtn.classList.remove('cart-pulse'),900)}
+    return true;
+  }catch(e){window.nawaderToast?.(e.message||'تعذر تشغيل السلة');return false}
 };
-function ensureCartPanel(){if(document.getElementById('visitorCartPanel'))return;let p=document.createElement('div');p.id='visitorCartPanel';p.className='visitor-cart-panel';p.hidden=true;p.innerHTML='<div class="visitor-cart-box"><h2>🛒 سلة مشترياتي</h2><div id="visitorCartRows"></div><div id="visitorCartTotal"></div><div class="visitor-cart-actions"><button id="visitorCheckout">إتمام الطلب</button><button id="visitorClear" class="secondary">تفريغ السلة</button><button id="visitorClose" class="secondary">إغلاق</button></div><p id="visitorCartMsg"></p></div>';document.body.appendChild(p);document.getElementById('visitorClose').onclick=()=>p.hidden=true;document.getElementById('visitorClear').onclick=()=>NawaderVisitor.clear();document.getElementById('visitorCheckout').onclick=checkoutCart;window.addEventListener('nawader-cart-change',renderCart)}
-function renderCart(){ensureCartPanel();let a=NawaderVisitor.cart(),rows=document.getElementById('visitorCartRows'),total=a.reduce((s,x)=>s+Number(x.unitPrice||0)*Number(x.quantity||1),0);rows.innerHTML=a.map(x=>`<div class="visitor-cart-row"><div><b>${esc(x.title)}</b><div>${Number(x.quantity||1)} × ${money(x.unitPrice)}</div></div><button onclick="NawaderVisitor.remove('${esc(x.id)}')">حذف</button></div>`).join('')||'<p>السلة فارغة.</p>';document.getElementById('visitorCartTotal').innerHTML=a.length?`<h3>قيمة المشتريات: ${money(total)}</h3><small>تضاف رسوم المنصة عند تسجيل الطلب.</small>`:''}
+function ensureCartPanel(){
+  if(document.getElementById('visitorCartPanel'))return;
+  const p=document.createElement('div');p.id='visitorCartPanel';p.className='visitor-cart-panel';p.hidden=true;
+  p.innerHTML='<div class="visitor-cart-box"><h2>🛒 سلة مشترياتي</h2><div id="visitorCartRows"></div><div id="visitorCartTotal"></div><div class="visitor-cart-actions"><button type="button" id="visitorCheckout">إتمام الطلب</button><button type="button" id="visitorClear" class="secondary">تفريغ السلة</button><button type="button" id="visitorClose" class="secondary">إغلاق</button></div><p id="visitorCartMsg"></p></div>';
+  document.body.appendChild(p);
+  document.getElementById('visitorClose').onclick=()=>p.hidden=true;
+  document.getElementById('visitorClear').onclick=()=>NawaderVisitor.clear();
+  document.getElementById('visitorCheckout').onclick=checkoutCart;
+}
+function openVisitorCart(){ensureCartPanel();renderCart();const p=document.getElementById('visitorCartPanel');if(p)p.hidden=false}
+window.openVisitorCart=openVisitorCart;
+function renderCart(){
+  ensureCartPanel();
+  const a=(window.NawaderVisitor?.cart?.()||[]),rows=document.getElementById('visitorCartRows'),total=a.reduce((s,x)=>s+Number(x.unitPrice||0)*Number(x.quantity||1),0);
+  rows.innerHTML=a.map(x=>`<div class="visitor-cart-row" data-cart-row="${esc(x.id)}"><div><b>${esc(x.title)}</b><div>${x.storeType==='collectibles'?'🏺 نوادر المقتنيات':'🪙 نوادر العملات'}</div><div class="cart-qty-controls"><button type="button" data-cart-qty="${esc(x.id)}" data-delta="-1">−</button><strong>${Number(x.quantity||1)}</strong><button type="button" data-cart-qty="${esc(x.id)}" data-delta="1">＋</button><span>× ${money(x.unitPrice)}</span></div></div><button type="button" data-cart-remove="${esc(x.id)}">حذف</button></div>`).join('')||'<p>السلة فارغة.</p>';
+  document.getElementById('visitorCartTotal').innerHTML=a.length?`<h3>قيمة المشتريات: ${money(total)}</h3><small>تضاف رسوم المنصة عند تسجيل الطلب.</small>`:'';
+}
 async function checkoutCart(){
   let v=NawaderVisitor.get(),a=NawaderVisitor.cart(),msg=document.getElementById('visitorCartMsg');
   if(!v?.id||!v?.verified){location.href='/account?next='+encodeURIComponent('/market'+STORE_Q+'&cart=1');return}
@@ -263,7 +285,7 @@ async function checkoutCart(){
     msg.textContent='جارٍ التحقق من الكمية والحساب...';msg.className='';
     const [sr,mr]=await Promise.all([
       fetch('/api/participant/status?id='+encodeURIComponent(v.id),{cache:'no-store'}),
-      fetch('/api/public/market'+STORE_Q,{cache:'no-store'})
+      fetch('/api/public/market',{cache:'no-store'})
     ]);
     if(sr.status===401||sr.status===403){location.href='/account?next='+encodeURIComponent('/market'+STORE_Q+'&cart=1');return}
     let sd=await sr.json().catch(()=>({})),md=await mr.json().catch(()=>({}));
@@ -288,7 +310,21 @@ async function checkoutCart(){
     NawaderVisitor.clear();msg.textContent='✅ تم تسجيل الطلب بنجاح. يمكنك متابعته من «حسابي».';msg.className='ok';setTimeout(load,300);
   }catch(e){msg.textContent='⚠️ '+e.message;msg.className='err'}
 }
-document.addEventListener('DOMContentLoaded',()=>{ensureCartPanel();document.getElementById('cartOpen')?.addEventListener('click',()=>{renderCart();document.getElementById('visitorCartPanel').hidden=false});let v=NawaderVisitor.get();if(v){if($('buyerName'))$('buyerName').value=v.name||'';if($('buyerPhone'))$('buyerPhone').value=v.phone||''}let qs=new URLSearchParams(location.search);if(qs.get('cart')==='1'){renderCart();document.getElementById('visitorCartPanel').hidden=false;qs.delete('cart');history.replaceState({},'',location.pathname+(qs.toString()?'?'+qs.toString():'')+location.hash)}});
+function initMarketCart(){
+  ensureCartPanel();
+  const v=window.NawaderVisitor?.get?.();if(v){if($('buyerName'))$('buyerName').value=v.name||'';if($('buyerPhone'))$('buyerPhone').value=v.phone||''}
+  const qs=new URLSearchParams(location.search);if(qs.get('cart')==='1'){openVisitorCart();qs.delete('cart');history.replaceState({},'',location.pathname+(qs.toString()?'?'+qs.toString():'')+location.hash)}
+}
+document.addEventListener('click',e=>{
+  const add=e.target.closest?.('[data-cart-add]');if(add){e.preventDefault();e.stopPropagation();window.addToCart(add.dataset.cartAdd);return}
+  const offer=e.target.closest?.('[data-market-offer]');if(offer){e.preventDefault();window.openRequest(offer.dataset.marketOffer,'offer');return}
+  const open=e.target.closest?.('#cartOpen,[data-cart-open]');if(open){e.preventDefault();openVisitorCart();return}
+  const remove=e.target.closest?.('[data-cart-remove]');if(remove){e.preventDefault();NawaderVisitor.remove(remove.dataset.cartRemove);return}
+  const qty=e.target.closest?.('[data-cart-qty]');if(qty){e.preventDefault();const item=(NawaderVisitor.cart()||[]).find(x=>String(x.id)===String(qty.dataset.cartQty));if(item)NawaderVisitor.setQuantity(item.id,Number(item.quantity||1)+Number(qty.dataset.delta||0));return}
+});
+window.addEventListener('nawader-cart-change',renderCart);
+window.addEventListener('nawader-cart-open',openVisitorCart);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initMarketCart,{once:true});else initMarketCart();
 
 
 document.addEventListener('load',e=>{

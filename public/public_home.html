@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#071b35">
 <title>نوادر العملات | دار المقتنيات</title>
-<link rel="stylesheet" href="/visitor.css">
+<link rel="stylesheet" href="/visitor.css?v=5.6.2-r8">
 <style>
 :root{--navy:#071b35;--navy2:#0b315a;--gold:#c89b3c;--gold2:#e7c878;--paper:#fffdf8;--muted:#667085;--line:#d7ba72}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Tahoma,"Segoe UI",Arial,sans-serif;background:linear-gradient(145deg,#06172d,#0b315a 55%,#10233f);min-height:100vh;color:#fff}.wrap{max-width:1180px;margin:auto;padding:4vh 20px 24px}.hero{text-align:center;padding:14px 20px 8px}.logo{width:min(315px,70vw);aspect-ratio:1;object-fit:cover;border-radius:50%;border:3px solid var(--gold2);box-shadow:0 18px 60px #0008}.brand-title{font-size:clamp(34px,6vw,60px);margin:14px 0 4px;color:var(--gold2)}.hero p{font-size:18px;color:#dce6f2;line-height:1.8;margin:8px auto;max-width:780px}.start,.whatsapp{display:inline-block;border-radius:999px;text-decoration:none;font-weight:900}.start{margin-top:14px;background:linear-gradient(135deg,#b88728,#e0bd68);color:#10233c;padding:13px 27px;font-size:17px}.whatsapp{margin-top:17px;background:#fff;color:var(--navy);border:2px solid var(--gold2);padding:12px 21px}
@@ -78,7 +78,7 @@
 </section>
 <footer>دار المقتنيات — نوادر العملات</footer>
 </main>
-<script src="/visitor.js"></script>
+<script src="/visitor.js?v=5.6.2-r8"></script>
 <script>
 (()=>{
 'use strict';
@@ -92,8 +92,8 @@ const priceOf=i=>num(i.discountPrice||i.salePrice||i.marketSalePrice||i.marketUn
 const originalPriceOf=i=>num(i.originalPrice||i.marketOriginalPrice||i.regularPrice||i.listPrice);
 const money=v=>{const n=num(v);return n>0?`${n.toLocaleString('ar-SA',{maximumFractionDigits:2})} ر.س`:''};
 const sectionDefs={
- market:{rail:'marketRail',row:'marketRow',url:'/market',empty:'لا توجد قطع منشورة في السوق حاليًا.'},
- auction:{rail:'auctionRail',row:'auctionRow',url:'/auction',empty:'لا توجد مزادات نشطة حاليًا.'},
+ market:{rail:'marketRail',row:'marketRow',url:'/market?store=coins',empty:'لا توجد قطع منشورة في السوق حاليًا.'},
+ auction:{rail:'auctionRail',row:'auctionRow',url:'/auction?store=coins',empty:'لا توجد مزادات نشطة حاليًا.'},
  specialNumbers:{rail:'specialRail',row:'specialRow',url:'/special-numbers',empty:'لا توجد قطع منشورة في هذا القسم حاليًا.'},
  transitionalIssues:{rail:'transitionalRail',row:'transitionalRow',url:'/transitional-issues',empty:'لا توجد إصدارات انتقالية منشورة حاليًا.'}
 };
