@@ -868,6 +868,18 @@ def auction_local_now():
     # Render runs in UTC, so comparing with datetime.now() directly delays settlement by 3 hours.
     return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=3))).replace(tzinfo=None)
 
+AUCTION_TZ=datetime.timezone(datetime.timedelta(hours=3))
+def auction_end_epoch_ms(value):
+    """Convert stored auctionEnd to a real epoch. Naive values are Saudi wall-clock."""
+    raw=str(value or '').strip()
+    if not raw: return 0
+    try:
+        dt=datetime.datetime.fromisoformat(raw.replace('Z','+00:00'))
+        if dt.tzinfo is None: dt=dt.replace(tzinfo=AUCTION_TZ)
+        return int(dt.timestamp()*1000)
+    except Exception:
+        return 0
+
 def ensure_auction_outcomes():
     """Create winner dues/notifications once for ended successful auction rounds. Safe to call repeatedly."""
     now=auction_local_now(); tracking_start=ensure_dues_tracking_start(); items=load(); bids=load_bids(); dues=load_auction_dues(); due_keys={(str(x.get('itemId')),int(x.get('auctionRound') or 1)) for x in dues}
@@ -1076,6 +1088,8 @@ def public_item(i):
     out['storeType']=item_store_type(i)
     out.update(public_seller_identity(i))
     out.update({'auctionCurrentPrice':top,'bidCount':len(bids),'reserveState':reserve_state,'auctionEnded':ended,'auctionSold':sold})
+    out['auctionEndEpochMs']=auction_end_epoch_ms(end)
+    out['auctionActive']=bool(i.get('forAuction') and i.get('auctionApproved') and not ended)
     return out
 
 
@@ -1712,7 +1726,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.6.2-R9.1','channel':'DAR-MUQTANYAT-R9.1-AUCTION-FORM-FIX','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.6.2-R9.2','channel':'DAR-MUQTANYAT-R9.2-AUCTION-ACTIVE-TIMER','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -2042,7 +2056,7 @@ class H(SimpleHTTPRequestHandler):
                     except Exception as e:
                         skipped+=1; print('تنبيه مقتنى مزاد عام غير صالح:',i.get('id'),e)
                 items.sort(key=lambda x:str(x.get('auctionEnd') or ''))
-                self.sendj({'items':items,'store':store,'skipped':skipped,'ok':True,'generatedAt':datetime.datetime.now().isoformat()}); return
+                self.sendj({'items':items,'store':store,'skipped':skipped,'ok':True,'serverEpochMs':int(time.time()*1000),'generatedAt':datetime.datetime.now().isoformat()}); return
         if p=='/api/visitor/auction-activity':
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
             person=self.require_participant(pid)
@@ -3868,7 +3882,7 @@ class H(SimpleHTTPRequestHandler):
                 if item.get('auctionEnd'):
                     try:
                         end=datetime.datetime.fromisoformat(str(item['auctionEnd']));
-                        if end<=datetime.datetime.now(): self.sendj({'error':'انتهى المزاد'},409); return
+                        if end<=auction_local_now(): self.sendj({'error':'انتهى المزاد'},409); return
                     except Exception: pass
                 bids=load_bids(); round_no=int(item.get('auctionRound') or 1); item_bids=[b for b in bids if b.get('itemId')==itemId and int(b.get('auctionRound') or 1)==round_no]; current=max([float(b.get('amount') or 0) for b in item_bids]+[0.0])
                 opening=float(item.get('auctionOpeningPrice') or item.get('auctionStartPrice') or 0)
@@ -4048,7 +4062,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.2-R9.1-AUCTION-FORM-FIX'
+VERSION='5.6.2-R9.2-AUCTION-ACTIVE-TIMER'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
