@@ -1863,7 +1863,7 @@ class H(SimpleHTTPRequestHandler):
             except Exception as e:
                 print('Google OAuth error:',repr(e)); self.send_response(302); self.send_header('Location','/account?google=error'); self.end_headers(); return
         if p=='/api/version':
-            self.sendj({'version':'5.6.2-R9.5A','channel':'DAR-MUQTANYAT-R9.5A-WHATSAPP-VAULT-FIX','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.6.2-R9.5B','channel':'DAR-MUQTANYAT-R9.5B-WHATSAPP-LOGIN-FIX','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -4108,27 +4108,20 @@ class H(SimpleHTTPRequestHandler):
                         if exp>now-datetime.timedelta(days=7): reqs.append(old_req)
                     except Exception:
                         pass
-                pending_req=None
-                for candidate in reversed(reqs):
-                    if str(candidate.get('status') or '')!='pending': continue
-                    try:
-                        if datetime.datetime.fromisoformat(str(candidate.get('expires') or ''))>now:
-                            pending_req=candidate; break
-                    except Exception:
-                        continue
-                if pending_req and not google_pending:
-                    request_id=str(pending_req.get('id') or '')
-                    request_code=str(pending_req.get('code') or '')
-                    expires=str(pending_req.get('expires') or '')
-                    request_token=''
-                else:
-                    request_id='wv-'+secrets.token_hex(8)
-                    request_token=secrets.token_urlsafe(24)
-                    request_code='NW-'+secrets.token_hex(3).upper()
-                    expires=(now+datetime.timedelta(hours=24)).isoformat()
-                    reqs.append({'id':request_id,'tokenHash':hashlib.sha256(request_token.encode()).hexdigest(),'code':request_code,'status':'pending','created':nowiso,'expires':expires,'approvedAt':'','rejectedAt':'','consumedAt':'','googleLink':bool(google_pending),'googleSub':(google_pending or {}).get('sub',''),'googleEmail':(google_pending or {}).get('email','')})
-                    person['whatsappVerificationRequests']=reqs[-12:]
-                    save_json(PEOPLE,{'participants':people})
+                # R9.5B: لا تعِد استخدام طلب واتساب قديم، لأن الخادم لا يخزن token الخام
+                # وإنما hash فقط. إعادة الطلب القديم كانت تُرجع requestToken فارغًا للمتصفح،
+                # وبذلك يستحيل تسجيل الدخول حتى لو اعتمدت الإدارة الحساب.
+                # كل ضغطة «التحقق عبر واتساب» تنشئ طلبًا جديدًا وتلغي أي طلب pending سابق.
+                for candidate in reqs:
+                    if str(candidate.get('status') or '')=='pending':
+                        candidate['status']='superseded'; candidate['supersededAt']=nowiso
+                request_id='wv-'+secrets.token_hex(8)
+                request_token=secrets.token_urlsafe(24)
+                request_code='NW-'+secrets.token_hex(3).upper()
+                expires=(now+datetime.timedelta(hours=24)).isoformat()
+                reqs.append({'id':request_id,'tokenHash':hashlib.sha256(request_token.encode()).hexdigest(),'code':request_code,'status':'pending','created':nowiso,'expires':expires,'approvedAt':'','rejectedAt':'','consumedAt':'','googleLink':bool(google_pending),'googleSub':(google_pending or {}).get('sub',''),'googleEmail':(google_pending or {}).get('email','')})
+                person['whatsappVerificationRequests']=reqs[-12:]
+                save_json(PEOPLE,{'participants':people})
 
                 st=load_settings()
                 wa=''.join(ch for ch in str(st.get('whatsappVerificationNumber') or '966551892409') if ch.isdigit())
@@ -4140,9 +4133,8 @@ class H(SimpleHTTPRequestHandler):
                          f"رمز الطلب: {request_code}\n"
                          f"أرجو اعتماد التوثيق الكامل لهذا الحساب.")
                 whatsapp_url='https://wa.me/'+wa+'?text='+quote(message,safe='')
-                if not pending_req:
-                    append_operation('إنشاء طلب توثيق واتساب',{'participantId':person.get('id'),'requestId':request_id,'requestCode':request_code,'phone':person.get('phone')},actor='العميل')
-                    add_notification('admin','admin','approval','طلب توثيق حساب عبر واتساب',f"{person.get('name','')} — {person.get('phone','')} — {request_code}",person.get('id'),'/admin')
+                append_operation('إنشاء طلب توثيق واتساب',{'participantId':person.get('id'),'requestId':request_id,'requestCode':request_code,'phone':person.get('phone')},actor='العميل')
+                add_notification('admin','admin','approval','طلب توثيق حساب عبر واتساب',f"{person.get('name','')} — {person.get('phone','')} — {request_code}",person.get('id'),'/admin')
                 self.sendj({'ok':True,'pending':True,'requestId':request_id,'requestToken':request_token,'requestCode':request_code,'expires':expires,'whatsappUrl':whatsapp_url,'whatsappNumber':wa,'message':'تم إنشاء طلب التوثيق. افتح واتساب وأرسل الرسالة الجاهزة ثم انتظر اعتماد الإدارة.'}); return
 
             if p=='/api/participant/profile':
@@ -4370,7 +4362,38 @@ class H(SimpleHTTPRequestHandler):
                 if status in ('suspended','stopped','cancelled') and not reason: self.sendj({'error':'كتابة السبب إلزامية لهذا القرار'},400); return
                 person=next((x for x in a if str(x.get('id'))==iid),None)
                 if not person: self.sendj({'error':'المشارك غير موجود'},404); return
-                if status=='final' and participant_approval_status(person)=='new': self.sendj({'error':'الحساب الجديد يحتاج اعتماد طلب واتساب.'},409); return
+                if status=='final' and participant_approval_status(person)=='new':
+                    # R9.5B: زر «توثيق كامل» القديم في الإدارة يجب أن يعتمد أحدث طلب واتساب
+                    # بدل أن يفشل، حتى لو لم تُحدّث واجهة الإدارة أو كان الطلب على سجل مكرر للجوال.
+                    phone_key=_norm_phone(person.get('phone'))
+                    same_phone=[x for x in a if phone_key and _norm_phone(x.get('phone'))==phone_key] or [person]
+                    now_dt=datetime.datetime.now(); pending_owner=None; pending_req=None
+                    for candidate in same_phone:
+                        for candidate_req in reversed(list(candidate.get('whatsappVerificationRequests') or [])):
+                            if str(candidate_req.get('status') or '')!='pending': continue
+                            try:
+                                if datetime.datetime.fromisoformat(str(candidate_req.get('expires') or '')) <= now_dt: continue
+                            except Exception:
+                                pass
+                            if not pending_req or str(candidate_req.get('created') or '') > str(pending_req.get('created') or ''):
+                                pending_owner=candidate; pending_req=candidate_req
+                            break
+                    if not pending_req:
+                        self.sendj({'error':'لا يوجد طلب واتساب معلّق لهذا الجوال. أنشئ طلبًا جديدًا من صفحة حسابي ثم أعد التوثيق الكامل.'},409); return
+                    nowiso=datetime.datetime.now().isoformat(); pending_req['status']='approved'; pending_req['approvedAt']=nowiso
+                    approved_ids=[]
+                    for target in same_phone:
+                        if participant_approval_status(target) in ('stopped','cancelled'): continue
+                        previous_target=participant_approval_status(target); apply_approval_status(target,'final')
+                        target['verified']=True; target['approved']=True; target['verifiedAt']=target.get('verifiedAt') or nowiso; target['approvedAt']=nowiso; target['finalApprovedAt']=nowiso
+                        history=target.get('approvalHistory') if isinstance(target.get('approvalHistory'),list) else []
+                        history.append({'status':'final','previousStatus':previous_target,'reason':'توثيق كامل واعتماد أحدث طلب واتساب','actor':'الإدارة','at':nowiso}); target['approvalHistory']=history[-200:]
+                        approved_ids.append(str(target.get('id') or ''))
+                    save_json(PEOPLE,{'participants':a})
+                    append_operation('اعتماد توثيق واتساب من زر التوثيق الكامل',{'participantId':iid,'requestId':pending_req.get('id'),'requestCode':pending_req.get('code'),'approvedDuplicateIds':approved_ids},actor='الإدارة')
+                    for approved_id in approved_ids:
+                        add_notification('participant',approved_id,'approval','✅ تم التوثيق الكامل','تم اعتماد أحدث طلب واتساب. ارجع إلى صفحة حسابي واضغط «تحقق من الاعتماد الآن».',approved_id,'/account')
+                    self.sendj({'ok':True,'participant':participant_public(person),'whatsappApproved':True,'requestId':pending_req.get('id'),'approvedDuplicateIds':approved_ids}); return
                 previous=participant_approval_status(person)
                 if previous=='cancelled': self.sendj({'error':'الإلغاء نهائي ولا يمكن إعادة تفعيل الحساب'},409); return
                 nowiso=datetime.datetime.now().isoformat(); apply_approval_status(person,status); person['approvalUpdatedAt']=nowiso; person['approvalUpdatedBy']='الإدارة'
@@ -4583,7 +4606,7 @@ if _missing_runtime:
     print('Startup warning - missing UI files:', ', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.2-R9.5A-WHATSAPP-VAULT-FIX'
+VERSION='5.6.2-R9.5B-WHATSAPP-LOGIN-FIX'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
