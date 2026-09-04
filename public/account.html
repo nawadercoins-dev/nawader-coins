@@ -75,7 +75,7 @@
   <section class="panel" id="invoicesPanel"><div class="section-title"><h2>🧾 فواتيري</h2><span class="status" id="invoicesSummary"></span></div><div class="financial-summary"><div><span>إجمالي الفواتير</span><b id="invoicesGrandTotal">0 ر.س</b></div><div><span>فواتير مسددة</span><b id="invoicesPaidTotal">0 ر.س</b></div><div><span>فواتير غير مسددة</span><b id="invoicesBalanceTotal">0 ر.س</b></div></div><div id="invoicesList" class="subpanel-grid"><div class="empty">لا توجد فواتير حتى الآن.</div></div></section>
   <section class="panel" id="bidsPanel"><div class="section-title"><h2>⚖ مزايداتي الحالية</h2><a href="/auction" style="font-weight:900;color:#0b3260">فتح صفحة المزادات</a></div><div id="bidsList" class="subpanel-grid auction-activity"><div class="empty">لا توجد مزايدات نشطة حاليًا.</div></div></section>
   <section class="panel" id="winsPanel"><div class="section-title"><h2>🏆 المزادات التي فزت بها</h2></div><div id="winsList" class="subpanel-grid"><div class="empty">لا توجد مزادات فزت بها حتى الآن.</div></div></section>
-  <section class="panel" id="duesPanel"><div class="section-title"><h2>💳 المستحقات</h2><button id="payAllDues" class="pay-primary" type="button" disabled>سداد جميع المستحقات الجاهزة</button></div><p class="payment-note">يصبح زر السداد متاحًا بعد أن تعتمد الإدارة مبلغ الشحن، حتى يكون المبلغ المحول نهائيًا ولا تحتاج إلى تحويل إضافي.</p><div class="financial-summary"><div><span>إجمالي المستحقات</span><b id="duesGrandTotal">0 ر.س</b></div><div><span>عدد الطلبات غير المسددة</span><b id="duesOrdersCount">0</b></div><div><span>الحالة</span><b id="duesState">لا توجد مستحقات</b></div></div><div id="duesList" class="subpanel-grid"><div class="empty">لا توجد مستحقات غير مسددة.</div></div></section>
+  <section class="panel" id="duesPanel"><div class="section-title"><h2>💳 المستحقات</h2><button id="payAllDues" class="pay-primary" type="button" disabled>لا توجد مستحقات للسداد</button></div><p class="payment-note">السداد الجماعي يتفعّل فقط عندما تصبح جميع الطلبات غير المسددة جاهزة للسداد ويكون مبلغ الشحن معتمدًا لكل طلب. ويمكن سداد أي طلب جاهز منفردًا من بطاقته.</p><div class="financial-summary"><div><span>إجمالي المستحقات</span><b id="duesGrandTotal">0 ر.س</b></div><div><span>عدد الطلبات غير المسددة</span><b id="duesOrdersCount">0</b></div><div><span>الحالة</span><b id="duesState">لا توجد مستحقات</b></div></div><p id="duesBreakdown" class="payment-note" style="margin-top:10px"></p><div id="duesList" class="subpanel-grid"><div class="empty">لا توجد مستحقات غير مسددة.</div></div></section>
   <section class="panel" id="shippingPanel"><div class="section-title"><h2>📦 الشحن والعناوين</h2><span class="status" id="addressState"></span></div><p class="auth-help">احفظ عنوان التسليم هنا. ينسخ النظام العنوان تلقائيًا إلى الطلبات النشطة التي لم تُشحن بعد، بينما تبقى الطلبات المشحونة محفوظة بعنوانها السابق.</p><div class="address-form"><label>اسم المستلم<input id="addrName" maxlength="120"></label><label>جوال المستلم<input id="addrPhone" maxlength="40" inputmode="tel"></label><label>الدولة<select id="addrCountry"><option value="">اختر الدولة</option><option>السعودية</option><option>الكويت</option><option>البحرين</option><option>قطر</option><option>عُمان</option><option>الإمارات</option><option>مصر</option><option>الأردن</option><option>لبنان</option><option>العراق</option><option>اليمن</option><option>سوريا</option><option>ألمانيا</option><option>بريطانيا</option><option>الولايات المتحدة</option></select></label><label>المدينة<input id="addrCity" maxlength="100"></label><label>الحي<input id="addrDistrict" maxlength="120"></label><label>الرمز البريدي<input id="addrPostal" maxlength="30"></label><label class="wide">العنوان بالتفصيل<input id="addrLine" maxlength="240" placeholder="الشارع، رقم المبنى، الوحدة أو علامة مميزة"></label><label class="wide">ملاحظات التسليم<textarea id="addrNotes" maxlength="240"></textarea></label><div class="wide"><button type="button" id="saveAddress">حفظ عنوان التسليم</button> <span id="addressMsg"></span></div></div><h3>متابعة الشحنات</h3><div id="shippingList" class="subpanel-grid"><div class="empty">لا توجد شحنات حاليًا.</div></div></section>
   <section class="panel" id="favoritesPanel"><div class="section-title"><h2>❤️ المفضلة</h2><span class="status" id="likesCount"></span></div><div id="favoritesList" class="activity-list"><div class="empty">لم تضف مقتنيات إلى المفضلة بعد.</div></div></section>
   <section class="panel" id="activityPanel"><h2>سجل النشاط المختصر</h2><div id="activity" class="activity-list"><div class="empty">لا يوجد نشاط حتى الآن.</div></div></section>
@@ -93,10 +93,36 @@ let accountOrdersCache=[],paymentSettingsCache=null,activePaymentOrderIds=[];
 function paymentStatusText(x){if(x.paymentStatus==='paid')return '✅ تم السداد';if(x.paymentStatus==='refunded')return '↩ تم الاسترداد';if(x.paymentProofStatus==='pending'||x.paymentStatus==='proof_submitted')return '📤 إثبات السداد قيد المراجعة';if(x.paymentProofStatus==='rejected')return '⚠️ يلزم إعادة إثبات السداد';return x.shippingFeeConfirmed?'جاهز للسداد':'بانتظار تحديد الشحن'}
 async function getPaymentSettings(){if(paymentSettingsCache)return paymentSettingsCache;let r=await fetch('/api/settings/public',{cache:'no-store'}),d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'تعذر تحميل بيانات السداد');paymentSettingsCache=d.payment||{};return paymentSettingsCache}
 function eligiblePaymentOrder(x){return !!x&&x.shippingFeeConfirmed&&!['paid','refunded','proof_submitted'].includes(String(x.paymentStatus||''))&&!['cancelled','returned','completed'].includes(String(x.status||''))&&['new','awaiting_payment','stalled'].includes(String(x.status||''))&&!x.cancellationRequestedAt}
+function duesPaymentSummary(dues){
+  dues=Array.isArray(dues)?dues:[];
+  let ready=[],proof=[],shipping=[],other=[];
+  for(const x of dues){
+    if(x.paymentProofStatus==='pending'||x.paymentStatus==='proof_submitted')proof.push(x);
+    else if(eligiblePaymentOrder(x))ready.push(x);
+    else if(!x.shippingFeeConfirmed&&['new','awaiting_payment','stalled'].includes(String(x.status||'')))shipping.push(x);
+    else other.push(x);
+  }
+  const allReady=dues.length>0&&ready.length===dues.length;
+  let state='لا توجد مستحقات';
+  if(dues.length){
+    if(allReady)state='جاهزة للسداد';
+    else if(proof.length===dues.length)state='إثبات السداد تحت المراجعة';
+    else if(shipping.length===dues.length)state='بانتظار تحديد الشحن';
+    else state='طلبات بمراحل مختلفة';
+  }
+  let parts=[];
+  if(ready.length)parts.push(`جاهز للسداد: ${ready.length}`);
+  if(shipping.length)parts.push(`بانتظار تحديد الشحن: ${shipping.length}`);
+  if(proof.length)parts.push(`إثبات تحت المراجعة: ${proof.length}`);
+  if(other.length)parts.push(`قيد المعالجة: ${other.length}`);
+  return {ready,proof,shipping,other,allReady,state,detail:parts.join(' · ')};
+}
 async function openPayment(orderId){
   let rows=accountOrdersCache.filter(x=>!['cancelled','returned','completed'].includes(String(x.status||''))&&!['paid','refunded'].includes(String(x.paymentStatus||'')));
-  if(orderId==='all')rows=rows.filter(eligiblePaymentOrder);else rows=rows.filter(x=>String(x.id)===String(orderId)&&eligiblePaymentOrder(x));
-  if(!rows.length){alert(orderId==='all'?'لا توجد مستحقات جاهزة للسداد الآن. الطلبات التي لم يُحدد شحنها تنتظر اعتماد الإدارة أولًا.':'هذا الطلب غير جاهز للسداد بعد. تأكد من اعتماد مبلغ الشحن أولًا.');return}
+  if(orderId==='all'){
+    if(!rows.length||!rows.every(eligiblePaymentOrder)){alert('السداد الجماعي غير متاح حتى تصبح جميع المستحقات جاهزة للسداد ويعتمد مبلغ الشحن لكل طلب. يمكنك سداد الطلبات الجاهزة منفردة.');return}
+  }else rows=rows.filter(x=>String(x.id)===String(orderId)&&eligiblePaymentOrder(x));
+  if(!rows.length){alert('هذا الطلب غير جاهز للسداد بعد. تأكد من اعتماد مبلغ الشحن أولًا.');return}
   activePaymentOrderIds=rows.map(x=>x.id);let total=rows.reduce((s,x)=>s+Number(x.buyerTotal||0),0),dlg=$('paymentDialog');
   $('paymentOrdersSummary').innerHTML=rows.map(x=>`<div><span>${esc(x.orderNumber||x.itemTitle||'طلب')}</span><b>${accountMoney(x.buyerTotal)}</b></div>`).join('')+`<div><strong>الإجمالي النهائي</strong><strong>${accountMoney(total)}</strong></div>`;
   let p=await getPaymentSettings(),configured=!!String(p.iban||'').trim();
@@ -125,12 +151,12 @@ async function loadOrders(v){
     if(!r.ok)throw Error(d.error||'تعذر تحميل الطلبات');
     let rows=d.requests||[];accountOrdersCache=rows;
     let valid=rows.filter(x=>!['cancelled','returned'].includes(String(x.status||''))),wins=rows.filter(x=>x.source==='auction'&&String(x.status||'')!=='cancelled'),dues=rows.filter(x=>!['paid','refunded'].includes(String(x.paymentStatus||''))&&!['cancelled','returned','completed'].includes(String(x.status||''))),shipping=rows.filter(x=>x.shippingFeeConfirmed||x.shippingCompany||x.trackingNumber||['preparing','ready_to_ship','shipped','received','completed'].includes(String(x.status||'')));
-    const grand=valid.reduce((s,x)=>s+Number(x.buyerTotal||0),0),paid=valid.filter(x=>x.paymentStatus==='paid').reduce((s,x)=>s+Number(x.buyerTotal||0),0),balance=dues.reduce((s,x)=>s+Number(x.buyerTotal||0),0),payable=dues.filter(eligiblePaymentOrder);
+    const grand=valid.reduce((s,x)=>s+Number(x.buyerTotal||0),0),paid=valid.filter(x=>x.paymentStatus==='paid').reduce((s,x)=>s+Number(x.buyerTotal||0),0),balance=dues.reduce((s,x)=>s+Number(x.buyerTotal||0),0),payable=dues.filter(eligiblePaymentOrder),dueSummary=duesPaymentSummary(dues);
     $('ordersCount').textContent=rows.length;$('invoicesCount').textContent=rows.length;$('winsCount').textContent=wins.length;$('duesCount').textContent=dues.length;$('shippingCount').textContent=shipping.length;
     $('ordersSummary').textContent=rows.length?'عدد الطلبات '+rows.length:'لا توجد طلبات';$('invoicesSummary').textContent='عدد الفواتير '+rows.length;
     $('ordersGrandTotal').textContent=accountMoney(grand);$('ordersPaidTotal').textContent=accountMoney(paid);$('ordersBalanceTotal').textContent=accountMoney(balance);
     $('invoicesGrandTotal').textContent=accountMoney(grand);$('invoicesPaidTotal').textContent=accountMoney(paid);$('invoicesBalanceTotal').textContent=accountMoney(balance);
-    $('duesGrandTotal').textContent=accountMoney(balance);$('duesOrdersCount').textContent=dues.length;$('duesState').textContent=dues.length?(payable.length?`${payable.length} جاهز للسداد`:'بانتظار الشحن/اعتماد الإثبات'):'لا توجد مستحقات';$('payAllDues').disabled=!payable.length;$('payAllDues').onclick=()=>openPayment('all');
+    $('duesGrandTotal').textContent=accountMoney(balance);$('duesOrdersCount').textContent=dues.length;$('duesState').textContent=dueSummary.state;$('duesBreakdown').textContent=dueSummary.detail;let payAll=$('payAllDues');payAll.disabled=!dueSummary.allReady;payAll.textContent=!dues.length?'لا توجد مستحقات للسداد':dueSummary.allReady?'💳 سداد جميع المستحقات':dueSummary.shipping.length?'⏳ سداد الجميع بعد تحديد الشحن':dueSummary.proof.length?'⏳ يوجد إثبات سداد تحت المراجعة':'⏳ المستحقات غير جاهزة بالكامل';payAll.onclick=()=>openPayment('all');
     const actions=x=>{
       if(x.cancellationRequestedAt)return '<span class="status">⏳ طلب الإلغاء لدى الإدارة</span>';
       if(x.refundRequestedAt)return '<span class="status">⏳ طلب الاسترداد لدى الإدارة</span>';
