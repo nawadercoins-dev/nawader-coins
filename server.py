@@ -1907,10 +1907,13 @@ class H(SimpleHTTPRequestHandler):
             except Exception as e:
                 print('Google OAuth error:',repr(e)); self.send_response(302); self.send_header('Location','/account?google=error'); self.end_headers(); return
         if p=='/api/version':
-            self.sendj({'version':'5.6.2-R9.5E','channel':'DAR-MUQTANYAT-R9.5E-UPLOAD-STREAM-RECOVERY','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.6.2-R9.5F','channel':'DAR-MUQTANYAT-R9.5F-DATA-ENTRY-DEVICE-SESSION','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
-            self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
+            q=parse_qs(urlparse(self.path).query); next_path=str((q.get('next') or [''])[0] or '').strip()
+            if not (next_path.startswith('/') and not next_path.startswith('//')): next_path=''
+            target='/account'+(('?next='+quote(next_path,safe='')) if next_path else '')
+            self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location',target); self.end_headers(); return
         if p=='/admin-login':
             if self.is_admin():
                 self.send_response(302); self.send_header('Location','/admin'); self.end_headers(); return
@@ -2439,6 +2442,11 @@ class H(SimpleHTTPRequestHandler):
         if p in ('/seller','/seller/','/seller_portal.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'seller_portal.html'),'text/html; charset=utf-8'); return
         if p in ('/data-entry','/data-entry/','/data_entry.html'):
+            # R9.5F: the participant login cookie is per browser/device.
+            # If this browser has no account session, send it to account login and
+            # return automatically after WhatsApp verification.
+            if not self.participant_person():
+                self.send_response(302); self.send_header('Location','/account?next=%2Fdata-entry'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'data_entry.html'),'text/html; charset=utf-8'); return
         if p in ('/special-numbers','/special-numbers/','/special_numbers.html'):
             if not effective_visitor_sections()['specialNumbers']:
@@ -4664,7 +4672,7 @@ if _missing_runtime:
     print('Startup warning - missing UI files:', ', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.2-R9.5D-DATA-ENTRY-PERMISSIONS-FIX'
+VERSION='5.6.2-R9.5F-DATA-ENTRY-DEVICE-SESSION'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
