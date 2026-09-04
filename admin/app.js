@@ -3825,6 +3825,12 @@ function permissionCheck(pid, key, checked) {
         "تحديث السداد والتجهيز والشحن",
         "orders",
       ],
+      dataEntry: [
+        "⌨️",
+        "مسؤول إدخال البيانات",
+        "إضافة المقتنيات والأسعار والصور ثم إرسالها للاعتماد فقط",
+        "general",
+      ],
     },
     z = m[key] || ["•", key, "", "general"];
   return `<label class="permission-check permission-${z[3]}"><span class="permission-card-icon">${z[0]}</span><span class="permission-copy"><b>${z[1]}</b><small>${z[2]}</small></span><input type="checkbox" data-pid="${esc(pid)}" data-perm="${key}" ${checked ? "checked" : ""}><span class="permission-state">${checked ? "مفعّلة" : "غير مفعّلة"}</span></label>`;
@@ -3838,7 +3844,7 @@ async function renderPermissions() {
       rows
         .map((x) => {
           let p = x.permissions || {};
-          return `<article class="permission-row"><div class="permission-user"><b>${esc(x.name || "مشارك")}</b><span>${esc(x.phone || "")}</span><small>${x.verified ? "موثق" : "غير موثق"} • ${x.approved ? "معتمد" : "غير معتمد"}</small></div><div class="permission-options">${permissionCheck(x.id, "sellerEndedAuctions", p.sellerEndedAuctions)}${permissionCheck(x.id, "sellerMarket", p.sellerMarket)}${permissionCheck(x.id, "liveBroadcast", p.liveBroadcast)}${permissionCheck(x.id, "marketSupervision", p.marketSupervision)}${permissionCheck(x.id, "auctionSupervision", p.auctionSupervision)}${permissionCheck(x.id, "ordersView", p.ordersView)}${permissionCheck(x.id, "ordersManage", p.ordersManage)}</div><button type="button" class="save-permissions" data-pid="${esc(x.id)}">حفظ الصلاحيات</button></article>`;
+          return `<article class="permission-row"><div class="permission-user"><b>${esc(x.name || "مشارك")}</b><span>${esc(x.phone || "")}</span><small>${x.verified ? "موثق" : "غير موثق"} • ${x.approved ? "معتمد" : "غير معتمد"}</small></div><div class="permission-options">${permissionCheck(x.id, "sellerEndedAuctions", p.sellerEndedAuctions)}${permissionCheck(x.id, "sellerMarket", p.sellerMarket)}${permissionCheck(x.id, "liveBroadcast", p.liveBroadcast)}${permissionCheck(x.id, "marketSupervision", p.marketSupervision)}${permissionCheck(x.id, "auctionSupervision", p.auctionSupervision)}${permissionCheck(x.id, "ordersView", p.ordersView)}${permissionCheck(x.id, "ordersManage", p.ordersManage)}${permissionCheck(x.id, "dataEntry", p.dataEntry)}</div><button type="button" class="save-permissions" data-pid="${esc(x.id)}">حفظ الصلاحيات</button></article>`;
         })
         .join("") || '<p class="muted">لا يوجد مشاركون مسجلون.</p>';
     document.querySelectorAll(".permission-check").forEach((l) => {
@@ -4326,43 +4332,70 @@ function moderationLabel(s){
   return ({active:"نشط",hidden:"مخفي",suspended:"موقوف",archived:"مؤرشف"})[s||"active"]||"نشط";
 }
 async function renderCollectibleApprovals(){
-  if(!$("collectibleApprovalsList"))return;
+  if(!$('collectibleApprovalsList'))return;
   try{
-    let r=await api("/api/items"),rows=filterAdminItems(r.items||[]);
-    let active=rows.filter(x=>(x.moderationStatus||"active")==="active").length;
-    let restricted=rows.length-active;
-    $("collectiblePendingCount").textContent=active;
-    $("collectibleNeedsCount").textContent=restricted;
-    $("collectibleTotalCount").textContent=rows.length;
-    let badge=$("collectibleApprovalsBadge");if(badge){badge.textContent=restricted;badge.hidden=!restricted}
-    $("collectibleApprovalsList").innerHTML=rows.slice().sort((a,b)=>Number(b.updated||0)-Number(a.updated||0)).map(i=>{
-      let s=i.moderationStatus||"active",imgs=[i.frontImg,i.backImg].filter(Boolean);
-      return `<article class="collectible-approval-card">
-        <div class="collectible-approval-images">${imgs.slice(0,2).map((src,idx)=>`<img src="${esc(src)}" onclick='openCoinLightbox(${JSON.stringify(imgs)},${idx},${JSON.stringify((i.country||"")+" — "+(i.denomination||""))})'>`).join("")}</div>
-        <div class="collectible-approval-info">
-          <h3>${adminStoreBadge(itemStoreKey(i))} ${esc(i.country||"—")} — ${esc(i.denomination||"—")}</h3>
-          <div><b>${esc(i.ownerName||"صاحب المنصة")}</b> ${i.ownerCountry?`— ${esc(i.ownerCountry)}`:""}</div>
-          <div class="collectible-meta"><span>${esc(i.year||"بدون سنة")}</span><span>السوق: ${i.forMarket&&i.marketApproved?"منشور":"—"}</span><span>المزاد: ${i.forAuction&&i.auctionApproved?"منشور":"—"}</span><span class="collectible-state">${moderationLabel(s)}</span></div>
-          ${i.moderationReason?`<p><b>سبب آخر إجراء:</b> ${esc(i.moderationReason)}</p>`:""}
-          <div class="collectible-actions">
-            ${s!=="active"?`<button class="approve" onclick="setItemModeration('${esc(i.id)}','active')">✓ تفعيل</button>`:""}
-            <button class="changes" onclick="setItemModeration('${esc(i.id)}','hidden')">إخفاء</button>
-            <button class="changes" onclick="setItemModeration('${esc(i.id)}','suspended')">إيقاف</button>
-            <button class="reject" onclick="removeItem('${esc(i.id)}')">حذف ← الأرشيف</button>
+    const [subRes,itemRes]=await Promise.all([api('/api/collectible-submissions/admin'),api('/api/items')]);
+    const submissions=(subRes.submissions||[]).filter(x=>x.submissionSource==='data_entry');
+    const pending=submissions.filter(x=>x.status==='pending');
+    const needs=submissions.filter(x=>x.status==='needs_changes');
+    const total=submissions.length;
+    if($('collectiblePendingCount'))$('collectiblePendingCount').textContent=pending.length;
+    if($('collectibleNeedsCount'))$('collectibleNeedsCount').textContent=needs.length;
+    if($('collectibleTotalCount'))$('collectibleTotalCount').textContent=total;
+    const badge=$('collectibleApprovalsBadge'); if(badge){badge.textContent=pending.length;badge.hidden=!pending.length}
+    const list=$('dataEntryApprovalsList');
+    if(list){
+      const ordered=submissions.slice().sort((a,b)=>String(b.updated||b.created||'').localeCompare(String(a.updated||a.created||'')));
+      list.innerHTML=ordered.map(r=>{
+        const imgs=[r.frontImage,r.backImage,...(Array.isArray(r.additionalImages)?r.additionalImages:[])].filter(Boolean);
+        const statusLabel=({pending:'بانتظار الاعتماد',needs_changes:'معاد للتعديل',approved:'معتمد للمستودع',rejected:'مرفوض',draft:'مسودة'})[r.status]||r.status||'—';
+        const editable=r.status==='pending';
+        const costs=[r.purchase?`شراء: ${money(r.purchase)}`:'',r.shipping?`شحن: ${money(r.shipping)}`:'',r.other?`أخرى: ${money(r.other)}`:'',r.expectedPrice?`بيع متوقع: ${money(r.expectedPrice)}`:''].filter(Boolean).join(' • ');
+        return `<article class="collectible-approval-card data-entry-review-card">
+          <div class="collectible-approval-images">${imgs.slice(0,3).map((src,n)=>`<img src="${esc(src)}" onclick='openCoinLightbox(${JSON.stringify(imgs)},${n},${JSON.stringify((r.country||'')+' — '+(r.denomination||''))})'>`).join('')||'<div class="muted">لا صور</div>'}</div>
+          <div class="collectible-approval-info">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><label style="display:${editable?'inline-flex':'none'};gap:6px;align-items:center"><input type="checkbox" class="data-entry-select" value="${esc(r.id)}"> تحديد</label><span class="status-chip">${esc(statusLabel)}</span></div>
+            <h3>${adminStoreBadge(itemStoreKey(r))} ${esc(r.country||'—')} — ${esc(r.denomination||'—')}</h3>
+            <div class="collectible-meta"><span>أدخلها: ${esc(r.dataEntryName||'مسؤول إدخال البيانات')}</span><span>${esc(r.year||'')}</span><span>${esc(r.condition||'')}</span><span>الكمية: ${Number(r.quantity||r.inventoryUnitCount||1)}</span></div>
+            ${costs?`<p><b>الأسعار:</b> ${costs}</p>`:''}
+            ${r.notes?`<p><b>ملاحظات:</b> ${esc(r.notes)}</p>`:''}
+            ${r.adminNote?`<p class="muted"><b>ملاحظة الإدارة:</b> ${esc(r.adminNote)}</p>`:''}
+            ${editable?`<div class="actions"><button class="approve" onclick="reviewDataEntry('${esc(r.id)}','approve')">✓ اعتماد وإرسال للمستودع</button><button class="changes" onclick="reviewDataEntry('${esc(r.id)}','needs_changes')">↩ إعادة للتعديل</button><button class="reject" onclick="reviewDataEntry('${esc(r.id)}','reject')">رفض</button></div>`:''}
           </div>
-        </div>
-      </article>`;
-    }).join("")||'<p class="muted">لا توجد مقتنيات.</p>';
-  }catch(e){$("collectibleApprovalsList").textContent="تعذر تحميل مراقبة المقتنيات: "+e.message}
+        </article>`;
+      }).join('')||'<p class="muted">لا توجد سجلات من مسؤول إدخال البيانات حتى الآن.</p>';
+    }
+    const rows=filterAdminItems(itemRes.items||[]);
+    $('collectibleApprovalsList').innerHTML=rows.slice().sort((a,b)=>Number(b.updated||0)-Number(a.updated||0)).map(i=>{
+      const s=i.moderationStatus||'active',imgs=[i.frontImg,i.backImg].filter(Boolean);
+      return `<article class="collectible-approval-card"><div class="collectible-approval-images">${imgs.slice(0,2).map((src,n)=>`<img src="${esc(src)}" onclick='openCoinLightbox(${JSON.stringify(imgs)},${n},${JSON.stringify((i.country||'')+' — '+(i.denomination||''))})'>`).join('')}</div><div class="collectible-approval-info"><h3>${adminStoreBadge(itemStoreKey(i))} ${esc(i.country||'—')} — ${esc(i.denomination||'—')}</h3><div class="collectible-meta"><span>${esc(moderationLabel(s))}</span><span>${esc(i.ownerName||'دار المقتنيات')}</span></div><div class="actions"><button class="approve" onclick="setItemModeration('${esc(i.id)}','active')">تفعيل</button><button class="changes" onclick="setItemModeration('${esc(i.id)}','hidden')">إخفاء</button><button class="changes" onclick="setItemModeration('${esc(i.id)}','suspended')">إيقاف</button><button class="reject" onclick="removeItem('${esc(i.id)}')">حذف ← الأرشيف</button></div></div></article>`;
+    }).join('')||'<p class="muted">لا توجد مقتنيات معتمدة.</p>';
+  }catch(e){$('collectibleApprovalsList').textContent='تعذر تحميل الاعتمادات: '+e.message}
 }
-window.setItemModeration=async(id,status)=>{
-  let reason="";
-  if(status!=="active"){reason=(prompt("اكتب سبب الإجراء (إلزامي):","")||"").trim();if(!reason)return}
-  if(!confirm(`${status==="active"?"إعادة تفعيل":"تطبيق الإجراء"} على هذا المقتنى؟`))return;
-  try{await api("/api/moderation/item",{method:"POST",body:JSON.stringify({itemId:id,status,reason})});await renderCollectibleApprovals();await refresh(true);await renderAdminNotifications()}catch(e){alert(e.message)}
+window.reviewDataEntry=async(id,action)=>{
+  let note='';
+  if(action==='needs_changes')note=(prompt('اكتب المطلوب تعديله:','')||'').trim();
+  if(action==='reject')note=(prompt('اكتب سبب الرفض:','')||'').trim();
+  if((action==='needs_changes'||action==='reject')&&!note)return;
+  const labels={approve:'اعتماد المقتنى وإرساله للمستودع؟',needs_changes:'إعادة المقتنى لمسؤول الإدخال للتعديل؟',reject:'رفض المقتنى؟'};
+  if(!confirm(labels[action]||'تنفيذ الإجراء؟'))return;
+  try{await api('/api/data-entry/review',{method:'POST',body:JSON.stringify({id,action,note})});await refresh(true);await renderCollectibleApprovals();await renderWarehouse();toast(action==='approve'?'تم الاعتماد والإرسال للمستودع.':'تم تسجيل القرار.')}catch(e){alert(e.message)}
 };
-if($("refreshCollectibleApprovals"))$("refreshCollectibleApprovals").onclick=renderCollectibleApprovals;
-document.querySelectorAll('nav button[data-v="collectible-approvals"],.dashboard-go[data-go="collectible-approvals"]').forEach(b=>b.addEventListener("click",renderCollectibleApprovals));
+window.approveSelectedDataEntry=async()=>{
+  const ids=[...document.querySelectorAll('.data-entry-select:checked')].map(x=>x.value);
+  if(!ids.length){alert('حدد مقتنى واحدًا على الأقل.');return}
+  if(!confirm(`اعتماد ${ids.length} مقتنى وإرسالها للمستودع؟`))return;
+  try{const r=await api('/api/data-entry/review',{method:'POST',body:JSON.stringify({ids,action:'approve'})});const failed=(r.results||[]).filter(x=>!x.ok);await refresh(true);await renderCollectibleApprovals();await renderWarehouse();toast(`تم اعتماد ${Number(r.approved||0)} مقتنى.${failed.length?' تعذر '+failed.length+' سجل.':''}`)}catch(e){alert(e.message)}
+};
+if($('approveDataEntrySelected'))$('approveDataEntrySelected').onclick=window.approveSelectedDataEntry;
+window.setItemModeration=async(id,status)=>{
+  let reason='';
+  if(status!=='active'){reason=(prompt('اكتب سبب الإجراء (إلزامي):','')||'').trim();if(!reason)return}
+  if(!confirm(`${status==='active'?'إعادة تفعيل':'تطبيق الإجراء'} على هذا المقتنى؟`))return;
+  try{await api('/api/moderation/item',{method:'POST',body:JSON.stringify({itemId:id,status,reason})});await renderCollectibleApprovals();await refresh(true);await renderAdminNotifications()}catch(e){alert(e.message)}
+};
+if($('refreshCollectibleApprovals'))$('refreshCollectibleApprovals').onclick=renderCollectibleApprovals;
+document.querySelectorAll('nav button[data-v="collectible-approvals"],.dashboard-go[data-go="collectible-approvals"]').forEach(b=>b.addEventListener('click',renderCollectibleApprovals));
 setTimeout(renderCollectibleApprovals,600);
 
 async function renderArchive(){

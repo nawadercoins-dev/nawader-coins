@@ -38,7 +38,7 @@
           >0</span
         ></button
       ><button data-v="collectible-approvals">
-        مراقبة المقتنيات
+        اعتماد المقتنيات
         <span id="collectibleApprovalsBadge" class="nav-badge" hidden
           >0</span
         ></button
@@ -1310,16 +1310,21 @@
         <div class="panel">
           <div class="auction-title-row">
             <div>
-              <h2>🛡️ مراقبة المقتنيات</h2>
-              <p class="muted">المقتنيات تُضاف وتنشر مباشرة. هذه الصفحة للرقابة فقط: تفعيل، إخفاء، إيقاف، أرشفة أو إزالة مع سبب محفوظ في سجل العمليات.</p>
+              <h2>✅ اعتماد المقتنيات</h2>
+              <p class="muted">إدخالات «مسؤول إدخال البيانات» تتوقف هنا حتى قرار الإدارة: اعتماد للمستودع، إعادة للتعديل أو رفض. وتبقى مراقبة المقتنيات المعتمدة أسفل الصفحة.</p>
             </div>
             <button type="button" id="refreshCollectibleApprovals" class="ghost">↻ تحديث</button>
           </div>
           <div class="auction-summary">
-            <article><span>نشط</span><b id="collectiblePendingCount">0</b></article>
-            <article><span>مقيد/مخفي</span><b id="collectibleNeedsCount">0</b></article>
-            <article><span>الإجمالي</span><b id="collectibleTotalCount">0</b></article>
+            <article><span>بانتظار الاعتماد</span><b id="collectiblePendingCount">0</b></article>
+            <article><span>معاد للتعديل</span><b id="collectibleNeedsCount">0</b></article>
+            <article><span>إجمالي إدخالات المسؤول</span><b id="collectibleTotalCount">0</b></article>
           </div>
+          <div class="actions" style="margin:12px 0"><button type="button" id="approveDataEntrySelected" class="gold-action">✓ اعتماد المحدد وإرسال للمستودع</button><a href="/data-entry" target="_blank" class="ghost" style="text-decoration:none;padding:10px 14px;border-radius:10px">فتح صفحة مسؤول الإدخال</a></div>
+          <div id="dataEntryApprovalsList" class="collectible-approvals-list"></div>
+          <hr style="margin:24px 0;border:0;border-top:1px solid rgba(255,255,255,.12)">
+          <h3>مراقبة المقتنيات المعتمدة</h3>
+          <p class="muted">بعد الاعتماد ينتقل المقتنى إلى المستودع فقط، ولا يُنشر في السوق أو المزاد تلقائيًا.</p>
           <div id="collectibleApprovalsList" class="collectible-approvals-list"></div>
         </div>
       </section>
