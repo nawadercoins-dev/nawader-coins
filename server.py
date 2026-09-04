@@ -1712,7 +1712,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.6.2-R9','channel':'DAR-MUQTANYAT-R9-PAYMENT-PROOF','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.6.2-R9.1','channel':'DAR-MUQTANYAT-R9.1-AUCTION-FORM-FIX','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -2848,29 +2848,45 @@ class H(SimpleHTTPRequestHandler):
                 if item.get('auctionSold') or str(item.get('auctionOutcome') or '')=='sold':
                     self.sendj({'error':'المزاد مباع ومغلق نهائيًا'},409); return
                 requested_end=str(d.get('auctionEnd') or item.get('auctionEnd') or '').strip()
-                if requested_end:
-                    try:
-                        end_dt=datetime.datetime.fromisoformat(requested_end.replace('Z','+00:00'))
-                        now_dt=datetime.datetime.now(end_dt.tzinfo) if end_dt.tzinfo else auction_local_now()
-                        if end_dt<=now_dt: self.sendj({'error':'موعد انتهاء المزاد يجب أن يكون في المستقبل'},400); return
-                    except ValueError:
-                        self.sendj({'error':'صيغة موعد انتهاء المزاد غير صحيحة'},400); return
+                if not requested_end:
+                    self.sendj({'error':'اختر موعد انتهاء المزاد'},400); return
+                try:
+                    end_dt=datetime.datetime.fromisoformat(requested_end.replace('Z','+00:00'))
+                    now_dt=datetime.datetime.now(end_dt.tzinfo) if end_dt.tzinfo else auction_local_now()
+                    if end_dt<=now_dt: self.sendj({'error':'موعد انتهاء المزاد يجب أن يكون في المستقبل'},400); return
+                except ValueError:
+                    self.sendj({'error':'موعد انتهاء المزاد غير صالح. اختر التاريخ والوقت من الحقل المخصص.'},400); return
                 round_no=int(item.get('auctionRound') or 1)
                 bids=[b for b in load_bids() if str(b.get('itemId'))==iid and int(b.get('auctionRound') or 1)==round_no]
+                try: step=float(d.get('auctionBidStep') if d.get('auctionBidStep') not in (None,'') else item.get('auctionBidStep') or 1)
+                except Exception: step=0
+                if step<=0: self.sendj({'error':'قيمة الزيادة لكل مزايدة يجب أن تكون أكبر من صفر'},400); return
+                try: target=float(d.get('auctionTargetPrice') if d.get('auctionTargetPrice') not in (None,'') else item.get('auctionTargetPrice') or 0)
+                except Exception: target=-1
+                if target<0: self.sendj({'error':'الحد الأدنى لإرساء البيع لا يمكن أن يكون سالبًا'},400); return
+                opening=float(item.get('auctionOpeningPrice') or item.get('auctionStartPrice') or 0)
                 if not bids:
-                    opening=max(0,float(d.get('auctionOpeningPrice') or item.get('auctionOpeningPrice') or item.get('auctionStartPrice') or 0))
-                    item['auctionOpeningPrice']=opening; item['auctionStartPrice']=opening
-                    if not item.get('auctionCurrentPrice'): item['auctionCurrentPrice']=opening
-                item['auctionBidStep']=max(.01,float(d.get('auctionBidStep') or item.get('auctionBidStep') or 1))
-                item['auctionTargetPrice']=max(0,float(d.get('auctionTargetPrice') or item.get('auctionTargetPrice') or 0))
-                item['auctionAdditionalTerms']=str(d.get('auctionAdditionalTerms') or item.get('auctionAdditionalTerms') or '').strip()[:1000]
-                if d.get('auctionEnd'): item['auctionEnd']=str(d.get('auctionEnd')).strip()
+                    try: opening=float(d.get('auctionOpeningPrice') if d.get('auctionOpeningPrice') not in (None,'') else opening)
+                    except Exception: opening=0
+                    if opening<=0: self.sendj({'error':'سعر افتتاح المزايدة مطلوب ويجب أن يكون أكبر من صفر'},400); return
+                    item['auctionOpeningPrice']=opening; item['auctionStartPrice']=opening; item['auctionCurrentPrice']=opening
+                elif 'auctionOpeningPrice' in d:
+                    try: requested_opening=float(d.get('auctionOpeningPrice') or 0)
+                    except Exception: requested_opening=opening
+                    if abs(requested_opening-opening)>1e-9:
+                        self.sendj({'error':'تم تسجيل مزايدات؛ لا يمكن تغيير سعر الافتتاح الآن'},409); return
+                if target>0 and opening>0 and target<opening:
+                    self.sendj({'error':'الحد الأدنى لإرساء البيع يجب أن يساوي سعر الافتتاح أو يكون أعلى منه، أو اجعله 0 بدون حد'},400); return
+                item['auctionBidStep']=step
+                item['auctionTargetPrice']=target
+                item['auctionAdditionalTerms']=str(d.get('auctionAdditionalTerms') if d.get('auctionAdditionalTerms') is not None else item.get('auctionAdditionalTerms') or '').strip()[:1000]
+                item['auctionEnd']=requested_end
                 item['forAuction']=True
                 item['auctionApproved']=True
                 add_notification('admin','','moderation','⚖ مزاد مباشر',f"{item.get('country','')} — {item.get('denomination','')} نُشر مباشرة بواسطة صاحبه.",iid,'/admin')
                 item['updated']=int(time.time()*1000); save(items)
-                append_operation('نشر/تحديث المزاد مباشرة بواسطة المالك',{'itemId':iid,'participantId':pid,'bidCount':len(bids),'approved':True},actor='العميل')
-                self.sendj({'ok':True,'openingLocked':bool(bids),'pendingApproval':False,'published':True}); return
+                append_operation('نشر/تحديث المزاد مباشرة بواسطة المالك',{'itemId':iid,'participantId':pid,'bidCount':len(bids),'approved':True,'auctionEnd':requested_end,'openingPrice':opening,'bidStep':step,'targetPrice':target},actor='العميل')
+                self.sendj({'ok':True,'openingLocked':bool(bids),'pendingApproval':False,'published':True,'auctionEnd':requested_end,'auctionOpeningPrice':opening,'auctionBidStep':step}); return
 
             if p=='/api/owner/auction/cancel':
                 pid=str(d.get('participantId') or ''); iid=str(d.get('itemId') or ''); reason=str(d.get('reason') or '').strip()
@@ -4032,7 +4048,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.2-R9-PAYMENT-PROOF'
+VERSION='5.6.2-R9.1-AUCTION-FORM-FIX'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
