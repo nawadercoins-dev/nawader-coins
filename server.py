@@ -376,7 +376,7 @@ def public_seller_identity(item):
     }
 
 def participant_permissions(pid):
-    defaults={'sellerEndedAuctions':False,'sellerMarket':False,'liveBroadcast':False,'marketSupervision':False,'auctionSupervision':False,'ordersView':False,'ordersManage':False}
+    defaults={'sellerEndedAuctions':False,'sellerMarket':False,'liveBroadcast':False,'marketSupervision':False,'auctionSupervision':False,'ordersView':False,'ordersManage':False,'dataEntry':False}
     x=load_user_permissions().get(str(pid),{})
     defaults.update(x if isinstance(x,dict) else {})
     return defaults
@@ -491,8 +491,14 @@ def auction_is_active(item):
     if not (item.get('forAuction') and item.get('auctionApproved')): return False
     raw=str(item.get('auctionEnd') or '').strip()
     if not raw: return False
-    try: return datetime.datetime.fromisoformat(raw)>datetime.datetime.now()
-    except Exception: return False
+    # R9.2A: use the same Saudi-time/epoch normalization as the public auction feed.
+    # This avoids Render UTC making an ended auction look active for extra hours.
+    try:
+        end_ms=auction_end_epoch_ms(raw)
+        return bool(end_ms and end_ms>int(time.time()*1000))
+    except Exception:
+        try: return datetime.datetime.fromisoformat(raw)>auction_local_now()
+        except Exception: return False
 
 def auction_listing_physical(item):
     return max(1,inventory_int(item.get('auctionQuantity'),1)) if auction_is_active(item) else 0
@@ -617,8 +623,9 @@ def reconcile_collectible_lifecycle(participant_id=None):
         if pid_filter and str(row.get('participantId') or '')!=pid_filter:
             continue
 
-        # من V4.8.0 لا توجد موافقة مسبقة: أي طلب قديم غير مرفوض يتحول إلى مقتنى معتمد مباشرة.
-        if row.get('status') in ('pending','needs_changes') and not row.get('itemId'):
+        # من V4.8.0 لا توجد موافقة مسبقة لطلبات العملاء العادية.
+        # R9.3: سجلات «مسؤول إدخال البيانات» مستثناة صراحةً؛ تبقى بانتظار اعتماد الإدارة.
+        if row.get('submissionSource')!='data_entry' and row.get('status') in ('pending','needs_changes') and not row.get('itemId'):
             if str(row.get('country') or '').strip() and str(row.get('denomination') or '').strip():
                 item=_safe_new_item(row,'')
                 if item:
@@ -1518,6 +1525,8 @@ def is_public_upload_url(url):
     # صفحة صاحب الطلب للمعاينة والتعديل قبل اعتماد الإدارة.
     for row in load_collectible_submissions():
         if urlparse(str(row.get('frontImage') or '')).path==path or urlparse(str(row.get('backImage') or '')).path==path: return True
+        for extra in (row.get('additionalImages') or []):
+            if urlparse(str(extra or '')).path==path: return True
     return False
 
 
@@ -1633,8 +1642,8 @@ ADMIN_GET_API={
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
     '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity','/api/archive/items','/api/live-auctions/admin'
 }
-PUBLIC_POST_API={'/api/special/request','/api/fantasia/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/visitor/order/action','/api/visitor/payment-proof','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/seller/order/update','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
-PUBLIC_STATIC={'/styles.css','/public_home.html','/dar_home.html','/collectibles_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/seller_portal.css','/seller_portal.js','/invoice.html','/live_auction.html','/live_auction.js','/live_studio.html','/live_studio.js'}
+PUBLIC_POST_API={'/api/special/request','/api/fantasia/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/visitor/order/action','/api/visitor/payment-proof','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/data-entry/submissions','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/seller/order/update','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
+PUBLIC_STATIC={'/styles.css','/public_home.html','/dar_home.html','/collectibles_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/seller_portal.css','/seller_portal.js','/data_entry.html','/invoice.html','/live_auction.html','/live_auction.js','/live_studio.html','/live_studio.js'}
 
 class H(SimpleHTTPRequestHandler):
     def cookie_value(self,name):
@@ -1726,7 +1735,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.6.2-R9.2','channel':'DAR-MUQTANYAT-R9.2-AUCTION-ACTIVE-TIMER','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.6.2-R9.3','channel':'DAR-MUQTANYAT-R9.3-DATA-ENTRY-APPROVAL','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -1937,6 +1946,20 @@ class H(SimpleHTTPRequestHandler):
             person=self.require_participant('')
             if not person: return
             self.sendj({'ok':True,'participant':participant_public(person)}); return
+        if p=='/api/data-entry/submissions':
+            person=self.require_participant('')
+            if not person: return
+            pid=str(person.get('id') or '')
+            if not participant_permissions(pid).get('dataEntry'):
+                self.sendj({'error':'صلاحية مسؤول إدخال البيانات غير مفعلة لهذا الحساب'},403); return
+            rows=[x for x in load_collectible_submissions() if x.get('submissionSource')=='data_entry' and str(x.get('dataEntryParticipantId') or '')==pid]
+            rows.sort(key=lambda x:str(x.get('updated') or x.get('created') or ''),reverse=True)
+            safe=[]
+            for x in rows:
+                y=dict(x)
+                safe.append(y)
+            self.sendj({'ok':True,'operator':{'id':pid,'name':person.get('alias') or person.get('name') or 'مسؤول إدخال البيانات'},'submissions':safe,
+                        'counts':{'draft':sum(1 for x in rows if x.get('status')=='draft'),'pending':sum(1 for x in rows if x.get('status')=='pending'),'needsChanges':sum(1 for x in rows if x.get('status')=='needs_changes'),'approved':sum(1 for x in rows if x.get('status')=='approved'),'rejected':sum(1 for x in rows if x.get('status')=='rejected')}}); return
         if p=='/api/participant/status':
             q=urlparse(self.path).query
             pid=(parse_qs(q).get('id') or [''])[0]
@@ -2189,6 +2212,8 @@ class H(SimpleHTTPRequestHandler):
             self.send_file(os.path.join(PUBLIC_DIR,'notifications.html'),'text/html; charset=utf-8'); return
         if p in ('/seller','/seller/','/seller_portal.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'seller_portal.html'),'text/html; charset=utf-8'); return
+        if p in ('/data-entry','/data-entry/','/data_entry.html'):
+            self.send_file(os.path.join(PUBLIC_DIR,'data_entry.html'),'text/html; charset=utf-8'); return
         if p in ('/special-numbers','/special-numbers/','/special_numbers.html'):
             if not effective_visitor_sections()['specialNumbers']:
                 self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
@@ -2506,6 +2531,77 @@ class H(SimpleHTTPRequestHandler):
         try: d=self.body()
         except Exception: self.sendj({'error':'bad json'},400); return
         with LOCK:
+            if p=='/api/data-entry/submissions':
+                person=self.require_participant('')
+                if not person: return
+                pid=str(person.get('id') or '')
+                if not participant_permissions(pid).get('dataEntry'):
+                    self.sendj({'error':'صلاحية مسؤول إدخال البيانات غير مفعلة لهذا الحساب'},403); return
+                mode=str(d.get('mode') or 'draft').strip().lower()
+                if mode not in ('draft','submit'): mode='draft'
+                sid=str(d.get('id') or '').strip()
+                rows=load_collectible_submissions(); row=None
+                if sid:
+                    row=next((x for x in rows if str(x.get('id'))==sid and x.get('submissionSource')=='data_entry' and str(x.get('dataEntryParticipantId') or '')==pid),None)
+                    if not row:
+                        self.sendj({'error':'سجل الإدخال غير موجود'},404); return
+                    if row.get('status') not in ('draft','needs_changes'):
+                        self.sendj({'error':'هذا السجل أُرسل بالفعل ولا يمكن تعديله قبل قرار الإدارة'},409); return
+                store_type=normalize_store_type(d.get('storeType'),d)
+                category=str(d.get('collectibleCategory') or '').strip().lower() if store_type=='collectibles' else ''
+                allowed_categories={'fantasia','antiques','prayer-beads','vehicles-models','aviation-marine','jewelry-stones','games','other'}
+                if store_type=='collectibles' and category not in allowed_categories:
+                    if mode=='submit': self.sendj({'error':'اختر تصنيفًا صحيحًا لنوادر المقتنيات'},400); return
+                    category=category if category in allowed_categories else 'other'
+                country=str(d.get('country') or '').strip()[:120]
+                denomination=str(d.get('denomination') or '').strip()[:180]
+                if mode=='submit' and (not country or not denomination):
+                    self.sendj({'error':'الدولة/المنشأ واسم المقتنى/الفئة مطلوبان قبل الإرسال للاعتماد'},400); return
+                serial=str(d.get('serial') or '').strip()[:160]
+                normalized_serial=re.sub(r'\s+','',serial).upper()
+                if normalized_serial:
+                    for other in load():
+                        vals=other.get('serials') or [other.get('serial')]
+                        if not isinstance(vals,list): vals=[vals]
+                        if normalized_serial in {re.sub(r'\s+','',str(v or '')).upper() for v in vals if str(v or '').strip()}:
+                            self.sendj({'error':'الرقم التسلسلي مسجل مسبقًا في المستودع'},409); return
+                front=str(d.get('frontImage') or '').strip(); back=str(d.get('backImage') or '').strip()
+                extras=d.get('additionalImages') if isinstance(d.get('additionalImages'),list) else []
+                extras=[str(x).strip() for x in extras if str(x).strip()][:6]
+                valid_images=[]
+                for label,img in [('الوجه/الصورة الأولى',front),('الخلف/الصورة الثانية',back)]+[(f'صورة إضافية {n+1}',x) for n,x in enumerate(extras)]:
+                    if img and not img.startswith('/uploads/'):
+                        self.sendj({'error':f'{label} يجب رفعها أولًا إلى خادم المنصة'},400); return
+                    if img: valid_images.append(img)
+                now=datetime.datetime.now().isoformat(); inv=submission_inventory_values(d)
+                purchase=max(0,float(d.get('purchase') or 0)); shipping=max(0,float(d.get('shipping') or 0)); other_cost=max(0,float(d.get('other') or 0)); expected=max(0,float(d.get('expectedPrice') or 0))
+                payload={
+                    'submissionSource':'data_entry','createdByRole':'data_entry','dataEntryParticipantId':pid,
+                    'dataEntryName':person.get('alias') or person.get('name') or 'مسؤول إدخال البيانات',
+                    'storeType':store_type,'collectibleCategory':category,'country':country,'denomination':denomination,
+                    'year':str(d.get('year') or '').strip()[:80],'issueEdition':str(d.get('issueEdition') or '').strip()[:140],
+                    'type':str(d.get('type') or ('مقتنى' if store_type=='collectibles' else 'عملة ورقية')).strip()[:120],
+                    'condition':str(d.get('condition') or '').strip()[:120],'serial':serial,'serials':[serial] if serial else [],
+                    'notes':str(d.get('notes') or '').strip()[:3000],
+                    'frontImage':front,'backImage':back,'additionalImages':extras,
+                    'desiredDestination':'vault','purchase':purchase,'shipping':shipping,'other':other_cost,'expectedPrice':expected,
+                    'warehouse':str(d.get('warehouse') or 'المستودع الرئيسي').strip()[:120] or 'المستودع الرئيسي',
+                    'cabinet':str(d.get('cabinet') or '').strip()[:120],'shelf':str(d.get('shelf') or '').strip()[:120],
+                    'box':str(d.get('box') or '').strip()[:120],'album':str(d.get('album') or '').strip()[:120],'pocket':str(d.get('pocket') or '').strip()[:120],
+                    **inv
+                }
+                if row is None:
+                    sid='de-'+secrets.token_hex(7); row={'id':sid,'created':now,'itemId':'','adminNote':'','reviewHistory':[]}; rows.append(row)
+                previous=row.get('status') or 'draft'; row.update(payload); row['updated']=now; row['status']='pending' if mode=='submit' else 'draft'
+                if mode=='submit':
+                    row['submittedAt']=now; row['adminNote']=''
+                    add_notification('admin','','approval','📥 مقتنى بانتظار الاعتماد',f"أرسل مسؤول إدخال البيانات {payload['dataEntryName']} — {country or '—'} / {denomination or '—'} — للمراجعة.",sid,'/admin')
+                    append_operation('إرسال مقتنى للاعتماد بواسطة مسؤول إدخال البيانات',{'submissionId':sid,'operatorId':pid,'storeType':store_type,'country':country,'denomination':denomination},actor='مسؤول إدخال البيانات')
+                else:
+                    append_operation('حفظ مسودة إدخال مقتنى',{'submissionId':sid,'operatorId':pid,'previousStatus':previous},actor='مسؤول إدخال البيانات')
+                save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
+                self.sendj({'ok':True,'status':row['status'],'submission':row}); return
+
             if p=='/api/collectible-submissions':
                 pid=str(d.get('participantId') or '')
                 person=self.require_participant(pid)
@@ -2743,10 +2839,78 @@ class H(SimpleHTTPRequestHandler):
             if p=='/api/collectible-submissions/status':
                 self.sendj({'error':'تم إلغاء الاعتماد المسبق في V4.8.1. استخدم مراقبة المقتنيات للإيقاف أو الإخفاء.'},410); return
 
+            if p=='/api/data-entry/review':
+                action=str(d.get('action') or '').strip().lower()
+                ids=d.get('ids') if isinstance(d.get('ids'),list) else [d.get('id')]
+                ids=[str(x or '').strip() for x in ids if str(x or '').strip()][:100]
+                note=str(d.get('note') or '').strip()[:2000]
+                if action not in ('approve','needs_changes','reject'):
+                    self.sendj({'error':'إجراء الاعتماد غير صالح'},400); return
+                if action in ('needs_changes','reject') and not note:
+                    self.sendj({'error':'اكتب ملاحظة توضح سبب الإعادة أو الرفض'},400); return
+                if not ids:
+                    self.sendj({'error':'لم يتم اختيار أي سجل'},400); return
+                rows=load_collectible_submissions(); items=load(); now=datetime.datetime.now().isoformat(); results=[]; changed=False
+                for sid in ids:
+                    row=next((x for x in rows if str(x.get('id'))==sid and x.get('submissionSource')=='data_entry'),None)
+                    if not row:
+                        results.append({'id':sid,'ok':False,'error':'السجل غير موجود'}); continue
+                    if row.get('status')!='pending':
+                        results.append({'id':sid,'ok':False,'error':'السجل ليس بانتظار الاعتماد'}); continue
+                    operator_id=str(row.get('dataEntryParticipantId') or '')
+                    if action=='approve':
+                        serial=str(row.get('serial') or '').strip(); norm=re.sub(r'\s+','',serial).upper()
+                        duplicate=False
+                        if norm:
+                            for it in items:
+                                vals=it.get('serials') or [it.get('serial')]
+                                if not isinstance(vals,list): vals=[vals]
+                                if norm in {re.sub(r'\s+','',str(v or '')).upper() for v in vals if str(v or '').strip()}: duplicate=True; break
+                        if duplicate:
+                            results.append({'id':sid,'ok':False,'error':'الرقم التسلسلي مسجل مسبقًا'}); continue
+                        inv=submission_inventory_values(row); item_id='k-'+secrets.token_hex(8)
+                        item={
+                            'id':item_id,'storeType':normalize_store_type(row.get('storeType'),row),
+                            'collectibleCategory':str(row.get('collectibleCategory') or ''),'country':str(row.get('country') or ''),
+                            'denomination':str(row.get('denomination') or ''),'year':str(row.get('year') or ''),'issueEdition':str(row.get('issueEdition') or ''),
+                            'type':str(row.get('type') or ''),'condition':str(row.get('condition') or ''),'serial':serial,'serials':[serial] if serial else [],
+                            'frontImg':str(row.get('frontImage') or ''),'backImg':str(row.get('backImage') or ''),'additionalImages':list(row.get('additionalImages') or [])[:6],
+                            'notes':str(row.get('notes') or ''),'purchase':max(0,float(row.get('purchase') or 0)),'shipping':max(0,float(row.get('shipping') or 0)),
+                            'other':max(0,float(row.get('other') or 0)),'expectedPrice':max(0,float(row.get('expectedPrice') or 0)),
+                            'warehouse':str(row.get('warehouse') or 'المستودع الرئيسي'),'cabinet':str(row.get('cabinet') or ''),'shelf':str(row.get('shelf') or ''),
+                            'box':str(row.get('box') or ''),'album':str(row.get('album') or ''),'pocket':str(row.get('pocket') or ''),
+                            'storageStatus':'warehouse','forMarket':False,'marketApproved':False,'forAuction':False,'auctionApproved':False,
+                            'ownerName':'دار المقتنيات','ownerPhone':'','ownerParticipantId':'',
+                            'enteredByParticipantId':operator_id,'enteredByName':str(row.get('dataEntryName') or 'مسؤول إدخال البيانات'),
+                            'sourceSubmissionId':sid,'moderationStatus':'active','soldQuantity':0,'damagedQuantity':0,
+                            'created':now,'updated':int(time.time()*1000),**inv
+                        }
+                        items.append(item); row['status']='approved'; row['itemId']=item_id; row['warehouseVerified']=True; row['warehouseVerifiedAt']=now
+                        row['approvedAt']=now; row['adminNote']=note; row['reviewedAt']=now; row['reviewedBy']='الإدارة'
+                        row.setdefault('reviewHistory',[]).append({'action':'approve','at':now,'note':note,'actor':'الإدارة','itemId':item_id})
+                        append_operation('اعتماد مقتنى من مسؤول إدخال البيانات وإرساله للمستودع',{'submissionId':sid,'itemId':item_id,'operatorId':operator_id},actor='الإدارة')
+                        if operator_id: add_notification('participant',operator_id,'approval','✅ تم اعتماد المقتنى',f"تم اعتماد {row.get('country','')} — {row.get('denomination','')} وإرساله إلى المستودع.",item_id,'/data-entry')
+                        results.append({'id':sid,'ok':True,'status':'approved','itemId':item_id}); changed=True
+                    elif action=='needs_changes':
+                        row['status']='needs_changes'; row['adminNote']=note; row['reviewedAt']=now; row['reviewedBy']='الإدارة'
+                        row.setdefault('reviewHistory',[]).append({'action':'needs_changes','at':now,'note':note,'actor':'الإدارة'})
+                        append_operation('إعادة إدخال مقتنى للتعديل',{'submissionId':sid,'operatorId':operator_id,'note':note},actor='الإدارة')
+                        if operator_id: add_notification('participant',operator_id,'approval','✏️ إعادة للتعديل',f"{row.get('country','')} — {row.get('denomination','')}: {note}",sid,'/data-entry')
+                        results.append({'id':sid,'ok':True,'status':'needs_changes'}); changed=True
+                    else:
+                        row['status']='rejected'; row['adminNote']=note; row['reviewedAt']=now; row['reviewedBy']='الإدارة'; row['rejectedAt']=now
+                        row.setdefault('reviewHistory',[]).append({'action':'reject','at':now,'note':note,'actor':'الإدارة'})
+                        append_operation('رفض مقتنى من مسؤول إدخال البيانات',{'submissionId':sid,'operatorId':operator_id,'note':note},actor='الإدارة')
+                        if operator_id: add_notification('participant',operator_id,'approval','❌ تم رفض المقتنى',f"{row.get('country','')} — {row.get('denomination','')}: {note}",sid,'/data-entry')
+                        results.append({'id':sid,'ok':True,'status':'rejected'}); changed=True
+                if changed:
+                    save(items); save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
+                self.sendj({'ok':all(x.get('ok') for x in results) if results else False,'results':results,'approved':sum(1 for x in results if x.get('status')=='approved')}); return
+
             if p=='/api/permissions/update':
                 pid=str(d.get('participantId') or ''); people=load_people()
                 if not any(str(x.get('id'))==pid for x in people): self.sendj({'error':'المشارك غير موجود'},404); return
-                allowed=('sellerEndedAuctions','sellerMarket','liveBroadcast','marketSupervision','auctionSupervision','ordersView','ordersManage'); perms=load_user_permissions(); current=participant_permissions(pid)
+                allowed=('sellerEndedAuctions','sellerMarket','liveBroadcast','marketSupervision','auctionSupervision','ordersView','ordersManage','dataEntry'); perms=load_user_permissions(); current=participant_permissions(pid)
                 for k in allowed:
                     if k in d: current[k]=bool(d.get(k))
                 perms[pid]=current; save_json(USER_PERMISSIONS,{'users':perms}); append_operation('تحديث صلاحيات مستخدم',{'participantId':pid,'permissions':current}); self.sendj({'ok':True,'permissions':current}); return
@@ -4059,10 +4223,13 @@ _required_runtime_files=[
 ]
 _missing_runtime=[p for p in _required_runtime_files if not os.path.isfile(p)]
 if _missing_runtime:
-    raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
+    # R9.2A SAFE LOAD:
+    # لا نوقف الخادم بالكامل أثناء التركيب الجزئي. بعض ملفات الواجهة قد تُرفع
+    # في المرحلة التالية مباشرة، لذلك نكتفي بتحذير واضح في السجل.
+    print('Startup warning - missing UI files:', ', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.2-R9.2-AUCTION-ACTIVE-TIMER'
+VERSION='5.6.2-R9.3-DATA-ENTRY-APPROVAL'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
