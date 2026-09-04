@@ -4573,8 +4573,14 @@ function syncAdminEditOnlyFields(){
 function syncDarStoreFields(){
   ensureCollectibleDetailsBox();
   const isCollectibles=$('storeType')?.value==='collectibles',cat=$('collectibleCategory')?.value||'';
-  if($('collectibleCategoryWrap'))$('collectibleCategoryWrap').hidden=!isCollectibles;
-  if($('collectibleDetailsBox'))$('collectibleDetailsBox').hidden=!isCollectibles;
+  const form=$('form');if(form){form.classList.toggle('store-collectibles',isCollectibles);form.classList.toggle('store-coins',!isCollectibles);}
+  // R7.1: فصل بصري صارم. لا يكفي hidden وحده لأن بعض النسخ القديمة/الكاش قد تعيد إظهار label.
+  const catWrap=$('collectibleCategoryWrap');
+  if(catWrap){catWrap.hidden=!isCollectibles;catWrap.style.display=isCollectibles?'':'none';catWrap.setAttribute('aria-hidden',isCollectibles?'false':'true');}
+  const catSelect=$('collectibleCategory');
+  if(catSelect){catSelect.disabled=!isCollectibles;if(!isCollectibles)catSelect.value='';}
+  const detailsBox=$('collectibleDetailsBox');
+  if(detailsBox){detailsBox.hidden=!isCollectibles;detailsBox.style.display=isCollectibles?'':'none';}
   // نفس حقلي الدولة/الفئة يُعاد استخدامهما دون تغيير قاعدة البيانات: الدولة=المنشأ، الفئة=اسم المقتنى.
   const countryText=$('countryLabelText'), denomText=$('denominationLabelText');
   if(countryText)countryText.textContent=isCollectibles?'بلد المنشأ / الصنع (اختياري)':'الدولة / جهة الإصدار';
@@ -4600,7 +4606,8 @@ function syncDarStoreFields(){
     setSelectOptions($('inventoryUnitType'),[['piece','قطعة'],['set','طقم'],['lot','مجموعة / لوط'],['bundle','حزمة']],$('inventoryUnitType')?.value);
     if($('marketCategory')){const opts={fantasia:'فانتازيا',antiques:'تحف','prayer-beads':'سبح ومسابح','vehicles-models':'سيارات ومجسمات','aviation-marine':'طائرات وسفن وقطارات','jewelry-stones':'خواتم وأحجار كريمة',games:'ألعاب ومقتنيات',other:'مقتنيات أخرى'};setSelectOptions($('marketCategory'),Object.entries(opts),cat||$('marketCategory').value||'other');if(cat)$('marketCategory').value=cat;}
   }else{
-    if($('collectibleCategory'))$('collectibleCategory').value='';
+    if($('collectibleCategory')){$('collectibleCategory').value='';$('collectibleCategory').disabled=true;}
+    ['collectibleBrand','collectibleMaterial','collectibleModel','collectibleScale'].forEach(id=>{if($(id))$(id).value='';});
     setSelectOptions($('condition'),[['UNC','UNC'],['AU','AU'],['XF','XF'],['VF','VF'],['F','F']],$('condition')?.value);
     setSelectOptions($('inventoryUnitType'),[['piece','ورقة / قطعة'],['coin','عملة معدنية'],['set','طقم'],['bundle','حزمة'],['strap','ربطة'],['lot','بندل / مجموعة']],$('inventoryUnitType')?.value);
     if($('marketCategory'))setSelectOptions($('marketCategory'),[['coins-stamps','العملات'],['special','أرقام مميزة وأخطاء نادرة'],['transitional','إصدارات انتقالية'],['other','أخرى']],$('marketCategory').value||'coins-stamps');

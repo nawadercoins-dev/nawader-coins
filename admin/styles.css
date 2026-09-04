@@ -6317,3 +6317,10 @@ body[data-admin-store="collectibles"] #add .coin-only-admin,
 #form .dar-store-selector small{display:block;margin-top:6px}
 #form #countryLabelText,#form #denominationLabelText{display:block;margin-bottom:6px;font-weight:700}
 @media(max-width:700px){.admin-advanced-launcher button{width:100%}.admin-advanced-launcher small{font-size:12px}}
+
+/* V5.6.2-R7.1 — فصل صارم لنموذج العملات/المقتنيات */
+#collectibleCategoryWrap[hidden],
+#collectibleDetailsBox[hidden],
+#add #collectibleCategoryWrap[aria-hidden="true"] { display:none !important; }
+#form.store-coins #collectibleCategoryWrap,
+#form.store-coins #collectibleDetailsBox { display:none !important; }
