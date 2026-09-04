@@ -359,7 +359,7 @@
               <option value="coins">🪙 نوادر العملات — العملات الأصلية والرسمية</option>
               <option value="collectibles">🏺 نوادر المقتنيات — الفنتازيا والتحف وبقية المقتنيات</option>
             </select>
-            <small class="muted">يحدد هذا الاختيار المتجر التابع له المقتنى، ويُستخدم للفصل في الواجهة والإدارة والمستودع والسوق والمزادات والأرشيف والطلبات والإحصاءات، مع بقاء الحساب والسلة والخدمات المشتركة موحدة.</small>
+            <small class="muted">اختر المتجر أولًا؛ ستظهر فقط الحقول المناسبة له.</small>
           </label>
           <label class="wide" id="collectibleCategoryWrap" hidden>تصنيف نوادر المقتنيات
             <select id="collectibleCategory">
@@ -384,8 +384,8 @@
               <label>المقياس / المقاس<input id="collectibleScale" placeholder="مثال: 1:18 أو المقاس"></label>
             </div>
           </div>
-          <label
-            >الدولة<select id="country" required>
+          <label id="countryLabel"
+            ><span id="countryLabelText">الدولة / جهة الإصدار</span><select id="country" required>
               <option value="">اختر الدولة</option>
               <optgroup label="الدول العربية">
                 <option>المملكة العربية السعودية</option>
@@ -469,8 +469,8 @@
             </select></label
           ><label id="countryOtherWrap" hidden
             >اسم الدولة / جهة الإصدار<input id="countryOther" placeholder="اكتب الاسم كما تريد ظهوره في التصنيف" /></label
-          ><label
-            >الفئة / القيمة<input
+          ><label id="denominationLabel"
+            ><span id="denominationLabelText">الفئة / القيمة</span><input
               id="denomination"
               required
               placeholder="مثال: 1 ريال أو 500 ليرة" /></label
@@ -545,14 +545,18 @@
             </div>
             <p id="inventoryQuantityPreview" class="inventory-quantity-preview">1 وحدة — 1 قطعة</p>
           </div>
-          <label
+          <label class="admin-edit-only"
             >الكمية المباعة<input
               id="soldQuantity"
               type="number"
               min="0"
               value="0"
           /></label>
-          <label>الكمية التالفة أو المفقودة<input id="damagedQuantity" type="number" min="0" value="0" /></label>
+          <label class="admin-edit-only">الكمية التالفة أو المفقودة<input id="damagedQuantity" type="number" min="0" value="0" /></label>
+          <div class="wide admin-advanced-launcher">
+            <button type="button" id="toggleAdminAdvanced" class="ghost">⚙ إظهار خيارات التوثيق والبيع والتخزين</button>
+            <small class="muted">الحقول الأساسية والصور تكفي للإضافة العادية. افتح الخيارات المتقدمة فقط عند الحاجة.</small>
+          </div>
           <div class="wide grading-box coin-only-admin">
             <h3>التقييم والتغليف الاحترافي <button type="button" class="mini-help" data-help="فعّل التقييم فقط إذا كانت العملة مغلفة أو معتمدة من جهة تقييم، ثم أدخل بيانات الشهادة.">؟</button></h3>
             <label class="check"
@@ -821,7 +825,7 @@
               العام <small>(ينشر مباشرة من الإدارة)</small></label
             >
             <div id="marketFields" hidden>
-              <label>قسم السوق<select id="marketCategory"><option value="coins-stamps">العملات والطوابع</option><option value="collectibles">المقتنيات</option><option value="games">الألعاب</option><option value="tcg">TCG</option><option value="diecast">دايكاست</option><option value="lamps">مصابيح</option><option value="fantasia">فانتازيا</option><option value="special">أرقام مميزة وأخطاء نادرة</option><option value="transitional">إصدارات انتقالية</option><option value="other">أخرى</option></select></label>
+              <label>قسم السوق<select id="marketCategory"><option value="coins-stamps">العملات</option><option value="collectibles">المقتنيات</option><option value="games">الألعاب</option><option value="tcg">TCG</option><option value="diecast">دايكاست</option><option value="lamps">مصابيح</option><option value="fantasia">فانتازيا</option><option value="special">أرقام مميزة وأخطاء نادرة</option><option value="transitional">إصدارات انتقالية</option><option value="other">أخرى</option></select></label>
               <label
                 >نوع العرض<select id="marketOfferType">
                   <option value="single">قطعة واحدة</option>
@@ -1105,7 +1109,7 @@
           </div>
           <div class="warehouse-controls" style="margin:14px 0 10px">
             <input id="marketSearch" autocomplete="off" placeholder="بحث ذكي في السوق: الدولة، الفئة، السنة، التقييم، السعر، الرقم، أو حالة العرض" />
-            <select id="marketCategoryFilter"><option value="all">كل أقسام السوق</option><option value="coins-stamps">العملات والطوابع</option><option value="collectibles">المقتنيات</option><option value="games">الألعاب</option><option value="tcg">TCG</option><option value="diecast">دايكاست</option><option value="lamps">مصابيح</option><option value="fantasia">فانتازيا</option><option value="special">أرقام مميزة وأخطاء نادرة</option><option value="transitional">إصدارات انتقالية</option><option value="other">أخرى</option></select>
+            <select id="marketCategoryFilter"><option value="all">كل أقسام السوق</option><option value="coins-stamps">العملات</option><option value="collectibles">المقتنيات</option><option value="games">الألعاب</option><option value="tcg">TCG</option><option value="diecast">دايكاست</option><option value="lamps">مصابيح</option><option value="fantasia">فانتازيا</option><option value="special">أرقام مميزة وأخطاء نادرة</option><option value="transitional">إصدارات انتقالية</option><option value="other">أخرى</option></select>
           </div>
           <div class="record-filter-bar" id="marketFilters">
             <button class="market-filter active" data-market-filter="all">
@@ -1786,6 +1790,6 @@
       <div id="quickResults"></div>
       <div id="recent"></div>
     </div>
-    <script src="/admin/app.js?v=5.6.2-r3"></script>
+    <script src="/admin/app.js?v=5.6.2-r7"></script>
   </body>
 </html>

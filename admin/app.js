@@ -1445,7 +1445,7 @@ document.querySelectorAll(".special-metric").forEach(b => b.addEventListener("cl
 if ($("specialSearch")) $("specialSearch").oninput = renderSpecialAdminRows;
 if ($("specialTypeFilter")) $("specialTypeFilter").onchange = renderSpecialAdminRows;
 if ($("refreshSpecial")) $("refreshSpecial").onclick = async () => { const b=$("refreshSpecial"),old=b.textContent; try{b.disabled=true;b.textContent="جارٍ التحديث...";await refresh(true);await renderSpecialAdmin();toast("تم تحديث قسم الأرقام المميزة.");}catch(e){alert(e.message)}finally{b.disabled=false;b.textContent=old;} };
-if ($("specialAddNew")) $("specialAddNew").onclick = () => { show("add"); setTimeout(() => $("specialNumberEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}), 80); };
+if ($("specialAddNew")) $("specialAddNew").onclick = () => { show("add"); setAdminAdvancedVisible(true); setTimeout(() => $("specialNumberEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}), 80); };
 
 window.removeItem = async (id) => {
   let reason=(prompt("سيتم نقل المقتنى إلى الأرشيف ولن يحذف نهائيًا. اكتب سبب الحذف:","")||"").trim();
@@ -1890,6 +1890,8 @@ if (saveBtn) saveBtn.disabled = false;
   if ($("collectibleCategory")) $("collectibleCategory").value = i.collectibleCategory || (i.fantasiaEnabled ? "fantasia" : "");
   ['collectibleBrand','collectibleMaterial','collectibleModel','collectibleScale'].forEach(k=>{if($(k))$(k).value=i[k]||''});
   syncDarStoreFields();
+  setAdminAdvancedVisible(true);
+  syncAdminEditOnlyFields();
   setCountryValue(i.country || "");
   renderStorageSelectors(i);
   if ($("issueEdition")) $("issueEdition").value = i.issueEdition || "";
@@ -2429,6 +2431,8 @@ editingItemId = "";
   updateAuctionUI();
   updateMarketUI();
   updateInventoryQuantity();
+  setAdminAdvancedVisible(false);
+  syncAdminEditOnlyFields();
 }
 if ($("reset"))
   $("reset").addEventListener("click", (e) => {
@@ -4542,15 +4546,39 @@ function ensureCollectibleDetailsBox(){
   const anchor=$('collectibleCategoryWrap') || $('storeType')?.closest('label'); if(!anchor)return;
   anchor.insertAdjacentHTML('afterend',`<div id="collectibleDetailsBox" class="wide collectible-details-box" hidden><h3>بيانات نوادر المقتنيات</h3><p class="muted">حقول عامة للتحف والسبح والمجسمات وبقية المقتنيات. تظهر بدل حقول العملات.</p><div class="collectible-details-grid"><label>العلامة / الصانع<input id="collectibleBrand" placeholder="اختياري"></label><label>الخامة / المادة<input id="collectibleMaterial" placeholder="مثال: فضة، نحاس، خشب، حجر"></label><label>الموديل / الطراز<input id="collectibleModel" placeholder="اختياري"></label><label>المقياس / المقاس<input id="collectibleScale" placeholder="مثال: 1:18 أو المقاس"></label></div></div>`);
 }
+let adminAdvancedVisible=false;
+function setupAdminCompactForm(){
+  const form=$('form'); if(!form)return;
+  const blocks=[];
+  const add=x=>{if(x&&!blocks.includes(x)){x.classList.add('admin-advanced-block');blocks.push(x)}};
+  add(form.querySelector('.grading-box'));
+  add($('advancedSerialSection'));
+  const special=$('specialNumberEnabled')?.closest('label'); add(special?.previousElementSibling); add(special); add($('specialNumberFields'));
+  const fantasia=$('fantasiaEnabled')?.closest('label'); add(fantasia?.previousElementSibling); add(fantasia); add($('fantasiaFields'));
+  const trans=$('transitionalIssueEnabled')?.closest('label'); add(trans?.previousElementSibling); add(trans); add($('transitionalIssueFields'));
+  add(form.querySelector('.market-box')); add(form.querySelector('.auction-box')); add($('storageDetails')); add($('financialDetails'));
+  setAdminAdvancedVisible(false);
+}
+function setAdminAdvancedVisible(show){
+  adminAdvancedVisible=!!show;
+  const form=$('form'); if(!form)return;
+  form.classList.toggle('admin-advanced-collapsed',!adminAdvancedVisible);
+  const b=$('toggleAdminAdvanced');
+  if(b)b.textContent=adminAdvancedVisible?'▲ إخفاء الخيارات المتقدمة':'⚙ إظهار خيارات التوثيق والبيع والتخزين';
+}
+function syncAdminEditOnlyFields(){
+  const editing=!!String($('id')?.value||editingItemId||'').trim();
+  document.querySelectorAll('#form .admin-edit-only').forEach(el=>el.hidden=!editing);
+}
 function syncDarStoreFields(){
   ensureCollectibleDetailsBox();
   const isCollectibles=$('storeType')?.value==='collectibles',cat=$('collectibleCategory')?.value||'';
   if($('collectibleCategoryWrap'))$('collectibleCategoryWrap').hidden=!isCollectibles;
   if($('collectibleDetailsBox'))$('collectibleDetailsBox').hidden=!isCollectibles;
   // نفس حقلي الدولة/الفئة يُعاد استخدامهما دون تغيير قاعدة البيانات: الدولة=المنشأ، الفئة=اسم المقتنى.
-  const countryLabel=$('country')?.closest('label'), denomLabel=$('denomination')?.closest('label');
-  if(countryLabel)countryLabel.childNodes[0].nodeValue=isCollectibles?'بلد المنشأ / الصنع (اختياري)':'الدولة';
-  if(denomLabel)denomLabel.childNodes[0].nodeValue=isCollectibles?'اسم المقتنى':'الفئة / القيمة';
+  const countryText=$('countryLabelText'), denomText=$('denominationLabelText');
+  if(countryText)countryText.textContent=isCollectibles?'بلد المنشأ / الصنع (اختياري)':'الدولة / جهة الإصدار';
+  if(denomText)denomText.textContent=isCollectibles?'اسم المقتنى':'الفئة / القيمة';
   if($('country')) $('country').required=!isCollectibles;
   if($('denomination')) {
     $('denomination').required=true;
@@ -4575,18 +4603,20 @@ function syncDarStoreFields(){
     if($('collectibleCategory'))$('collectibleCategory').value='';
     setSelectOptions($('condition'),[['UNC','UNC'],['AU','AU'],['XF','XF'],['VF','VF'],['F','F']],$('condition')?.value);
     setSelectOptions($('inventoryUnitType'),[['piece','ورقة / قطعة'],['coin','عملة معدنية'],['set','طقم'],['bundle','حزمة'],['strap','ربطة'],['lot','بندل / مجموعة']],$('inventoryUnitType')?.value);
-    if($('marketCategory'))setSelectOptions($('marketCategory'),[['coins-stamps','العملات والطوابع'],['special','أرقام مميزة وأخطاء نادرة'],['transitional','إصدارات انتقالية'],['other','أخرى']],$('marketCategory').value||'coins-stamps');
+    if($('marketCategory'))setSelectOptions($('marketCategory'),[['coins-stamps','العملات'],['special','أرقام مميزة وأخطاء نادرة'],['transitional','إصدارات انتقالية'],['other','أخرى']],$('marketCategory').value||'coins-stamps');
   }
   if(!isCollectibles){updateEditionUI();updateYearUI();}
   if($('forMarket')?.checked && $('marketApproved')) $('marketApproved').checked=true;
   updateInventoryQuantity(); updateMarketUI();
 }
 if ($('storeType')) $('storeType').addEventListener('change',syncDarStoreFields);
+if ($('toggleAdminAdvanced')) $('toggleAdminAdvanced').addEventListener('click',()=>setAdminAdvancedVisible(!adminAdvancedVisible));
 if ($('collectibleCategory')) $('collectibleCategory').addEventListener('change',syncDarStoreFields);
+setupAdminCompactForm();
 if ($("fantasiaEnabled")) $("fantasiaEnabled").addEventListener("change",()=>{if($("fantasiaFields"))$("fantasiaFields").hidden=!$("fantasiaEnabled").checked;if($("fantasiaEnabled").checked&&$("storeType")){$("storeType").value="collectibles";syncDarStoreFields();if($("collectibleCategory")&&!$("collectibleCategory").value)$("collectibleCategory").value="fantasia";}});
 syncDarStoreFields();
 if ($("fantasiaSearch")) $("fantasiaSearch").addEventListener("input",()=>renderFantasiaAdmin().catch(e=>console.warn(e)));
-if ($("fantasiaAddNew")) $("fantasiaAddNew").onclick=()=>{show("add");setTimeout(()=>$("fantasiaEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}),80);};
+if ($("fantasiaAddNew")) $("fantasiaAddNew").onclick=()=>{show("add");setAdminAdvancedVisible(true);setTimeout(()=>$("fantasiaEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}),80);};
 
 // V4.3.1 — الإصدارات الانتقالية: صفة للمقتنى نفسه دون إنشاء مخزون جديد.
 if ($("transitionalIssueEnabled")) $("transitionalIssueEnabled").addEventListener("change",()=>{
@@ -4595,7 +4625,7 @@ if ($("transitionalIssueEnabled")) $("transitionalIssueEnabled").addEventListene
 if ($("transitionalSearch")) $("transitionalSearch").addEventListener("input",renderTransitionalAdmin);
 if ($("transitionalTypeFilter")) $("transitionalTypeFilter").addEventListener("change",renderTransitionalAdmin);
 
-if ($("transitionalAddNew")) $("transitionalAddNew").onclick=()=>{show("add");setTimeout(()=>$("transitionalIssueEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}),80);};
+if ($("transitionalAddNew")) $("transitionalAddNew").onclick=()=>{show("add");setAdminAdvancedVisible(true);setTimeout(()=>$("transitionalIssueEnabled")?.scrollIntoView({behavior:"smooth",block:"center"}),80);};
 
 
 // V5.2.4 — طبقة موحدة لأزرار التحديث في الإدارة.
@@ -4635,6 +4665,7 @@ bindAdminRefresh('refreshIntegrity', async()=>{await renderIntegrity();}, 'تم 
 // V5.2.5 — قنوات موحدة: السوق/المزاد/التمييز/البث المباشر بدون تكرار السجل الأصلي.
 function goAddWithChannel(channel){
   document.querySelector('nav button[data-v="add"]')?.click();
+  setAdminAdvancedVisible(true);
   setTimeout(()=>{ if($("forMarket")) $("forMarket").checked=channel==="market"; if($("forAuction")) $("forAuction").checked=channel==="auction"; $("forMarket")?.dispatchEvent(new Event("change")); $("forAuction")?.dispatchEvent(new Event("change")); },80);
 }
 $("marketAddNew")?.addEventListener("click",()=>goAddWithChannel("market"));

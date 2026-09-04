@@ -6308,3 +6308,12 @@ body[data-admin-store="collectibles"] .coin-only-admin{display:none!important}
 body[data-admin-store="collectibles"] #add .coin-only-admin,
 #add[data-store-type="collectibles"] .coin-only-admin { display:none !important; }
 #add .coin-only-admin[hidden] { display:none !important; }
+
+
+/* V5.6.2-R7 — نموذج إدارة مبسط افتراضيًا */
+.admin-advanced-launcher{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;border:1px dashed #c9a75d;border-radius:12px;background:#fffaf0}
+#form.admin-advanced-collapsed .admin-advanced-block{display:none!important}
+#form .admin-edit-only[hidden]{display:none!important}
+#form .dar-store-selector small{display:block;margin-top:6px}
+#form #countryLabelText,#form #denominationLabelText{display:block;margin-bottom:6px;font-weight:700}
+@media(max-width:700px){.admin-advanced-launcher button{width:100%}.admin-advanced-launcher small{font-size:12px}}
