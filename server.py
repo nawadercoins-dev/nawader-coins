@@ -1838,15 +1838,38 @@ class H(SimpleHTTPRequestHandler):
         # V5.2.7: live-auction routes historically called readj(); keep a single JSON reader.
         return self.body()
     def send_file(self,path,content_type=None):
+        # R9.5E: stream files instead of reading the whole image into RAM.
+        # Browsers request several collectible images in parallel; reading each
+        # image fully could spike Render memory and surface as HTTP 502.
         try:
-            with open(path,'rb') as f: data=f.read()
+            f=open(path,'rb')
+        except FileNotFoundError:
+            self.send_error(404,'File not found'); return False
+        except PermissionError:
+            self.send_error(403,'File access denied'); return False
+        except OSError as e:
+            print('File open error:',path,repr(e))
+            self.send_error(500,'File read error'); return False
+        try:
+            size=os.fstat(f.fileno()).st_size
             self.send_response(200)
             self.send_header('Content-Type',content_type or mimetypes.guess_type(path)[0] or 'application/octet-stream')
-            self.send_header('Content-Length',str(len(data)))
+            self.send_header('Content-Length',str(size))
             self.send_header('Cache-Control','no-store')
-            self.end_headers(); self.wfile.write(data)
-        except FileNotFoundError:
-            self.send_error(404,'File not found')
+            self.end_headers()
+            while True:
+                chunk=f.read(256*1024)
+                if not chunk: break
+                self.wfile.write(chunk)
+            return True
+        except (BrokenPipeError,ConnectionResetError):
+            return False
+        except OSError as e:
+            print('File stream error:',path,repr(e))
+            return False
+        finally:
+            try: f.close()
+            except Exception: pass
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/google/status':
@@ -1884,7 +1907,7 @@ class H(SimpleHTTPRequestHandler):
             except Exception as e:
                 print('Google OAuth error:',repr(e)); self.send_response(302); self.send_header('Location','/account?google=error'); self.end_headers(); return
         if p=='/api/version':
-            self.sendj({'version':'5.6.2-R9.5D','channel':'DAR-MUQTANYAT-R9.5D-DATA-ENTRY-PERMISSIONS-FIX','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.6.2-R9.5E','channel':'DAR-MUQTANYAT-R9.5E-UPLOAD-STREAM-RECOVERY','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -2447,6 +2470,17 @@ class H(SimpleHTTPRequestHandler):
             self.send_file(os.path.join(ADMIN_DIR,'app.js'),'application/javascript; charset=utf-8'); return
         if p.startswith('/uploads/'):
             rel=os.path.basename(p); full=os.path.join(UPLOAD_DIR,rel)
+            # R9.5E: older deployments may still have legacy images under
+            # ROOT/uploads while current data lives on the persistent disk.
+            # Recover a missing persistent copy automatically without touching JSON.
+            if (not os.path.isfile(full)) or (os.path.getsize(full)==0 if os.path.isfile(full) else False):
+                legacy=os.path.join(ROOT,'uploads',rel)
+                if os.path.isfile(legacy) and os.path.getsize(legacy)>0:
+                    try:
+                        os.makedirs(UPLOAD_DIR,exist_ok=True)
+                        shutil.copy2(legacy,full)
+                    except OSError:
+                        full=legacy
             allowed=self.is_admin() or is_public_upload_url(p)
             if not allowed:
                 person=self.participant_person()
