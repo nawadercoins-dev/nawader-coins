@@ -1863,7 +1863,7 @@ class H(SimpleHTTPRequestHandler):
             except Exception as e:
                 print('Google OAuth error:',repr(e)); self.send_response(302); self.send_header('Location','/account?google=error'); self.end_headers(); return
         if p=='/api/version':
-            self.sendj({'version':'5.6.2-R9.5','channel':'DAR-MUQTANYAT-R9.5-GOOGLE-WHATSAPP-LOGIN','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.6.2-R9.5A','channel':'DAR-MUQTANYAT-R9.5A-WHATSAPP-VAULT-FIX','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -2063,7 +2063,37 @@ class H(SimpleHTTPRequestHandler):
                 self.sendj({'items':rows}); return
         if p=='/api/participants':
             with LOCK:
-                people=load_people(); rows=[participant_public(x) for x in people]; active=[x for x in rows if x['approvalStatus']!='cancelled']; archived=[x for x in rows if x['approvalStatus']=='cancelled']
+                people=load_people(); rows=[participant_public(x) for x in people]
+                # R9.5A: الحسابات القديمة قد تكون مكررة لنفس رقم الجوال بصيغ 05 / +966.
+                # إذا كان طلب واتساب المعلّق محفوظًا على نسخة أخرى من نفس الجوال،
+                # نعرضه على كل النسخ حتى يظهر زر «مطابقة واتساب واعتماد كامل» للإدارة.
+                pending_by_phone={}
+                now_dt=datetime.datetime.now()
+                for raw_person in people:
+                    phone_key=_norm_phone(raw_person.get('phone'))
+                    if not phone_key: continue
+                    for req in reversed(list(raw_person.get('whatsappVerificationRequests') or [])):
+                        if str(req.get('status') or '')!='pending': continue
+                        try:
+                            if datetime.datetime.fromisoformat(str(req.get('expires') or '')) <= now_dt:
+                                continue
+                        except Exception:
+                            pass
+                        prev=pending_by_phone.get(phone_key)
+                        if not prev or str(req.get('created') or '') > str(prev.get('created') or ''):
+                            pending_by_phone[phone_key]=req
+                        break
+                for row in rows:
+                    phone_key=_norm_phone(row.get('phone'))
+                    req=pending_by_phone.get(phone_key)
+                    if req and not row.get('whatsappPending'):
+                        row['whatsappPending']=True
+                        row['whatsappPendingCode']=str(req.get('code') or '')
+                        row['whatsappPendingRequestId']=str(req.get('id') or '')
+                        row['whatsappPendingCreated']=str(req.get('created') or '')
+                        row['whatsappPendingExpires']=str(req.get('expires') or '')
+                        row['whatsappPendingShared']=True
+                active=[x for x in rows if x['approvalStatus']!='cancelled']; archived=[x for x in rows if x['approvalStatus']=='cancelled']
                 active.sort(key=lambda x:(APPROVAL_STATUSES.index(x['approvalStatus']),x.get('created',''))); archived.sort(key=lambda x:x.get('archivedAt',''),reverse=True); counts={s:sum(1 for x in rows if x['approvalStatus']==s) for s in APPROVAL_STATUSES}
                 self.sendj({'participants':active,'archive':archived,'total':len(active),'pending':counts['new'],'archived':len(archived),'counts':counts}); return
         if p=='/api/participants/summary':
@@ -2642,6 +2672,7 @@ class H(SimpleHTTPRequestHandler):
                 self.sendj({'error':'تعذر استعادة النسخة الكاملة: '+str(e)},400); return
         if p=='/api/image-vault/upload':
             try:
+                os.makedirs(UPLOAD_DIR,exist_ok=True)
                 n=int(self.headers.get('Content-Length','0'))
                 if n<=0 or n>50*1024*1024: self.sendj({'error':'حجم الصورة غير مناسب (الحد 50 ميجابايت)'},413); return
                 ctype=(self.headers.get('Content-Type') or '').lower(); ext='.jpg'
@@ -4289,30 +4320,49 @@ class H(SimpleHTTPRequestHandler):
                 action=str(d.get('action') or '').strip().lower()
                 if action not in ('approve','reject'):
                     self.sendj({'error':'قرار التوثيق غير صالح'},400); return
-                people=load_people(); person=next((x for x in people if str(x.get('id'))==pid),None)
+                people=load_people()
+                requested_person=next((x for x in people if str(x.get('id'))==pid),None)
+                # R9.5A: قد يكون الطلب محفوظًا على حساب قديم/مكرر يحمل الجوال نفسه.
+                # ابحث عن requestId على مستوى جميع الحسابات بدل تقييده بالسجل المضغوط عليه.
+                person=None; req=None
+                for candidate in people:
+                    candidate_req=next((x for x in reversed(list(candidate.get('whatsappVerificationRequests') or [])) if str(x.get('id'))==request_id),None)
+                    if candidate_req:
+                        person=candidate; req=candidate_req; break
+                if not person and requested_person:
+                    person=requested_person
                 if not person: self.sendj({'error':'الحساب غير موجود'},404); return
-                req=next((x for x in reversed(list(person.get('whatsappVerificationRequests') or [])) if str(x.get('id'))==request_id),None)
-                if not req: self.sendj({'error':'طلب واتساب غير موجود'},404); return
+                if not req: self.sendj({'error':'طلب واتساب غير موجود لهذا الرقم. أنشئ طلبًا جديدًا من صفحة حسابي.'},404); return
                 if str(req.get('status'))!='pending':
                     self.sendj({'error':'طلب التوثيق حُسم سابقًا أو انتهت صلاحيته'},409); return
                 nowiso=datetime.datetime.now().isoformat()
+                phone_key=_norm_phone(person.get('phone') or (requested_person or {}).get('phone'))
+                same_phone=[x for x in people if phone_key and _norm_phone(x.get('phone'))==phone_key]
+                if not same_phone: same_phone=[person]
                 if action=='reject':
                     req['status']='rejected'; req['rejectedAt']=nowiso
                     save_json(PEOPLE,{'participants':people})
-                    append_operation('رفض طلب توثيق واتساب',{'participantId':pid,'requestId':request_id,'requestCode':req.get('code')},actor='الإدارة')
+                    append_operation('رفض طلب توثيق واتساب',{'participantId':person.get('id'),'requestedParticipantId':pid,'requestId':request_id,'requestCode':req.get('code'),'matchedAccounts':len(same_phone)},actor='الإدارة')
                     self.sendj({'ok':True,'status':'rejected'}); return
-                previous=participant_approval_status(person)
                 req['status']='approved'; req['approvedAt']=nowiso
-                apply_approval_status(person,'final')
-                person['verified']=True; person['approved']=True
-                person['verifiedAt']=person.get('verifiedAt') or nowiso; person['approvedAt']=nowiso; person['finalApprovedAt']=nowiso
-                history=list(person.get('approvalHistory') or [])
-                history.append({'status':'final','previousStatus':previous,'reason':'توثيق كامل بعد مطابقة طلب واتساب','actor':'الإدارة','at':nowiso})
-                person['approvalHistory']=history
+                approved_ids=[]
+                for target in same_phone:
+                    # لا نلغي قرار إيقاف/إلغاء إداري سابق على نسخة قديمة.
+                    if participant_approval_status(target) in ('stopped','cancelled'):
+                        continue
+                    previous=participant_approval_status(target)
+                    apply_approval_status(target,'final')
+                    target['verified']=True; target['approved']=True
+                    target['verifiedAt']=target.get('verifiedAt') or nowiso; target['approvedAt']=nowiso; target['finalApprovedAt']=nowiso
+                    history=list(target.get('approvalHistory') or [])
+                    history.append({'status':'final','previousStatus':previous,'reason':'توثيق كامل بعد مطابقة طلب واتساب لنفس رقم الجوال','actor':'الإدارة','at':nowiso})
+                    target['approvalHistory']=history[-200:]
+                    approved_ids.append(str(target.get('id') or ''))
                 save_json(PEOPLE,{'participants':people})
-                append_operation('اعتماد توثيق واتساب',{'participantId':pid,'requestId':request_id,'requestCode':req.get('code')},actor='الإدارة')
-                add_notification('participant',pid,'approval','✅ تم التوثيق الكامل','تم اعتماد حسابك عبر واتساب. ستسجل صفحة حسابي دخولك تلقائيًا.',pid,'/account')
-                self.sendj({'ok':True,'status':'approved','participant':participant_public(person)}); return
+                append_operation('اعتماد توثيق واتساب',{'participantId':person.get('id'),'requestedParticipantId':pid,'requestId':request_id,'requestCode':req.get('code'),'approvedDuplicateIds':approved_ids},actor='الإدارة')
+                for approved_id in approved_ids:
+                    add_notification('participant',approved_id,'approval','✅ تم التوثيق الكامل','تم اعتماد حسابك عبر واتساب. ستسجل صفحة حسابي دخولك تلقائيًا.',approved_id,'/account')
+                self.sendj({'ok':True,'status':'approved','participant':participant_public(person),'approvedDuplicateIds':approved_ids}); return
 
             if p=='/api/participant/approval-status':
                 a=load_people(); iid=str(d.get('id') or ''); status=str(d.get('status') or '').strip().lower(); reason=str(d.get('reason') or '').strip()
@@ -4533,7 +4583,7 @@ if _missing_runtime:
     print('Startup warning - missing UI files:', ', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.2-R9.5-GOOGLE-WHATSAPP-LOGIN'
+VERSION='5.6.2-R9.5A-WHATSAPP-VAULT-FIX'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
