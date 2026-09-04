@@ -1604,6 +1604,17 @@
             >
           </div>
           <div class="panel" style="margin-top:18px">
+            <h3 style="margin-top:0">💳 بيانات السداد والتحويل البنكي</h3>
+            <p class="muted">تظهر هذه البيانات للعميل عند الضغط على «سداد الآن». لا يتم قبول إثبات السداد قبل اعتماد مبلغ الشحن.</p>
+            <div class="settings-grid">
+              <label>اسم البنك<input id="paymentBankName" placeholder="مثال: مصرف الراجحي"></label>
+              <label>اسم صاحب الحساب<input id="paymentAccountName" placeholder="اسم الحساب البنكي"></label>
+              <label>رقم IBAN<input id="paymentIban" dir="ltr" placeholder="SA00..."></label>
+              <label>واتساب السداد (اختياري)<input id="paymentWhatsapp" dir="ltr" placeholder="9665xxxxxxxx"></label>
+              <label style="grid-column:1/-1">تعليمات السداد<textarea id="paymentInstructions" rows="3" placeholder="حوّل المبلغ النهائي ثم ارفع إشعار التحويل من المستحقات."></textarea></label>
+            </div>
+          </div>
+          <div class="panel" style="margin-top:18px">
             <h3 style="margin-top:0">👁 ظهور أقسام صفحة الزوار</h3>
             <p class="muted">أوقف أي قسم لإخفائه بالكامل عن الزوار. البيانات والمقتنيات لا تُحذف، ويمكن إعادة إظهاره في أي وقت.</p>
             <div class="settings-grid">
@@ -1790,6 +1801,6 @@
       <div id="quickResults"></div>
       <div id="recent"></div>
     </div>
-    <script src="/admin/app.js?v=5.6.2-r7-1"></script>
+    <script src="/admin/app.js?v=5.6.2-r9"></script>
   </body>
 </html>

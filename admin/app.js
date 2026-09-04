@@ -3617,6 +3617,11 @@ async function loadAdminSettingsPanel() {
     $("settingsCharity").value = Number(st.charityProfitPercent || 0);
     $("settingsEntryFee").value = Number(st.auctionEntryFee || 0);
     $("settingsEntryEnabled").checked = !!st.entryFeeEnabled;
+    if ($("paymentBankName")) $("paymentBankName").value = st.paymentBankName || "";
+    if ($("paymentAccountName")) $("paymentAccountName").value = st.paymentAccountName || "";
+    if ($("paymentIban")) $("paymentIban").value = st.paymentIban || "";
+    if ($("paymentWhatsapp")) $("paymentWhatsapp").value = st.paymentWhatsapp || "";
+    if ($("paymentInstructions")) $("paymentInstructions").value = st.paymentInstructions || "";
     let vs = st.visitorSections || {};
     if ($("visitorSectionMarket")) $("visitorSectionMarket").checked = vs.market !== false;
     if ($("visitorSectionAuction")) $("visitorSectionAuction").checked = vs.auction !== false;
@@ -3643,6 +3648,11 @@ if ($("saveSettings"))
           charityProfitPercent: Number($("settingsCharity").value || 0),
           auctionEntryFee: Number($("settingsEntryFee").value || 0),
           entryFeeEnabled: !!$("settingsEntryEnabled").checked,
+          paymentBankName: $("paymentBankName") ? $("paymentBankName").value.trim() : "",
+          paymentAccountName: $("paymentAccountName") ? $("paymentAccountName").value.trim() : "",
+          paymentIban: $("paymentIban") ? $("paymentIban").value.trim() : "",
+          paymentWhatsapp: $("paymentWhatsapp") ? $("paymentWhatsapp").value.trim() : "",
+          paymentInstructions: $("paymentInstructions") ? $("paymentInstructions").value.trim() : "",
           visitorSections: {
             market: $("visitorSectionMarket") ? !!$("visitorSectionMarket").checked : true,
             auction: $("visitorSectionAuction") ? !!$("visitorSectionAuction").checked : true,
@@ -3996,38 +4006,45 @@ function storageText(s = {}) {
       .join(" ← ") || "موقع التخزين غير محدد"
   );
 }
+function paymentOrderLabel(o){
+  if(o.paymentStatus==="paid")return "تم السداد";
+  if(o.paymentStatus==="refunded")return "تم الاسترداد";
+  if(o.paymentProofStatus==="pending"||o.paymentStatus==="proof_submitted")return "إثبات سداد بانتظار الاعتماد";
+  if(o.paymentProofStatus==="rejected")return "إثبات مرفوض — بانتظار إعادة الرفع";
+  return "غير مسدد";
+}
+async function resolvePaymentProof(id,batchId,action){
+  let label=action==="approve"?"اعتماد إثبات السداد وتحويل الطلب/الدفعة إلى «تم السداد»؟":"رفض إثبات السداد وإعادته للعميل لرفع إثبات جديد؟";
+  if(!confirm(label))return;
+  let note=prompt(action==="reject"?"سبب الرفض (يظهر للعميل)":"ملاحظة الاعتماد (اختيارية)","");if(note===null)return;
+  try{let d=await api('/api/order/payment-proof',{method:'POST',body:JSON.stringify({id,batchId:batchId||'',action,note})});alert(action==="approve"?`تم اعتماد السداد لعدد ${d.count||1} طلب`:`تم رفض الإثبات لعدد ${d.count||1} طلب`);await renderOrders();await renderDues();await renderAdminNotifications()}catch(e){alert(e.message)}
+}
+window.resolvePaymentProof=resolvePaymentProof;
 function orderNextButtons(o) {
   if (o.archived) return "";
   let map = {
-    awaiting_payment: [["paid", "تأكيد السداد"]],
+    awaiting_payment: o.paymentStatus==="proof_submitted"||o.paymentProofStatus==="pending"?[]:[["paid", "تأكيد السداد يدويًا"]],
     paid: [["preparing", "بدء التجهيز"]],
     preparing: [["ready_to_ship", "جاهز للشحن"]],
     ready_to_ship: [["shipped", "تم الشحن"]],
     shipped: [["received", "تم الاستلام"]],
     received: [["completed", "إكمال وأرشفة"]],
   };
-  let b = (map[o.status] || [])
-    .map(
-      (x) =>
-        `<button onclick="orderStatus('${o.id}','${x[0]}')">${x[1]}</button>`,
-    )
-    .join("");
+  let b = (map[o.status] || []).map((x) => `<button onclick="orderStatus('${o.id}','${x[0]}')">${x[1]}</button>`).join("");
   let requests="";
   if(o.cancellationStatus==="requested")requests=`<button class="danger" onclick="processOrderRequest('${o.id}','approve_cancel')">اعتماد الإلغاء وإعادة الكمية</button><button class="ghost" onclick="processOrderRequest('${o.id}','reject')">رفض الطلب</button>`;
   if(o.refundStatus==="requested")requests=`<button class="danger" onclick="processOrderRequest('${o.id}','complete_refund')">تسجيل الاسترداد وإعادة الكمية</button><button class="ghost" onclick="processOrderRequest('${o.id}','reject')">رفض الطلب</button>`;
-  let release=o.paymentStatus==="paid"&&["paid","preparing","ready_to_ship"].includes(o.status)&&o.refundStatus!=="requested"?`<button class="danger" onclick="processOrderRequest('${o.id}','complete_refund')">تسجيل الاسترداد وإعادة الكمية</button>`:o.paymentStatus!=="paid"&&["new","awaiting_payment","stalled"].includes(o.status)?`<button class="danger" onclick="orderStatus('${o.id}','cancelled')">إلغاء وإعادة الكمية</button>`:"";
+  let release=o.paymentStatus==="paid"&&["paid","preparing","ready_to_ship"].includes(o.status)&&o.refundStatus!=="requested"?`<button class="danger" onclick="processOrderRequest('${o.id}','complete_refund')">تسجيل الاسترداد وإعادة الكمية</button>`:!["paid","proof_submitted"].includes(o.paymentStatus)&&["new","awaiting_payment","stalled"].includes(o.status)?`<button class="danger" onclick="orderStatus('${o.id}','cancelled')">إلغاء وإعادة الكمية</button>`:"";
   return b+requests+`<button class="ghost" onclick="orderStatus('${o.id}','stalled')">متعثر</button><button class="ghost" onclick="orderStatus('${o.id}','returned')">مرتجع</button>`+release;
 }
 function orderCard(o) {
   let imgs = (o.items || []).flatMap((x) => x.images || []).filter(Boolean);
-  let itemHtml = (o.items || [])
-    .map(
-      (x) =>
-        `<div class="order-item">${(x.images || [])[0] ? `<img class="order-thumb" style="width:96px;height:72px;max-width:96px;max-height:72px;object-fit:contain" src="${esc((x.images || [])[0])}" onclick='openCoinLightbox(${JSON.stringify(x.images || [])},0,${JSON.stringify(x.title || "")})'>` : ""}<div><b>${esc(x.title || "مقتنى")}</b><div>الكمية: ${Number(x.quantity || 1)} • ${money(x.total || 0)}</div><div class="storage-path">${esc(storageText(x.storage || {}))}</div></div></div>`,
-    )
-    .join("");
+  let itemHtml = (o.items || []).map((x) => `<div class="order-item">${(x.images || [])[0] ? `<img class="order-thumb" style="width:96px;height:72px;max-width:96px;max-height:72px;object-fit:contain" src="${esc((x.images || [])[0])}" onclick='openCoinLightbox(${JSON.stringify(x.images || [])},0,${JSON.stringify(x.title || "")})'>` : ""}<div><b>${esc(x.title || "مقتنى")}</b><div>الكمية: ${Number(x.quantity || 1)} • ${money(x.total || 0)}</div><div class="storage-path">${esc(storageText(x.storage || {}))}</div></div></div>`).join("");
   let requestNotice=o.refundStatus==="requested"?'<div class="notice danger"><b>طلب استرداد معلق من العميل</b></div>':o.cancellationStatus==="requested"?'<div class="notice danger"><b>طلب إلغاء معلق من العميل</b></div>':'';
-  return `<article class="order-card ${o.archived ? "archived-order" : ""}"><div class="order-head"><div><h3>${adminStoreBadge(adminOrderStoreKey(o,new Map((latestItems||[]).map(i=>[String(i.id||''),i]))))} ${esc(o.orderNumber || o.id)}</h3><small>${new Date(o.created).toLocaleString("ar-SA")}</small></div><div><span class="source-chip">${o.source === "auction" ? "مزاد" : "السوق العام"}</span> <span class="order-status">${ORDER_LABELS[o.status] || esc(o.status)}</span></div></div><div class="order-body">${requestNotice}<div class="order-grid"><div class="order-info"><span>العميل</span><b>${esc(o.customerName || "—")}</b><br>${esc(o.customerPhone || "")}</div><div class="order-info"><span>السداد</span><b>${o.paymentStatus === "paid" ? "تم السداد" : o.paymentStatus==="refunded"?"تم الاسترداد":"غير مسدد"}</b></div><div class="order-info"><span>الإجمالي</span><b>${money(o.total || 0)}</b><br><small>الشحن: ${o.shippingFeeConfirmed ? money(o.shippingFee || 0) : "غير محدد"}</small></div><div class="order-info"><span>الشحن</span><b>${esc(o.shippingCompany || "لم يسجل")}</b><br>${esc(o.trackingNumber || "")}</div><div class="order-info"><span>عنوان التسليم</span><b>${esc((o.shippingAddress||{}).city || "غير مكتمل")}</b><br><small>${esc([(o.shippingAddress||{}).district,(o.shippingAddress||{}).addressLine].filter(Boolean).join(' — '))}</small></div></div>${itemHtml}<div class="order-shipping-fields"><input id="shipfee-${o.id}" type="number" min="0" step="0.01" value="${Number(o.shippingFee || 0)}" placeholder="مبلغ الشحن (0 = مجاني)" ${o.paymentStatus === "paid" ? "disabled" : ""}><input id="shipco-${o.id}" value="${esc(o.shippingCompany || "")}" placeholder="شركة الشحن"><input id="track-${o.id}" value="${esc(o.trackingNumber || "")}" placeholder="رقم التتبع"></div><div class="order-actions"><button class="ghost" onclick="saveShipping('${o.id}')">اعتماد مبلغ الشحن وحفظ بياناته</button>${orderNextButtons(o)}<button class="ghost" onclick="printOrder('${o.id}')">🖨 طباعة ملخص/فاتورة</button></div></div></article>`;
+  let proofNotice='';
+  if(o.paymentProofStatus==="pending"||o.paymentStatus==="proof_submitted")proofNotice=`<div class="notice"><b>💳 إثبات سداد جديد بانتظار المراجعة</b><div>مرجع التحويل: ${esc(o.paymentReference||'—')} ${o.paymentProofBatchAmount?`• إجمالي الدفعة: ${money(o.paymentProofBatchAmount)}`:''}</div><div class="actions">${o.paymentProofUrl?`<a class="button-link ghost" target="_blank" href="${esc(o.paymentProofUrl)}">فتح صورة التحويل</a>`:''}<button onclick="resolvePaymentProof('${esc(o.id)}','${esc(o.paymentProofBatchId||'')}','approve')">✅ اعتماد السداد${o.paymentProofBatchId?' للدفعة':''}</button><button class="danger" onclick="resolvePaymentProof('${esc(o.id)}','${esc(o.paymentProofBatchId||'')}','reject')">رفض الإثبات</button></div></div>`;
+  if(o.paymentProofStatus==="rejected")proofNotice=`<div class="notice danger"><b>تم رفض إثبات السداد</b><div>${esc(o.paymentProofRejectNote||'بانتظار أن يعيد العميل رفع إثبات جديد')}</div></div>`;
+  return `<article class="order-card ${o.archived ? "archived-order" : ""}"><div class="order-head"><div><h3>${adminStoreBadge(adminOrderStoreKey(o,new Map((latestItems||[]).map(i=>[String(i.id||''),i]))))} ${esc(o.orderNumber || o.id)}</h3><small>${new Date(o.created).toLocaleString("ar-SA")}</small></div><div><span class="source-chip">${o.source === "auction" ? "مزاد" : "السوق العام"}</span> <span class="order-status">${ORDER_LABELS[o.status] || esc(o.status)}</span></div></div><div class="order-body">${requestNotice}${proofNotice}<div class="order-grid"><div class="order-info"><span>العميل</span><b>${esc(o.customerName || "—")}</b><br>${esc(o.customerPhone || "")}</div><div class="order-info"><span>السداد</span><b>${paymentOrderLabel(o)}</b></div><div class="order-info"><span>الإجمالي</span><b>${money(o.total || 0)}</b><br><small>الشحن: ${o.shippingFeeConfirmed ? money(o.shippingFee || 0) : "غير محدد"}</small></div><div class="order-info"><span>الشحن</span><b>${esc(o.shippingCompany || "لم يسجل")}</b><br>${esc(o.trackingNumber || "")}</div><div class="order-info"><span>عنوان التسليم</span><b>${esc((o.shippingAddress||{}).city || "غير مكتمل")}</b><br><small>${esc([(o.shippingAddress||{}).district,(o.shippingAddress||{}).addressLine].filter(Boolean).join(' — '))}</small></div></div>${itemHtml}<div class="order-shipping-fields"><input id="shipfee-${o.id}" type="number" min="0" step="0.01" value="${Number(o.shippingFee || 0)}" placeholder="مبلغ الشحن (0 = مجاني)" ${o.paymentStatus === "paid" ? "disabled" : ""}><input id="shipco-${o.id}" value="${esc(o.shippingCompany || "")}" placeholder="شركة الشحن"><input id="track-${o.id}" value="${esc(o.trackingNumber || "")}" placeholder="رقم التتبع"></div><div class="order-actions"><button class="ghost" onclick="saveShipping('${o.id}')">اعتماد مبلغ الشحن وحفظ بياناته</button>${orderNextButtons(o)}<button class="ghost" onclick="printOrder('${o.id}')">🖨 طباعة ملخص/فاتورة</button></div></div></article>`;
 }
 async function renderOrders() {
   if (!$("ordersList")) return;
