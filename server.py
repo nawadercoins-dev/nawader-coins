@@ -1066,7 +1066,7 @@ def public_item(i):
         try: ended=datetime.datetime.fromisoformat(end) <= auction_local_now()
         except Exception: ended=False
     sold=bool(ended and bids and (target<=0 or top>=target))
-    public_keys=['id','storeType','collectibleCategory','country','denomination','year','type','condition','quantity','serials','frontImg','backImg','auctionEnd','auctionOpeningPrice','auctionBidStep','auctionAdditionalTerms','notes','negotiationEnabled','negotiationPercent','auctionRound','issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason','homeFeatured','homeQuickDeal','homeDiscounted','homeDiscountPercent','homePromoUntil','homePromoBadge','homePromoPriority','updated']
+    public_keys=['id','storeType','collectibleCategory','collectibleBrand','collectibleMaterial','collectibleModel','collectibleScale','country','denomination','year','type','condition','quantity','serials','frontImg','backImg','gradingCertImage','additionalImages','auctionEnd','auctionOpeningPrice','auctionBidStep','auctionAdditionalTerms','notes','negotiationEnabled','negotiationPercent','auctionRound','issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason','transitionalIssueEnabled','transitionalIssueType','transitionalRarity','fantasiaEnabled','homeFeatured','homeQuickDeal','homeDiscounted','homeDiscountPercent','homePromoUntil','homePromoBadge','homePromoPriority','updated']
     out={k:i.get(k) for k in public_keys}
     out['storeType']=item_store_type(i)
     out.update(public_seller_identity(i))
@@ -1077,10 +1077,10 @@ def public_item(i):
 
 def public_market_item(i):
     # السوق العام لا يرسل سعر الشراء أو الموقع الداخلي أو أي بيانات مالية/إدارية سرية.
-    keys=['id','storeType','collectibleCategory','collectibleBrand','collectibleMaterial','collectibleModel','collectibleScale','country','denomination','year','type','condition','quantity','frontImg','backImg','notes',
+    keys=['id','storeType','collectibleCategory','collectibleBrand','collectibleMaterial','collectibleModel','collectibleScale','country','denomination','year','type','condition','quantity','frontImg','backImg','gradingCertImage','additionalImages','notes',
           'issueEdition','issueEditionOther','isGraded','gradingCompany','gradeValue','gradePercent','gradingCertNumber','gradingVerificationStatus','gradingNotes',
           'marketCategory','marketOfferType','marketSalePrice','marketUnitPrice','marketQuantity','marketSetPieces','marketSetSize','marketSetCurrencyMode','marketPriceUnit',
-          'marketPartialAllowed','marketNegotiationEnabled','marketNegotiationPercent','marketTitle','homeFeatured','homeQuickDeal','homeDiscounted','homeDiscountPercent','homePromoUntil','homePromoBadge','homePromoPriority','updated','specialNumberEnabled','fantasiaEnabled']
+          'marketPartialAllowed','marketNegotiationEnabled','marketNegotiationPercent','marketTitle','homeFeatured','homeQuickDeal','homeDiscounted','homeDiscountPercent','homePromoUntil','homePromoBadge','homePromoPriority','updated','specialNumberEnabled','specialNumberType','specialNumberTypes','specialNumberReason','transitionalIssueEnabled','transitionalIssueType','transitionalRarity','fantasiaEnabled']
     out={k:i.get(k) for k in keys}
     out['storeType']=item_store_type(i)
     out.update(public_seller_identity(i))
@@ -1134,7 +1134,7 @@ def public_special_item(item):
     if serials and not available and reserved and len(sold)<len(serials): status="reserved"
     elif qty<=0: status="sold"
     else: status="available" if sale else "display"
-    keys=("id","storeType","country","denomination","year","condition","serial","serials","frontImg","backImg","specialNumberType","specialNumberTypes","specialNumberReason","marketSalePrice","marketUnitPrice","marketNegotiationEnabled","marketNegotiationPercent","marketOfferType","marketTitle","homeFeatured","homeQuickDeal","homeDiscounted","homeDiscountPercent","homePromoUntil","homePromoBadge","homePromoPriority","quantity")
+    keys=("id","storeType","country","denomination","year","condition","serial","serials","frontImg","backImg","gradingCertImage","additionalImages","specialNumberType","specialNumberTypes","specialNumberReason","marketSalePrice","marketUnitPrice","marketNegotiationEnabled","marketNegotiationPercent","marketOfferType","marketTitle","homeFeatured","homeQuickDeal","homeDiscounted","homeDiscountPercent","homePromoUntil","homePromoBadge","homePromoPriority","quantity")
     out={k:item.get(k) for k in keys}; out['storeType']=item_store_type(item); out.update(public_seller_identity(item)); out.update({"availableSerials":available,"availableQuantity":qty,"unitPrice":price,"saleEnabled":sale,"soldOut":status=="sold","availabilityStatus":status}); return out
 
 def public_portal_url(host):
@@ -1614,7 +1614,7 @@ ADMIN_GET_API={
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
     '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity','/api/archive/items','/api/live-auctions/admin'
 }
-PUBLIC_POST_API={'/api/special/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/visitor/order/action','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/seller/order/update','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
+PUBLIC_POST_API={'/api/special/request','/api/fantasia/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/participant/profile','/api/bid','/api/visitor/receive','/api/visitor/order/action','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/seller/order/update','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
 PUBLIC_STATIC={'/styles.css','/public_home.html','/dar_home.html','/collectibles_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/seller_portal.css','/seller_portal.js','/invoice.html','/live_auction.html','/live_auction.js','/live_studio.html','/live_studio.js'}
 
 class H(SimpleHTTPRequestHandler):
@@ -1707,7 +1707,7 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/api/version':
-            self.sendj({'version':'5.6.2','channel':'DAR-MUQTANYAT-SEPARATED-OPERATIONS','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
+            self.sendj({'version':'5.6.2-R8','channel':'DAR-MUQTANYAT-R8-STABILITY','marketFirstLaunch':False,'liveVideoProvider':'livekit','liveVideoConfigured':livekit_configured()}); return
         if p=='/account-logout':
             token=self.cookie_value('NawaderParticipant'); PARTICIPANT_SESSIONS.pop(token,None)
             self.send_response(302); self.send_header('Set-Cookie','NawaderParticipant=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'); self.send_header('Location','/account'); self.end_headers(); return
@@ -2511,6 +2511,12 @@ class H(SimpleHTTPRequestHandler):
                 if destination not in ('vault','market','auction'): destination='vault'
                 requested_store_type=normalize_store_type(d.get('storeType'),d)
                 collectible_category=str(d.get('collectibleCategory') or '').strip().lower()
+                allowed_collectible_categories={'fantasia','antiques','prayer-beads','vehicles-models','aviation-marine','jewelry-stones','games','other'}
+                if requested_store_type=='collectibles':
+                    if collectible_category not in allowed_collectible_categories:
+                        self.sendj({'error':'اختر تصنيفًا صحيحًا لنوادر المقتنيات'},400); return
+                else:
+                    collectible_category=''
 
                 inv=submission_inventory_values(d)
                 serial=str(d.get('serial') or '').strip()
@@ -2563,24 +2569,29 @@ class H(SimpleHTTPRequestHandler):
                         self.sendj({'error':'حدد سعر افتتاح أكبر من صفر للمزاد'},400); return
 
                 # تصنيفات عامة مباشرة.
-                special_enabled=bool(d.get('specialNumberEnabled'))
+                special_enabled=(requested_store_type=='coins' and bool(d.get('specialNumberEnabled')))
                 special_types=d.get('specialNumberTypes') if isinstance(d.get('specialNumberTypes'),list) else []
                 special_types=[str(x).strip() for x in special_types if str(x).strip()]
                 special_reason=str(d.get('specialNumberReason') or '').strip()[:1000]
 
-                fantasia_enabled=bool(d.get('fantasiaEnabled')) or collectible_category=='fantasia'
-                if fantasia_enabled: requested_store_type='collectibles'
+                fantasia_enabled=(requested_store_type=='collectibles' and (bool(d.get('fantasiaEnabled')) or collectible_category=='fantasia'))
                 fantasia_type=str(d.get('fantasiaType') or '').strip()
                 fantasia_issuer=str(d.get('fantasiaIssuer') or '').strip()[:300]
                 fantasia_notes=str(d.get('fantasiaNotes') or '').strip()[:1000]
 
-                transitional_enabled=bool(d.get('transitionalIssueEnabled'))
+                transitional_enabled=(requested_store_type=='coins' and bool(d.get('transitionalIssueEnabled')))
                 transitional_type=str(d.get('transitionalIssueType') or '').strip()
                 transitional_prev=str(d.get('transitionalPreviousIssue') or '').strip()
                 transitional_next=str(d.get('transitionalNextIssue') or '').strip()
                 transitional_rarity=str(d.get('transitionalRarity') or '').strip()
                 transitional_reason=str(d.get('transitionalReason') or '').strip()[:1000]
                 transitional_notes=str(d.get('transitionalNotes') or '').strip()[:1000]
+
+                if requested_store_type!='coins':
+                    special_types=[]; special_reason=''
+                    transitional_type=''; transitional_prev=''; transitional_next=''; transitional_rarity=''; transitional_reason=''; transitional_notes=''
+                if requested_store_type!='collectibles':
+                    fantasia_enabled=False; fantasia_type=''; fantasia_issuer=''; fantasia_notes=''
 
                 if special_enabled and not special_types:
                     self.sendj({'error':'اختر نوع الرقم المميز أو النادر'},400); return
@@ -3934,7 +3945,7 @@ if _missing_runtime:
     raise RuntimeError('ملفات تشغيل أساسية مفقودة: '+', '.join(os.path.relpath(p,ROOT) for p in _missing_runtime))
 ensure_dues_tracking_start()
 _auth_cfg,_new_admin_password=ensure_admin_auth()
-VERSION='5.6.2-R5-HOME-BRAND'
+VERSION='5.6.2-R8-STABILITY'
 def local_ip():
     try:
         x=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); x.connect(('8.8.8.8',80)); ip=x.getsockname()[0]; x.close(); return ip
