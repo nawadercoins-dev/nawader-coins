@@ -4356,20 +4356,40 @@ window.imageVaultAction=async(id,action)=>{
   if(action==='release'&&!confirm('إعادة هذه الصورة من «قيد الاستخدام» إلى «متاحة»؟'))return;
   try{await api('/api/image-vault/action',{method:'POST',body:JSON.stringify({id,action})});await renderImageVault()}catch(e){alert(e.message)}
 };
+async function prepareVaultImageUpload(file){
+  if(!file||file.size<=900*1024||!/^image\/(jpeg|jpg|png|webp)$/i.test(file.type||''))return file;
+  try{
+    const bmp=await createImageBitmap(file),maxSide=1600,scale=Math.min(1,maxSide/Math.max(bmp.width,bmp.height));
+    const c=document.createElement('canvas');c.width=Math.max(1,Math.round(bmp.width*scale));c.height=Math.max(1,Math.round(bmp.height*scale));
+    c.getContext('2d').drawImage(bmp,0,0,c.width,c.height); if(bmp.close)bmp.close();
+    const blob=await new Promise(res=>c.toBlob(res,'image/jpeg',0.82));
+    return blob||file;
+  }catch{return file}
+}
 async function uploadImagesToVault(){
   const files=[...($('imageVaultFiles')?.files||[])]; if(!files.length){alert('اختر صورة واحدة على الأقل.');return}
   const btn=$('uploadImageVault'),status=$('imageVaultUploadStatus'); if(btn)btn.disabled=true;
   let ok=0;
   try{
     for(let i=0;i<files.length;i++){
-      if(status)status.textContent=`جارٍ رفع الصورة ${i+1} من ${files.length}…`;
-      const f=files[i]; const r=await fetch('/api/image-vault/upload',{method:'POST',credentials:'same-origin',headers:{'Content-Type':f.type||'image/jpeg'},body:f});
-      const j=await r.json().catch(()=>({})); if(!r.ok)throw new Error(j.error||`تعذر رفع الصورة ${i+1}`); ok++;
+      const original=files[i];
+      if(status)status.textContent=`جارٍ تجهيز ورفع الصورة ${i+1} من ${files.length}…`;
+      const f=await prepareVaultImageUpload(original);
+      const r=await fetch('/api/image-vault/upload',{method:'POST',credentials:'same-origin',headers:{'Content-Type':f.type||original.type||'image/jpeg','X-Original-Name':encodeURIComponent(original.name||'image')},body:f});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok){
+        if(r.status===401)throw new Error('انتهت جلسة الإدارة. سجّل دخول الإدارة من جديد ثم أعد الرفع.');
+        throw new Error(j.error||`تعذر رفع الصورة ${i+1}`);
+      }
+      ok++;
+      if(status)status.textContent=`✓ تم رفع ${ok} من ${files.length}…`;
     }
-    if(status)status.textContent=`✓ تم رفع ${ok} صورة إلى الخزينة.`; if($('imageVaultFiles'))$('imageVaultFiles').value=''; await renderImageVault(true);
+    if(status)status.textContent=`✓ تم رفع ${ok} صورة إلى الخزينة وأصبحت متاحة لمسؤول إدخال البيانات.`;
+    if($('imageVaultFiles'))$('imageVaultFiles').value=''; await renderImageVault(true);
   }catch(e){if(status)status.textContent=`تم رفع ${ok} صورة، ثم توقف الرفع: ${e.message}`}
   finally{if(btn)btn.disabled=false}
 }
+if($('imageVaultFiles'))$('imageVaultFiles').onchange=()=>{const n=$('imageVaultFiles').files?.length||0;if($('imageVaultUploadStatus'))$('imageVaultUploadStatus').textContent=n?`تم اختيار ${n} صورة. اضغط «رفع الصور للخزينة».`:''};
 if($('uploadImageVault'))$('uploadImageVault').onclick=uploadImagesToVault;
 if($('refreshImageVault'))$('refreshImageVault').onclick=()=>renderImageVault();
 if($('imageVaultFilter'))$('imageVaultFilter').onchange=()=>renderImageVault(true);
