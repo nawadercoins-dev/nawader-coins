@@ -1,0 +1,46 @@
+name: Apply public searchable item landing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-public-item-landing.yml'
+      - 'tools/patch_public_item_landing.py'
+      - 'public/item_landing.html'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply isolated public landing patch
+        run: python tools/patch_public_item_landing.py
+      - name: Validate public landing and server syntax
+        run: |
+          python -m py_compile server.py
+          git diff --check
+          grep -q "if p=='/sitemap.xml':" server.py
+          grep -q "if p.startswith('/item/')" server.py
+          grep -q "Sitemap: https://nawadercoins.com/sitemap.xml" server.py
+          grep -q "PUBLIC_ITEM_TEMPLATE" server.py
+          grep -q "meta name=\"robots\" content=\"index,follow,max-image-preview:large\"" public/item_landing.html
+          grep -q "application/ld+json" public/item_landing.html
+          grep -q "'/item/'+encodeURIComponent(i.id)" public/public_market.js
+          grep -q "'/item/'+encodeURIComponent(i.id)" public/public_auction.js
+      - name: Commit targeted application changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server.py public/public_market.js public/public_auction.js
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "feat: public indexable item pages with login-on-action"
+            git push origin HEAD:main
+          fi
