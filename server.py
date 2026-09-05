@@ -1036,7 +1036,7 @@ def overdue_due_for(pid):
 
 def load_settings():
     defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':True,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','whatsappVerificationNumber':'966551892409','duesTrackingStartedAt':'','paymentBankName':'','paymentAccountName':'','paymentIban':'','paymentInstructions':'حوّل المبلغ النهائي بعد اعتماد الشحن، ثم ارفع صورة إشعار التحويل من صفحة المستحقات.','paymentWhatsapp':'','visitorSections':{'market':True,'auction':True,'specialNumbers':True,'transitionalIssues':True,
-            'fantasia':True},'fullPublicEnableV493':False}
+            'fantasia':True,'promotions':True,'announcements':True,'liveAuction':True,'collectiblesStore':True},'fullPublicEnableV493':False}
     x=load_json(SETTINGS,defaults.copy())
     defaults.update(x if isinstance(x,dict) else {})
     vis=defaults.get('visitorSections')
@@ -1047,6 +1047,10 @@ def load_settings():
         'specialNumbers': bool(vis.get('specialNumbers',True)),
         'transitionalIssues': bool(vis.get('transitionalIssues',True)),
         'fantasia': bool(vis.get('fantasia',True)),
+        'promotions': bool(vis.get('promotions',True)),
+        'announcements': bool(vis.get('announcements',True)),
+        'liveAuction': bool(vis.get('liveAuction',True)),
+        'collectiblesStore': bool(vis.get('collectiblesStore',True)),
     }
     # V4.9.3 one-time corrective migration:
     # previous market-first launch mode may have left public sections/auction fee disabled.
@@ -1058,6 +1062,10 @@ def load_settings():
             'specialNumbers':True,
             'transitionalIssues':True,
             'fantasia':True,
+            'promotions':True,
+            'announcements':True,
+            'liveAuction':True,
+            'collectiblesStore':True,
         }
         defaults['entryFeeEnabled']=True
         defaults['fullPublicEnableV493']=True
@@ -1072,6 +1080,10 @@ def effective_visitor_sections(settings=None):
         'specialNumbers':vs.get('specialNumbers',True) is not False,
         'transitionalIssues':vs.get('transitionalIssues',True) is not False,
         'fantasia':vs.get('fantasia',True) is not False,
+        'promotions':vs.get('promotions',True) is not False,
+        'announcements':vs.get('announcements',True) is not False,
+        'liveAuction':vs.get('liveAuction',True) is not False,
+        'collectiblesStore':vs.get('collectiblesStore',True) is not False,
     }
 
 BACKUP_FILES=[
@@ -1800,7 +1812,7 @@ ADMIN_GET_API={
     '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/image-vault/admin','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity','/api/archive/items','/api/live-auctions/admin'
 }
 PUBLIC_POST_API={'/api/special/request','/api/fantasia/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/google/link/start','/api/facebook/link/start','/api/participant/profile','/api/bid','/api/visitor/receive','/api/visitor/order/action','/api/visitor/payment-proof','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/data-entry/submissions','/api/image-vault/pull','/api/image-vault/release','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/seller/order/update','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
-PUBLIC_STATIC={'/styles.css','/public_home.html','/dar_home.html','/collectibles_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/seller_portal.css','/seller_portal.js','/data_entry.html','/invoice.html','/live_auction.html','/live_auction.js','/live_studio.html','/live_studio.js'}
+PUBLIC_STATIC={'/styles.css','/public_home.html','/dar_home.html','/collectibles_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/section_visibility.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/seller_portal.css','/seller_portal.js','/data_entry.html','/invoice.html','/live_auction.html','/live_auction.js','/live_studio.html','/live_studio.js'}
 
 class H(SimpleHTTPRequestHandler):
     def cookie_value(self,name):
@@ -2024,6 +2036,8 @@ class H(SimpleHTTPRequestHandler):
         if p in ('/coins','/coins/','/public_home.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'public_home.html'),'text/html; charset=utf-8'); return
         if p in ('/collectibles','/collectibles/','/collectibles_home.html'):
+            if not effective_visitor_sections()['collectiblesStore']:
+                self.send_response(302); self.send_header('Location','/dar'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'collectibles_home.html'),'text/html; charset=utf-8'); return
         if p in ('/admin','/admin/','/index.html'):
             if not self.require_admin(): return
@@ -2301,7 +2315,8 @@ class H(SimpleHTTPRequestHandler):
             rows=[public_special_item(i) for i in load() if i.get('specialNumberEnabled') and item_is_public(i) and item_store_type(i)=='coins']
             self.sendj({'items':rows}); return
         if p=='/api/public/fantasia':
-            if not effective_visitor_sections()['fantasia']:
+            sections=effective_visitor_sections()
+            if not sections['fantasia'] or not sections['collectiblesStore']:
                 self.sendj({'items':[],'hidden':True,'launchMode':True}); return
             rows=[public_special_item(i) for i in load() if i.get('fantasiaEnabled') and item_is_public(i) and item_store_type(i)=='collectibles']
             for row in rows:
@@ -2391,6 +2406,8 @@ class H(SimpleHTTPRequestHandler):
                     print('خطأ تحميل مصدر المزادات العامة:',e)
                     self.sendj({'items':[],'error':'تعذر قراءة مصدر المزادات مؤقتًا','retryable':True},503); return
                 store=requested_store(self.path)
+                if store=='collectibles' and not effective_visitor_sections()['collectiblesStore']:
+                    self.sendj({'items':[],'store':store,'hidden':True}); return
                 for i in source_items:
                     if not (i.get('forAuction') and i.get('auctionApproved') and item_is_public(i)): continue
                     if store and item_store_type(i)!=store: continue
@@ -2476,8 +2493,11 @@ class H(SimpleHTTPRequestHandler):
                 'verificationCode':verify
             }}); return
         if p=='/api/public/market':
+            sections=effective_visitor_sections()
+            store=requested_store(self.path)
+            if not sections['market'] or (store=='collectibles' and not sections['collectiblesStore']):
+                self.sendj({'items':[],'store':store,'hidden':True}); return
             with LOCK:
-                store=requested_store(self.path)
                 items=[public_market_item(i) for i in load() if i.get('forMarket') and i.get('marketApproved') and item_is_public(i) and (not store or item_store_type(i)==store)]
                 self.sendj({'items':items,'store':store}); return
         if p=='/api/market/requests':
@@ -2526,6 +2546,8 @@ class H(SimpleHTTPRequestHandler):
             self.send_file(os.path.join(PUBLIC_DIR,'public_auction.html'),'text/html; charset=utf-8'); return
         # Robust public-auction aliases so the visitor page works even when the browser uses a clean URL.
         if p in ('/announcements','/announcements/','/announcements.html'):
+            if not effective_visitor_sections()['announcements']:
+                self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'announcements.html'),'text/html; charset=utf-8'); return
         if p in ('/account','/account/','/account.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'account.html'),'text/html; charset=utf-8'); return
@@ -2547,11 +2569,14 @@ class H(SimpleHTTPRequestHandler):
                 self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'special_numbers.html'),'text/html; charset=utf-8'); return
         if p in ('/live-auction','/live-auction/','/live_auction.html'):
+            if not effective_visitor_sections()['liveAuction']:
+                self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'live_auction.html'),'text/html; charset=utf-8'); return
         if p in ('/live-studio','/live-studio/','/live_studio.html'):
             self.send_file(os.path.join(PUBLIC_DIR,'live_studio.html'),'text/html; charset=utf-8'); return
         if p in ('/fantasia','/fantasia/','/fantasia.html'):
-            if not effective_visitor_sections()['fantasia']:
+            sections=effective_visitor_sections()
+            if not sections['fantasia'] or not sections['collectiblesStore']:
                 self.sendj({'error':'قسم فانتازيا غير متاح حاليًا'},404); return
             self.send_file(os.path.join(PUBLIC_DIR,'fantasia.html'),'text/html; charset=utf-8'); return
         if p in ('/transitional-issues','/transitional-issues/','/transitional_issues.html'):
@@ -2559,11 +2584,13 @@ class H(SimpleHTTPRequestHandler):
                 self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'transitional_issues.html'),'text/html; charset=utf-8'); return
         if p in ('/auction','/auction/','/public_auction.html','/public-auction'):
-            if not effective_visitor_sections()['auction']:
+            sections=effective_visitor_sections(); store=requested_store(self.path)
+            if not sections['auction'] or (store=='collectibles' and not sections['collectiblesStore']):
                 self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'public_auction.html'),'text/html; charset=utf-8'); return
         if p in ('/market','/market/','/public_market.html','/public-market'):
-            if not effective_visitor_sections()['market']:
+            sections=effective_visitor_sections(); store=requested_store(self.path)
+            if not sections['market'] or (store=='collectibles' and not sections['collectiblesStore']):
                 self.send_response(302); self.send_header('Location','/'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'public_market.html'),'text/html; charset=utf-8'); return
         # لا نسمح بعرض مجلد المشروع أو الملفات الإدارية مباشرة.
@@ -4194,7 +4221,7 @@ class H(SimpleHTTPRequestHandler):
                 incoming=d.get('visitorSections')
                 if isinstance(incoming,dict):
                     current=dict(st.get('visitorSections') or {})
-                    for key in ('market','auction','specialNumbers','transitionalIssues','fantasia'):
+                    for key in ('market','auction','specialNumbers','transitionalIssues','fantasia','promotions','announcements','liveAuction','collectiblesStore'):
                         if key in incoming: current[key]=bool(incoming[key])
                     st['visitorSections']=current
                 save_json(SETTINGS,st)

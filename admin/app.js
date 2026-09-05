@@ -3630,6 +3630,10 @@ async function loadAdminSettingsPanel() {
     if ($("visitorSectionSpecialNumbers")) $("visitorSectionSpecialNumbers").checked = vs.specialNumbers !== false;
     if ($("visitorSectionTransitional")) $("visitorSectionTransitional").checked = vs.transitionalIssues !== false;
     if ($("visitorSectionFantasia")) $("visitorSectionFantasia").checked = vs.fantasia !== false;
+    if ($("visitorSectionPromotions")) $("visitorSectionPromotions").checked = vs.promotions !== false;
+    if ($("visitorSectionAnnouncements")) $("visitorSectionAnnouncements").checked = vs.announcements !== false;
+    if ($("visitorSectionLiveAuction")) $("visitorSectionLiveAuction").checked = vs.liveAuction !== false;
+    if ($("visitorSectionCollectiblesStore")) $("visitorSectionCollectiblesStore").checked = vs.collectiblesStore !== false;
     $("platformName").value = st.platformName || "نوادر العملات";
     $("adminEmail").value = st.adminEmail || "";
     if ($("ocrTesseractPath"))
@@ -3661,6 +3665,10 @@ if ($("saveSettings"))
             specialNumbers: $("visitorSectionSpecialNumbers") ? !!$("visitorSectionSpecialNumbers").checked : true,
             transitionalIssues: $("visitorSectionTransitional") ? !!$("visitorSectionTransitional").checked : true,
             fantasia: $("visitorSectionFantasia") ? !!$("visitorSectionFantasia").checked : true,
+            promotions: $("visitorSectionPromotions") ? !!$("visitorSectionPromotions").checked : true,
+            announcements: $("visitorSectionAnnouncements") ? !!$("visitorSectionAnnouncements").checked : true,
+            liveAuction: $("visitorSectionLiveAuction") ? !!$("visitorSectionLiveAuction").checked : true,
+            collectiblesStore: $("visitorSectionCollectiblesStore") ? !!$("visitorSectionCollectiblesStore").checked : true,
           },
           platformName: $("platformName").value.trim() || "نوادر العملات",
           adminEmail: $("adminEmail").value.trim(),
@@ -3675,6 +3683,10 @@ if ($("saveSettings"))
       if ($("visitorSectionSpecialNumbers")) $("visitorSectionSpecialNumbers").checked = savedVs.specialNumbers !== false;
       if ($("visitorSectionTransitional")) $("visitorSectionTransitional").checked = savedVs.transitionalIssues !== false;
       if ($("visitorSectionFantasia")) $("visitorSectionFantasia").checked = savedVs.fantasia !== false;
+      if ($("visitorSectionPromotions")) $("visitorSectionPromotions").checked = savedVs.promotions !== false;
+      if ($("visitorSectionAnnouncements")) $("visitorSectionAnnouncements").checked = savedVs.announcements !== false;
+      if ($("visitorSectionLiveAuction")) $("visitorSectionLiveAuction").checked = savedVs.liveAuction !== false;
+      if ($("visitorSectionCollectiblesStore")) $("visitorSectionCollectiblesStore").checked = savedVs.collectiblesStore !== false;
       st.textContent = "✅ تم حفظ الإعدادات وتأكيدها من الخادم.";
     } catch (e) {
       st.textContent = "⚠️ " + e.message;

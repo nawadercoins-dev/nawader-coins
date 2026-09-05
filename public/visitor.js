@@ -55,55 +55,8 @@ refresh();
 
 // V4.0.20: فصل واجهة العميل عن الإدارة بالكامل؛ لا تُحقن روابط الإدارة في الصفحات العامة.
 
-
 /* V4.3.3 — Central visitor section visibility */
 (function(){
-  const sectionLinks={
-    market:['/market','/public_market.html','/public-market'],
-    auction:['/auction','/public_auction.html','/public-auction','/daily-auction'],
-    specialNumbers:['/special-numbers','/special_numbers.html'],
-    transitionalIssues:['/transitional-issues','/transitional_issues.html']
-  };
-  function pathOnly(href){
-    try{return new URL(href,location.origin).pathname.replace(/\/+$/,'')||'/'}catch(e){return ''}
-  }
-  function setLinkVisibility(key,visible){
-    const paths=(sectionLinks[key]||[]).map(x=>x.replace(/\/+$/,''));
-    document.querySelectorAll('a[href]').forEach(a=>{
-      const p=pathOnly(a.getAttribute('href'));
-      if(paths.includes(p)) a.hidden=!visible;
-    });
-  }
-  function apply(vs){
-    vs=vs||{};
-    const market=vs.market!==false, auction=vs.auction!==false,
-      special=vs.specialNumbers!==false, transitional=vs.transitionalIssues!==false;
-    setLinkVisibility('market',market);
-    setLinkVisibility('auction',auction);
-    setLinkVisibility('specialNumbers',special);
-    setLinkVisibility('transitionalIssues',transitional);
-
-    // Home-page image showcases follow the same switches.
-    const auctionStrip=document.getElementById('auctionImageStrip');
-    if(auctionStrip){
-      const box=auctionStrip.closest('.showcase');
-      if(box) box.hidden=!auction;
-    }
-    const marketStrip=document.getElementById('marketImageStrip');
-    if(marketStrip){
-      const box=marketStrip.closest('.showcase');
-      if(box) box.hidden=!market;
-    }
-  }
-  async function refresh(){
-    try{
-      const r=await fetch('/api/settings/public',{cache:'no-store'});
-      if(!r.ok) return;
-      const d=await r.json();
-      apply(d.visitorSections||{});
-    }catch(e){}
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',refresh,{once:true});
-  else refresh();
-  window.refreshVisitorSections=refresh;
+  if(document.querySelector('script[data-section-visibility]'))return;
+  const s=document.createElement('script');s.src='/section_visibility.js?v=2';s.defer=true;s.dataset.sectionVisibility='1';document.head.appendChild(s);
 })();
