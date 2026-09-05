@@ -1,0 +1,42 @@
+name: Apply account cart Google entry fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/patch_account_cart_google_entry.py'
+      - '.github/workflows/apply-account-cart-google-entry-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply isolated fixes
+        run: python tools/patch_account_cart_google_entry.py
+      - name: Validate
+        run: |
+          python -m py_compile server.py
+          git diff --check
+          grep -q "d.role==='admin'" public/account.html
+          grep -q "mobile toast above fixed visitor navigation" public/visitor.css
+          grep -q "public-item-image-link" public/public_market.js
+      - name: Commit patched app files
+        run: |
+          if git diff --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/account.html public/visitor.css public/public_market.js
+          git commit -m "fix: keep account landing and surface mobile cart messages"
+          git push origin main
