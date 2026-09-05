@@ -58,6 +58,9 @@ PARTICIPANT_SESSION_SECRET_FILE=os.path.join(DATA_ROOT,'.participant_session_sec
 ADMIN_CREDENTIALS=''
 ADMIN_SESSIONS={}
 PARTICIPANT_SESSIONS={}
+ADMIN_LOGIN_ATTEMPTS={}
+ADMIN_LOGIN_WINDOW_SECONDS=15*60
+ADMIN_LOGIN_MAX_ATTEMPTS=5
 SESSION_TTL_SECONDS=12*60*60
 PARTICIPANT_SESSION_TTL_SECONDS=90*24*60*60
 MARKET_FIRST_LAUNCH=False
@@ -1911,6 +1914,22 @@ class H(SimpleHTTPRequestHandler):
             except Exception: pass
     def do_GET(self):
         p=urlparse(self.path).path
+        if p=='/api/auth/route':
+            # Authoritative post-login routing. Public UI never grants or selects roles.
+            if self.is_admin():
+                self.sendj({'ok':True,'authenticated':True,'role':'admin','redirect':'/admin'}); return
+            person=self.participant_person()
+            if not person:
+                self.sendj({'ok':True,'authenticated':False,'role':'visitor','redirect':'/account'}); return
+            pid=str(person.get('id') or '')
+            perms=participant_permissions(pid)
+            if perms.get('dataEntry'):
+                role,redirect='data_entry','/data-entry'
+            elif perms.get('sellerMarket') or perms.get('sellerEndedAuctions') or perms.get('liveBroadcast'):
+                role,redirect='seller','/seller'
+            else:
+                role,redirect='customer','/account'
+            self.sendj({'ok':True,'authenticated':True,'role':role,'redirect':redirect}); return
         if p=='/api/facebook/status':
             _oauth_prune(); token=self.cookie_value('NawaderFacebookPending'); pending=FACEBOOK_PENDING_LINKS.get(token) if token else None
             self.sendj({'ok':True,'configured':bool(FACEBOOK_APP_ID and FACEBOOK_APP_SECRET),'pending':_facebook_public_profile(pending) if pending else None}); return
@@ -2623,8 +2642,14 @@ class H(SimpleHTTPRequestHandler):
                 username=(form.get('username') or [''])[0]; password=(form.get('password') or [''])[0]
             except Exception:
                 self.login_page('تعذر قراءة بيانات الدخول.'); return
+            client_key=(self.headers.get('X-Forwarded-For') or '').split(',')[0].strip() or str(self.client_address[0] if self.client_address else 'unknown')
+            now=time.time(); tries=[t for t in ADMIN_LOGIN_ATTEMPTS.get(client_key,[]) if now-t<ADMIN_LOGIN_WINDOW_SECONDS]
+            if len(tries)>=ADMIN_LOGIN_MAX_ATTEMPTS:
+                self.login_page('تم إيقاف محاولات دخول الإدارة مؤقتًا بسبب تكرار المحاولات. حاول بعد 15 دقيقة.'); return
             if not verify_admin_password(username,password):
-                time.sleep(0.35); self.login_page('اسم المستخدم أو كلمة المرور غير صحيحة.'); return
+                tries.append(now); ADMIN_LOGIN_ATTEMPTS[client_key]=tries
+                time.sleep(0.5); self.login_page('اسم المستخدم أو كلمة المرور غير صحيحة.'); return
+            ADMIN_LOGIN_ATTEMPTS.pop(client_key,None)
             token=secrets.token_urlsafe(32); ADMIN_SESSIONS[token]={'created':time.time(),'last':time.time()}
             secure='; Secure' if (self.headers.get('X-Forwarded-Proto') or '').lower()=='https' else ''
             self.send_response(302); self.send_header('Set-Cookie',f'KhazinaAdmin={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={SESSION_TTL_SECONDS}{secure}'); self.send_header('Location','/admin'); self.end_headers(); return
