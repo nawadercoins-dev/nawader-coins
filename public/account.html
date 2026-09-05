@@ -501,7 +501,7 @@ $('waCheck').onclick=checkWaApproval;let restoredWa=getWaPending();if(restoredWa
 async function routeAuthenticatedRole(){
   try{
     const r=await fetch('/api/auth/route',{cache:'no-store'}),d=await r.json();
-    if(r.ok&&d.authenticated&&d.redirect&&d.redirect!='/account'){
+    if(r.ok&&d.authenticated&&d.role==='admin'&&d.redirect&&d.redirect!='/account'){
       location.replace(d.redirect);return true;
     }
   }catch(e){}

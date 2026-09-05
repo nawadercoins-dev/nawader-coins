@@ -193,3 +193,33 @@ html body nav.visitor-floating-nav{
 
 /* V5.5.1 — منع شراء العروض المحجوزة مع حالة واضحة */
 .market-card-actions .market-unavailable:disabled{opacity:1!important;background:#6b7280!important;color:#fff!important;cursor:not-allowed!important;filter:none!important}
+
+
+/* V5.6.2-R8.1 — mobile toast above fixed visitor navigation */
+.has-visitor-floating-nav .visitor-toast{
+  z-index:100060!important;
+  bottom:calc(78px + env(safe-area-inset-bottom,0px))!important;
+  max-width:calc(100vw - 24px)!important;
+  width:max-content!important;
+  text-align:center!important;
+  white-space:normal!important;
+  line-height:1.55!important;
+  pointer-events:none!important;
+}
+@media(max-width:480px){
+  .has-visitor-floating-nav .visitor-toast{
+    bottom:calc(72px + env(safe-area-inset-bottom,0px))!important;
+    max-width:calc(100vw - 18px)!important;
+    font-size:14px!important;
+  }
+}
+
+
+/* V5.6.2-R8.1 — crawlable public item image link */
+.market-photo .public-item-image-link{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  min-width:0!important;
+}
+.market-photo .public-item-image-link img{cursor:pointer!important}

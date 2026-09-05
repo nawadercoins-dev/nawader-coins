@@ -141,7 +141,7 @@ function card(i){
       <div class="market-image-column">
         <div class="photo market-photo">
           ${images.length?`<button class="market-photo-arrow market-photo-prev" type="button" onclick="event.stopPropagation();shiftMarketImage('${i.id}',-1)">‹</button>
-          <img id="market-cover-${i.id}" src="${esc(images[0])}" data-market-index="0" loading="lazy" alt="${esc(title)}">
+          <a class="public-item-image-link" href="/item/${encodeURIComponent(i.id)}" aria-label="فتح تفاصيل ${esc(title)}"><img id="market-cover-${i.id}" src="${esc(images[0])}" data-market-index="0" loading="lazy" alt="${esc(title)}"></a>
           <button class="market-photo-arrow market-photo-next" type="button" onclick="event.stopPropagation();shiftMarketImage('${i.id}',1)">›</button>
           <span class="market-photo-count" id="market-cover-count-${i.id}">1/${images.length}</span>`:'<span class="no-market-photo">لا توجد صورة</span>'}
         </div>
