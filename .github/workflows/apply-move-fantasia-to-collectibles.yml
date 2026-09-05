@@ -1,0 +1,43 @@
+name: Move Fantasia under collectibles visibility
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-move-fantasia-to-collectibles.yml'
+      - 'tools/patch_move_fantasia_to_collectibles.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply isolated Fantasia grouping correction
+        run: python tools/patch_move_fantasia_to_collectibles.py
+      - name: Validate targeted admin-only change
+        run: |
+          git diff --check
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('admin/index.html').read_text(encoding='utf-8')
+          assert s.count('id="visitorSectionFantasia"') == 1
+          assert s.index('<b>أقسام نوادر المقتنيات</b>') < s.index('id="visitorSectionFantasia"')
+          assert 'فنتازيا يتحكم بها خيار' not in s
+          PY
+      - name: Commit correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add admin/index.html
+          if git diff --cached --quiet; then
+            echo "No admin change needed"
+          else
+            git commit -m "fix: group Fantasia under collectibles visibility"
+            git push origin HEAD:main
+          fi
