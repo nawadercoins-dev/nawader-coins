@@ -1,0 +1,44 @@
+name: Apply secure unified login hardening
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-secure-unified-login.yml'
+      - 'tools/patch_secure_unified_login.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply secure login patch
+        run: python tools/patch_secure_unified_login.py
+      - name: Validate application
+        run: |
+          python -m py_compile server.py
+          git diff --check
+          grep -q "id=\"facebookLogin\"" public/account.html
+          grep -q "id=\"googleLogin\"" public/account.html
+          grep -q "id=\"showWaLogin\"" public/account.html
+          ! grep -q "href=\"/data-entry\">⌨ مسؤول إدخال البيانات" public/account.html
+          ! grep -q "href=\"/admin\">🔐 الإدارة" public/account.html
+          grep -q "if p=='/api/auth/route':" server.py
+          grep -q "ADMIN_LOGIN_MAX_ATTEMPTS=5" server.py
+      - name: Commit hardened application
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server.py public/account.html
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "security: harden unified login and role routing"
+            git push origin HEAD:main
+          fi
