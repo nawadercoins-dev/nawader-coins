@@ -1,0 +1,39 @@
+name: Apply account mobile layout
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-account-mobile-layout.yml'
+      - 'tools/patch_account_mobile_layout.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply mobile layout patch
+        run: python tools/patch_account_mobile_layout.py
+      - name: Validate page
+        run: |
+          git diff --check
+          grep -q "mobile-login-layout-v1" public/account.html
+          grep -q 'id="phoneLoginFields" hidden' public/account.html
+          grep -q 'id="phoneLoginSep" hidden' public/account.html
+      - name: Commit mobile layout
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/account.html
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "ui: tidy unified login on mobile"
+            git push origin HEAD:main
+          fi
