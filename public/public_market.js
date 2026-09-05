@@ -63,7 +63,7 @@ function briefDescription(i){
 async function get(url){let r=await fetch(url,{cache:'no-store'});if(!r.ok)throw new Error('تعذر تحميل السوق');return r.json()}
 function totalFor(i,qty=1){return displayPrice(i)*Math.max(1,Number(qty||1))}
 function reactionButtons(i){
-  let meta={id:i.id,title:i.marketTitle||`${i.country} — ${i.denomination}`,image:i.frontImg||'',url:'/market'+STORE_Q+'#'+encodeURIComponent(i.id),kind:'market'},
+  let meta={id:i.id,title:i.marketTitle||`${i.country} — ${i.denomination}`,image:i.frontImg||'',url:'/item/'+encodeURIComponent(i.id),kind:'market'},
       fav=NawaderVisitor.isFavorite(i.id),liked=NawaderVisitor.isLiked(i.id);
   return `<div class="market-social-actions">
     <button class="reaction-btn ${liked?'on':''}" onclick='toggleMarketReaction(${JSON.stringify(meta)},"like",this)'>👍 <span>${liked?'معجب':'إعجاب'}</span></button>
@@ -76,7 +76,7 @@ window.toggleMarketReaction=(meta,kind,btn)=>{let on=kind==='like'?NawaderVisito
 window.shareMarketItem=async(id)=>{
   const i=ITEMS.find(x=>String(x.id)===String(id));
   if(!i)return;
-  const url=location.origin+location.pathname+STORE_Q+'#'+encodeURIComponent(id);
+  const url=location.origin+'/item/'+encodeURIComponent(id);
   const title=i.marketTitle||`${i.country||''} — ${i.denomination||''}`;
   const text=`شاهد هذا المعروض في سوق ${STORE_LABEL}: ${title}`;
   try{

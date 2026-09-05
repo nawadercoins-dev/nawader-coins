@@ -40,7 +40,7 @@ function card(i){
   let slideLabel=bids>0?`اسحب للمزايدة بـ ${money(suggested)} (+${money(step)}) ←`:`اسحب لفتح المزايدة بـ ${money(suggested)} ←`;
   let statusChip=ended?(sold?`<span class="winner-chip">🏆 تم البيع</span>`:`<span class="ended-chip">انتهى</span>`):`<span class="live-chip">● مزاد نشط</span>`;
   let transitionChip=i.transitionalIssueEnabled?`<span class="transitional-public-badge">⇄ إصدار انتقالي</span>`:'';
-  let meta={id:i.id,title:`${i.country} — ${i.denomination}`,image:i.frontImg||'',url:'/auction'+STORE_Q+'#'+encodeURIComponent(i.id),kind:'auction'},fav=NawaderVisitor.isFavorite(i.id),liked=NawaderVisitor.isLiked(i.id);
+  let meta={id:i.id,title:`${i.country} — ${i.denomination}`,image:i.frontImg||'',url:'/item/'+encodeURIComponent(i.id),kind:'auction'},fav=NawaderVisitor.isFavorite(i.id),liked=NawaderVisitor.isLiked(i.id);
   let gradeState = i.isGraded ? `${esc(i.gradingCompany||'مقيمة')} ${esc(i.gradeValue||'')}` : (String(i.condition||'').toUpperCase().includes('UNC') ? 'UNC / أنسر' : esc(i.condition||'غير مقيمة'));
   let result=ended?(sold?`<div class="auction-result sold">🏆 تم البيع بنجاح — تم اعتماد الفائز بالمزاد</div>`:`<div class="auction-result unsold">لم يتم البيع / لم يتحقق شرط البيع</div>`):'';
   let bidControls=ended?'':`
@@ -114,7 +114,7 @@ window.shiftAuctionCover=(id,dir)=>{
 window.shareAuctionItem=async(id)=>{
   const i=(auctionAllItems||[]).find(x=>String(x.id)===String(id));
   if(!i)return;
-  const url=location.origin+location.pathname+'#'+encodeURIComponent(id);
+  const url=location.origin+'/item/'+encodeURIComponent(id);
   const title=`مزاد ${i.country||''} ${i.denomination||''}`.trim();
   const text=`شاهد هذا المزاد في نوادر العملات: ${title}`;
   try{
