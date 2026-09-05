@@ -1,0 +1,40 @@
+name: Apply Facebook login patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-facebook-login.yml'
+      - 'tools/patch_facebook_server.py'
+      - 'tools/patch_facebook_account.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply server patch
+        run: python tools/patch_facebook_server.py
+      - name: Apply account page patch
+        run: python tools/patch_facebook_account.py
+      - name: Validate Python and diff
+        run: |
+          python -m py_compile server.py
+          git diff --check
+      - name: Commit patched application
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server.py public/account.html
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "feat: add unified Facebook login"
+            git push origin HEAD:main
+          fi
