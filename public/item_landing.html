@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#071b35">
+<title>{{TITLE}}</title>
+<meta name="description" content="{{DESCRIPTION}}">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<link rel="canonical" href="{{CANONICAL}}">
+<meta property="og:type" content="product">
+<meta property="og:title" content="{{TITLE}}">
+<meta property="og:description" content="{{DESCRIPTION}}">
+<meta property="og:url" content="{{CANONICAL}}">
+<meta property="og:image" content="{{IMAGE}}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{TITLE}}">
+<meta name="twitter:description" content="{{DESCRIPTION}}">
+<meta name="twitter:image" content="{{IMAGE}}">
+<script type="application/ld+json">{{SCHEMA_JSON}}</script>
+<style>
+:root{--navy:#071b35;--navy2:#0c315a;--gold:#c89b3c;--gold2:#e7c878;--paper:#f7f2e8;--ink:#14243b;--muted:#64748b;--green:#17633c}*{box-sizing:border-box}body{margin:0;font-family:Tahoma,"Segoe UI",Arial,sans-serif;background:linear-gradient(180deg,#06172d 0,#0b2d54 250px,#f7f2e8 250px);color:var(--ink)}header{max-width:1100px;margin:auto;padding:20px 16px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.brand{font-weight:900;color:var(--gold2);font-size:22px}.nav{display:flex;gap:8px;flex-wrap:wrap}.nav a{color:#fff;text-decoration:none;border:1px solid #ffffff45;border-radius:999px;padding:8px 12px}.wrap{max-width:1100px;margin:auto;padding:0 16px 42px}.card{background:#fff;border:1px solid #d9c487;border-radius:24px;box-shadow:0 20px 55px #071b3522;overflow:hidden}.hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:0}.gallery{background:#07111f;padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start}.gallery img{width:100%;height:240px;object-fit:contain;background:#0b1726;border-radius:14px;border:1px solid #c89b3c55}.gallery img:first-child{grid-column:1/-1;height:390px}.noimg{grid-column:1/-1;min-height:390px;display:grid;place-items:center;color:#cad5e1;border:1px dashed #ffffff44;border-radius:14px}.content{padding:24px}.eyebrow{color:#8a642b;font-weight:900}.content h1{margin:8px 0 10px;color:var(--navy);font-size:clamp(28px,5vw,44px)}.desc{color:var(--muted);line-height:1.9;margin:0 0 14px}.badges{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}.badge{display:inline-block;border:1px solid #d8c07e;background:#fff7df;color:#6c4d12;border-radius:999px;padding:6px 10px;font-weight:900;font-size:13px}.details{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:16px 0}.detail{border:1px solid #e2e7ed;background:#f8fafc;border-radius:12px;padding:10px}.detail span{display:block;color:#7a8491;font-size:12px}.detail b{display:block;margin-top:4px;color:#0b2a52}.notes{border-right:4px solid var(--gold);background:#fffaf0;border-radius:12px;padding:12px 14px;line-height:1.9;margin:15px 0}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.actions button,.actions a{border:0;border-radius:12px;padding:13px 18px;font-weight:900;text-decoration:none;cursor:pointer}.primary{background:var(--navy);color:#fff}.auction{background:#9a6818;color:#fff}.secondary{background:#e9edf2;color:#14243b}.hint{margin-top:14px;color:#5e6b7b;font-size:14px;line-height:1.7}.status{min-height:24px;margin-top:8px;font-weight:800;color:#8a642b}footer{text-align:center;color:#718096;padding:24px}@media(max-width:780px){.hero{grid-template-columns:1fr}.gallery img:first-child{height:300px}.gallery img{height:170px}.details{grid-template-columns:1fr}.content{padding:18px}.actions>*{flex:1;text-align:center}}
+</style>
+</head>
+<body>
+<header><div class="brand">دار المقتنيات · {{STORE_LABEL}}</div><nav class="nav"><a href="/dar">دار المقتنيات</a><a href="{{STORE_HOME}}">{{STORE_LABEL}}</a><a href="/account">حسابي</a></nav></header>
+<main class="wrap"><article class="card"><div class="hero"><section class="gallery">{{GALLERY}}</section><section class="content"><div class="eyebrow">صفحة مقتنى عامة · يمكن مشاهدتها بدون تسجيل دخول</div><h1>{{HEADING}}</h1><p class="desc">{{DESCRIPTION}}</p><div class="badges">{{BADGES}}</div><div class="details">{{DETAILS}}</div>{{NOTES}}<div class="actions">{{ACTIONS}}<a class="secondary" href="{{STORE_HOME}}">العودة إلى المتجر</a></div><div class="hint">المشاهدة والتفاصيل متاحة للجميع. عند الشراء أو المزايدة فقط سيطلب النظام تسجيل الدخول، وبعد نجاح الدخول يعيدك تلقائيًا لإكمال الإجراء.</div><div class="status" id="actionStatus"></div></section></div></article></main>
+<footer>دار المقتنيات — صفحات عامة قابلة للأرشفة في محركات البحث</footer>
+<script>
+const MARKET_TARGET={{MARKET_TARGET_JSON}};
+const AUCTION_TARGET={{AUCTION_TARGET_JSON}};
+const SELF_PATH={{SELF_PATH_JSON}};
+async function authenticated(){try{const r=await fetch('/api/auth/route',{cache:'no-store',credentials:'same-origin'});const d=await r.json();return !!d.authenticated}catch(_){return false}}
+async function performAction(kind){const target=kind==='market'?MARKET_TARGET:AUCTION_TARGET;if(!target)return;const st=document.getElementById('actionStatus');if(await authenticated()){st.textContent='تم التحقق من الحساب، جارٍ فتح الإجراء…';location.href=target;return}st.textContent='🔐 يلزم تسجيل الدخول لتنفيذ الإجراء. ستعود إلى نفس المقتنى بعد الدخول.';const next=SELF_PATH+'?action='+encodeURIComponent(kind);setTimeout(()=>{location.href='/account?next='+encodeURIComponent(next)},350)}
+document.querySelectorAll('[data-public-action]').forEach(b=>b.addEventListener('click',()=>performAction(b.dataset.publicAction)));
+(async()=>{const kind=new URLSearchParams(location.search).get('action');if((kind==='market'&&MARKET_TARGET)||(kind==='auction'&&AUCTION_TARGET)){if(await authenticated()){location.replace(kind==='market'?MARKET_TARGET:AUCTION_TARGET)}}})();
+</script>
+</body>
+</html>
