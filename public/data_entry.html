@@ -1,29 +1,171 @@
 <!doctype html>
+<!-- V5.6.3-R9.6 — bulk multi-collectible data entry, grouped image-vault workflow and batch approval actions. -->
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>مسؤول إدخال البيانات — دار المقتنيات</title>
 <style>
-:root{font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#071321;color:#f7f4ea}.wrap{max-width:1180px;margin:auto;padding:16px}.top{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:16px 0}.brand h1{margin:0;font-size:1.45rem}.brand p{margin:5px 0 0;color:#b9c4d1}.links{display:flex;gap:8px;flex-wrap:wrap}.btn,a.btn{appearance:none;border:1px solid #b99647;background:#b99647;color:#071321;padding:10px 14px;border-radius:12px;font-weight:800;text-decoration:none;cursor:pointer}.btn.ghost,a.btn.ghost{background:transparent;color:#f6e7b7;border-color:#526174}.btn.danger{background:#7b2532;border-color:#7b2532;color:#fff}.btn:disabled{opacity:.5;cursor:not-allowed}.notice{padding:12px 14px;border:1px solid #3e5167;border-radius:12px;background:#0c1c2d;margin-bottom:14px}.notice.error{border-color:#8d3949;background:#2a1118}.notice.good{border-color:#376f57;background:#0f271e}.store-banner{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 14px;border:1px solid #b99647;border-radius:14px;background:#112438;margin-bottom:14px}.store-banner b{color:#f0d995}.steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:12px 0 16px}.step{padding:9px 7px;text-align:center;border-radius:10px;border:1px solid #30475e;background:#0b1c2e;color:#c8d3df;font-size:.83rem}.step strong{color:#f0d995;margin-left:4px}.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:14px 0}.stat{background:#0d2034;border:1px solid #233b54;border-radius:14px;padding:12px}.stat span{display:block;color:#aebdca;font-size:.85rem}.stat b{font-size:1.45rem;color:#f0d995}.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr);gap:16px}.panel{background:#0a1929;border:1px solid #20364d;border-radius:18px;padding:16px;box-shadow:0 10px 30px #0004}.panel h2{margin-top:0}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}label{display:flex;flex-direction:column;gap:6px;font-weight:700;color:#e8e3d4}label.wide,.wide{grid-column:1/-1}input,select,textarea{width:100%;background:#071321;color:#fff;border:1px solid #3b4d61;border-radius:10px;padding:11px;font:inherit}textarea{min-height:100px;resize:vertical}.muted{color:#9fb0c1;font-size:.9rem}.required-mark{color:#f0d995}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.rows{display:flex;flex-direction:column;gap:10px;max-height:74vh;overflow:auto}.row{border:1px solid #263f58;border-radius:14px;padding:12px;background:#081726}.row h3{margin:0 0 6px;font-size:1rem}.meta{display:flex;gap:8px;flex-wrap:wrap;color:#b7c2ce;font-size:.82rem}.chip{display:inline-block;padding:4px 8px;border-radius:999px;background:#233a50;color:#f7e6b0;font-size:.78rem;font-weight:800}.store-chip{background:#173952}.row.needs_changes{border-color:#a47a2d}.row.rejected{border-color:#7b3440}.row.approved{border-color:#2e6a52}.thumbs{display:flex;gap:6px;margin-top:8px}.thumbs img{width:54px;height:54px;object-fit:cover;border-radius:8px;border:1px solid #344a60}.row-note{margin:8px 0;padding:8px 10px;background:#182638;border-radius:8px;color:#f0d995}.smallbtn{border:1px solid #536579;background:transparent;color:#fff;border-radius:9px;padding:7px 10px;cursor:pointer}.loginbox{max-width:680px;margin:60px auto;text-align:center}.device-card{margin:14px 0;padding:14px;border:1px solid #40566d;border-radius:12px;background:#10243a;text-align:right}.device-card b{color:#f0d995}.gate-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px}.hidden{display:none!important}.vault-selected{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}.vault-selected-card{position:relative;border:1px solid #38516a;border-radius:12px;padding:7px;background:#081726}.vault-selected-card img{width:100%;height:105px;object-fit:cover;border-radius:8px}.vault-role{position:absolute;right:12px;top:12px;background:#071321dd;border:1px solid #b99647;color:#f0d995;padding:3px 7px;border-radius:999px;font-size:.72rem;font-weight:800}.vault-remove{width:100%;margin-top:6px;border:1px solid #6f4350;background:transparent;color:#ffdbe0;border-radius:8px;padding:6px;cursor:pointer}.vault-modal{position:fixed;inset:0;background:#000b;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}.vault-modal-card{width:min(1050px,100%);max-height:90vh;overflow:auto;background:#0a1929;border:1px solid #526174;border-radius:18px;padding:16px}.vault-modal-head{display:flex;justify-content:space-between;gap:10px;align-items:center;position:sticky;top:-16px;background:#0a1929;padding:12px 0;z-index:2}.vault-picker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:10px}.vault-pick{border:1px solid #30475e;border-radius:12px;padding:7px;background:#081726;cursor:pointer;position:relative}.vault-pick img{width:100%;height:115px;object-fit:cover;border-radius:8px}.vault-pick.selected{border-color:#d6b15a;box-shadow:0 0 0 2px #d6b15a55}.vault-pick .pick-no{position:absolute;top:10px;right:10px;background:#d6b15a;color:#071321;border-radius:999px;min-width:24px;height:24px;display:grid;place-items:center;font-weight:900}.price-table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid #30475e;border-radius:12px;overflow:hidden}.price-table th,.price-table td{padding:10px;border-bottom:1px solid #263c52;text-align:right}.price-table th{background:#0d2034;color:#f0d995}.price-table tr:last-child td{border-bottom:0}.price-table input{margin:0}.vault-guide{padding:10px 12px;border-radius:10px;background:#12283d;border-right:4px solid #d2aa54}.classification-note{grid-column:1/-1;padding:10px 12px;border:1px solid #30475e;border-radius:10px;background:#0d2034;color:#c8d3df}.classification-note b{color:#f0d995}@media(max-width:820px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.steps{grid-template-columns:repeat(2,1fr)}.form-grid{grid-template-columns:1fr}.rows{max-height:none}.panel{padding:13px}}@media(max-width:420px){.stats{grid-template-columns:1fr 1fr}.actions .btn{flex:1}.top{align-items:flex-start}.steps{grid-template-columns:1fr 1fr}}
+:root{font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:#071321;color:#f7f4ea}
+.wrap{max-width:1220px;margin:auto;padding:16px}
+.top{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:16px 0}
+.brand h1{margin:0;font-size:1.45rem}.brand p{margin:5px 0 0;color:#b9c4d1}
+.links,.mode-switch,.actions,.batch-toolbar,.batch-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn,a.btn{appearance:none;border:1px solid #b99647;background:#b99647;color:#071321;padding:10px 14px;border-radius:12px;font-weight:800;text-decoration:none;cursor:pointer}
+.btn.ghost,a.btn.ghost{background:transparent;color:#f6e7b7;border-color:#526174}
+.btn.danger{background:#7b2532;border-color:#7b2532;color:#fff}
+.btn.active{background:#f0d995;border-color:#f0d995;color:#071321}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.notice{padding:12px 14px;border:1px solid #3e5167;border-radius:12px;background:#0c1c2d;margin-bottom:14px}
+.notice.error{border-color:#8d3949;background:#2a1118}.notice.good{border-color:#376f57;background:#0f271e}.notice.warn{border-color:#9a742c;background:#2b210e}
+.store-banner{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 14px;border:1px solid #b99647;border-radius:14px;background:#112438;margin-bottom:14px}
+.store-banner b{color:#f0d995}
+.steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:12px 0 16px}
+.step{padding:9px 7px;text-align:center;border-radius:10px;border:1px solid #30475e;background:#0b1c2e;color:#c8d3df;font-size:.83rem}
+.step strong{color:#f0d995;margin-left:4px}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:14px 0}
+.stat{background:#0d2034;border:1px solid #233b54;border-radius:14px;padding:12px}.stat span{display:block;color:#aebdca;font-size:.85rem}.stat b{font-size:1.45rem;color:#f0d995}
+.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr);gap:16px}
+.panel{background:#0a1929;border:1px solid #20364d;border-radius:18px;padding:16px;box-shadow:0 10px 30px #0004}.panel h2{margin-top:0}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+label{display:flex;flex-direction:column;gap:6px;font-weight:700;color:#e8e3d4}
+label.wide,.wide{grid-column:1/-1}
+input,select,textarea{width:100%;background:#071321;color:#fff;border:1px solid #3b4d61;border-radius:10px;padding:11px;font:inherit}
+textarea{min-height:100px;resize:vertical}
+.muted{color:#9fb0c1;font-size:.9rem}.required-mark{color:#f0d995}
+.actions{margin-top:14px}
+.rows{display:flex;flex-direction:column;gap:10px;max-height:74vh;overflow:auto}
+.row{border:1px solid #263f58;border-radius:14px;padding:12px;background:#081726}
+.row h3{margin:0 0 6px;font-size:1rem}.meta{display:flex;gap:8px;flex-wrap:wrap;color:#b7c2ce;font-size:.82rem}
+.chip{display:inline-block;padding:4px 8px;border-radius:999px;background:#233a50;color:#f7e6b0;font-size:.78rem;font-weight:800}
+.store-chip{background:#173952}.row.needs_changes{border-color:#a47a2d}.row.rejected{border-color:#7b3440}.row.approved{border-color:#2e6a52}
+.thumbs{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}.thumbs img{width:54px;height:54px;object-fit:cover;border-radius:8px;border:1px solid #344a60}
+.row-note{margin:8px 0;padding:8px 10px;background:#182638;border-radius:8px;color:#f0d995}
+.smallbtn{border:1px solid #536579;background:transparent;color:#fff;border-radius:9px;padding:7px 10px;cursor:pointer}
+.loginbox{max-width:680px;margin:60px auto;text-align:center}.device-card{margin:14px 0;padding:14px;border:1px solid #40566d;border-radius:12px;background:#10243a;text-align:right}.device-card b{color:#f0d995}
+.gate-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px}.hidden{display:none!important}
+.vault-selected{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.vault-selected-card{position:relative;border:1px solid #38516a;border-radius:12px;padding:7px;background:#081726}.vault-selected-card img{width:100%;height:105px;object-fit:cover;border-radius:8px}
+.vault-role{position:absolute;right:12px;top:12px;background:#071321dd;border:1px solid #b99647;color:#f0d995;padding:3px 7px;border-radius:999px;font-size:.72rem;font-weight:800}
+.vault-remove{width:100%;margin-top:6px;border:1px solid #6f4350;background:transparent;color:#ffdbe0;border-radius:8px;padding:6px;cursor:pointer}
+.vault-modal{position:fixed;inset:0;background:#000b;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}
+.vault-modal-card{width:min(1080px,100%);max-height:90vh;overflow:auto;background:#0a1929;border:1px solid #526174;border-radius:18px;padding:16px}
+.vault-modal-head{display:flex;justify-content:space-between;gap:10px;align-items:center;position:sticky;top:-16px;background:#0a1929;padding:12px 0;z-index:2}
+.vault-picker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:10px}
+.vault-pick{border:1px solid #30475e;border-radius:12px;padding:7px;background:#081726;cursor:pointer;position:relative}
+.vault-pick img{width:100%;height:115px;object-fit:cover;border-radius:8px}.vault-pick.selected{border-color:#d6b15a;box-shadow:0 0 0 2px #d6b15a55}
+.vault-pick .pick-no{position:absolute;top:10px;right:10px;background:#d6b15a;color:#071321;border-radius:999px;min-width:24px;height:24px;display:grid;place-items:center;font-weight:900}
+.price-table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid #30475e;border-radius:12px;overflow:hidden}
+.price-table th,.price-table td{padding:10px;border-bottom:1px solid #263c52;text-align:right}.price-table th{background:#0d2034;color:#f0d995}.price-table tr:last-child td{border-bottom:0}.price-table input{margin:0}
+.vault-guide{padding:10px 12px;border-radius:10px;background:#12283d;border-right:4px solid #d2aa54}
+.classification-note{grid-column:1/-1;padding:10px 12px;border:1px solid #30475e;border-radius:10px;background:#0d2034;color:#c8d3df}.classification-note b{color:#f0d995}
+.batch-panel{margin:14px 0;border-color:#5b4c2c}.batch-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.batch-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}.batch-summary .stat{padding:9px}
+.batch-toolbar{padding:12px;background:#0d2034;border:1px solid #2e465e;border-radius:14px;margin:10px 0}
+.batch-toolbar label{min-width:145px;flex:1}.batch-toolbar .compact{max-width:190px}
+.batch-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin-top:12px}
+.batch-card{border:1px solid #30475e;border-radius:14px;background:#081726;padding:12px;position:relative}
+.batch-card.complete{border-color:#317055}.batch-card.incomplete{border-color:#9d7130}.batch-card.active-card{box-shadow:0 0 0 2px #d6b15a77}
+.batch-title{display:flex;gap:8px;align-items:center;justify-content:space-between}.batch-title input[type=checkbox]{width:20px;height:20px}
+.batch-card .thumbs img{width:46px;height:46px}.batch-card .actions{margin-top:8px}
+.batch-status{font-weight:900}.batch-status.good{color:#8fe0b7}.batch-status.bad{color:#f0c26c}
+.progress-line{height:8px;background:#071321;border-radius:99px;overflow:hidden;margin-top:8px}.progress-line span{display:block;height:100%;background:#b99647;width:0}
+.mode-help{padding:10px 12px;border:1px dashed #7f6b3b;border-radius:12px;color:#d7cba7;margin-top:10px}
+@media(max-width:820px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.steps{grid-template-columns:repeat(2,1fr)}.form-grid{grid-template-columns:1fr}.rows{max-height:none}.panel{padding:13px}.batch-summary{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:420px){.stats{grid-template-columns:1fr 1fr}.actions .btn,.batch-actions .btn{flex:1}.top{align-items:flex-start}.steps{grid-template-columns:1fr 1fr}.batch-list{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="top"><div class="brand"><h1>⌨️ مسؤول إدخال البيانات</h1><p>نفس آلية العمل في نوادر العملات ونوادر المقتنيات؛ الاختلاف فقط في حقول التصنيف المناسبة لكل متجر.</p></div><div class="links"><a class="btn ghost" href="/account">حسابي</a><a class="btn ghost" href="/">دار المقتنيات</a></div></div>
+  <div class="top">
+    <div class="brand"><h1>⌨️ مسؤول إدخال البيانات</h1><p>نفس آلية العمل في نوادر العملات ونوادر المقتنيات؛ الاختلاف فقط في حقول التصنيف المناسبة لكل متجر.</p></div>
+    <div class="links"><a class="btn ghost" href="/account">حسابي</a><a class="btn ghost" href="/">دار المقتنيات</a></div>
+  </div>
   <div id="gate" class="panel loginbox"><h2>جارٍ التحقق من الصلاحية…</h2><p class="muted">يجب تسجيل الدخول بحساب مُفعّل له دور «مسؤول إدخال البيانات».</p></div>
   <main id="app" class="hidden">
     <div id="notice" class="notice">هذا الدور لا ينشر ولا يحذف نهائيًا. كل مقتنى ترسله ينتقل إلى «بانتظار الاعتماد» لدى الإدارة.</div>
-    <div class="store-banner"><div><b>مسار موحّد للمتجرين</b><div class="muted">اختر المتجر أولًا، ثم أكمل نفس الخطوات: البيانات ← خزينة الصور ← الأسعار ← الإرسال للاعتماد.</div></div><span id="activeStoreBadge" class="chip store-chip">نوادر العملات</span></div>
-    <div class="steps"><div class="step"><strong>1</strong> المتجر</div><div class="step"><strong>2</strong> البيانات والتصنيف</div><div class="step"><strong>3</strong> خزينة الصور</div><div class="step"><strong>4</strong> الأسعار والتخزين</div><div class="step"><strong>5</strong> الإرسال للاعتماد</div></div>
-    <div class="stats"><div class="stat"><span>مسودات</span><b id="cDraft">0</b></div><div class="stat"><span>بانتظار الاعتماد</span><b id="cPending">0</b></div><div class="stat"><span>معاد للتعديل</span><b id="cNeeds">0</b></div><div class="stat"><span>معتمد</span><b id="cApproved">0</b></div><div class="stat"><span>مرفوض</span><b id="cRejected">0</b></div></div>
+
+    <div class="store-banner">
+      <div><b>مسار موحّد للمتجرين</b><div class="muted">اختر المتجر أولًا، ثم أكمل نفس الخطوات: البيانات ← خزينة الصور ← الأسعار ← الإرسال للاعتماد.</div></div>
+      <span id="activeStoreBadge" class="chip store-chip">نوادر العملات</span>
+    </div>
+
+    <div class="mode-switch">
+      <button id="singleModeBtn" class="btn active" type="button">مقتنى واحد</button>
+      <button id="bulkModeBtn" class="btn ghost" type="button">⚡ إدخال جماعي</button>
+    </div>
+    <div id="modeHelp" class="mode-help">الوضع الحالي: إدخال مقتنى واحد.</div>
+
+    <div class="steps">
+      <div class="step"><strong>1</strong> المتجر</div><div class="step"><strong>2</strong> البيانات والتصنيف</div>
+      <div class="step"><strong>3</strong> خزينة الصور</div><div class="step"><strong>4</strong> الأسعار والتخزين</div><div class="step"><strong>5</strong> الإرسال للاعتماد</div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span>مسودات</span><b id="cDraft">0</b></div><div class="stat"><span>بانتظار الاعتماد</span><b id="cPending">0</b></div>
+      <div class="stat"><span>معاد للتعديل</span><b id="cNeeds">0</b></div><div class="stat"><span>معتمد</span><b id="cApproved">0</b></div>
+      <div class="stat"><span>مرفوض</span><b id="cRejected">0</b></div>
+    </div>
+
+    <section id="bulkPanel" class="panel batch-panel hidden">
+      <div class="batch-head">
+        <div><h2>⚡ الإدخال الجماعي للمقتنيات المختلفة</h2><p class="muted">كل بطاقة مقتنى مستقلة في الاسم والسعر والمواصفات. الصور لا تتكرر بين البطاقات.</p></div>
+        <div class="actions">
+          <button id="openBulkVault" type="button" class="btn">🖼️ سحب صور جماعي من الخزينة</button>
+          <button id="clearBulkQueue" type="button" class="btn danger">تفريغ القائمة</button>
+        </div>
+      </div>
+      <div class="batch-summary">
+        <div class="stat"><span>إجمالي القائمة</span><b id="bTotal">0</b></div>
+        <div class="stat"><span>مكتمل</span><b id="bComplete">0</b></div>
+        <div class="stat"><span>ناقص</span><b id="bIncomplete">0</b></div>
+        <div class="stat"><span>محدد</span><b id="bSelected">0</b></div>
+      </div>
+      <div class="batch-toolbar">
+        <label class="compact">صور لكل مقتنى عند السحب الجماعي
+          <select id="bulkGroupSize">
+            <option value="1">صورة واحدة</option><option value="2" selected>صورتان (وجه / خلف)</option>
+            <option value="3">3 صور</option><option value="4">4 صور</option><option value="5">5 صور</option>
+            <option value="6">6 صور</option><option value="7">7 صور</option><option value="8">8 صور</option>
+          </select>
+        </label>
+        <label>تطبيق حقل مشترك من النموذج على المحدد
+          <select id="bulkApplyField">
+            <option value="storeType">المتجر</option><option value="collectibleCategory">تصنيف المقتنى</option>
+            <option value="country">الدولة / المنشأ</option><option value="year">السنة</option><option value="type">النوع</option>
+            <option value="condition">الحالة</option><option value="warehouse">المستودع</option><option value="shipping">تكلفة الشحن</option>
+            <option value="other">تكاليف أخرى</option>
+          </select>
+        </label>
+        <button id="applyBulkField" type="button" class="btn ghost">تطبيق قيمة النموذج</button>
+        <button id="selectAllBulk" type="button" class="btn ghost">تحديد الكل</button>
+        <button id="selectCompleteBulk" type="button" class="btn ghost">تحديد المكتمل</button>
+      </div>
+      <div class="batch-actions">
+        <button id="saveAllDrafts" type="button" class="btn ghost">حفظ الجميع كمسودات</button>
+        <button id="submitSelectedBulk" type="button" class="btn">إرسال المحدد للاعتماد</button>
+        <button id="submitCompleteBulk" type="button" class="btn">إرسال كل المكتمل للاعتماد</button>
+        <span id="bulkStatus" class="muted"></span>
+      </div>
+      <div class="progress-line"><span id="bulkProgress"></span></div>
+      <div id="bulkList" class="batch-list"></div>
+    </section>
+
     <div class="grid">
       <section class="panel">
         <h2 id="formTitle">إضافة مقتنى جديد — نوادر العملات</h2>
         <input id="recordId" type="hidden">
+        <input id="bulkEditKey" type="hidden">
         <div id="adminFeedback" class="notice hidden"></div>
         <div class="form-grid">
-          <label>المتجر <span class="required-mark">*</span><select id="storeType"><option value="coins">نوادر العملات</option><option value="collectibles">نوادر المقتنيات</option></select></label>
-          <label id="categoryLabel" class="hidden">تصنيف المقتنى <span class="required-mark">*</span><select id="collectibleCategory"><option value="other">أخرى</option><option value="fantasia">فنتازيا</option><option value="antiques">تحف</option><option value="prayer-beads">سبح</option><option value="vehicles-models">سيارات ومجسمات</option><option value="aviation-marine">طائرات وسفن</option><option value="jewelry-stones">خواتم وأحجار</option><option value="games">ألعاب ومقتنيات</option></select></label>
+          <label>المتجر <span class="required-mark">*</span>
+            <select id="storeType"><option value="coins">نوادر العملات</option><option value="collectibles">نوادر المقتنيات</option></select>
+          </label>
+          <label id="categoryLabel" class="hidden">تصنيف المقتنى <span class="required-mark">*</span>
+            <select id="collectibleCategory"><option value="other">أخرى</option><option value="fantasia">فنتازيا</option><option value="antiques">تحف</option><option value="prayer-beads">سبح</option><option value="vehicles-models">سيارات ومجسمات</option><option value="aviation-marine">طائرات وسفن</option><option value="jewelry-stones">خواتم وأحجار</option><option value="games">ألعاب ومقتنيات</option></select>
+          </label>
           <div id="classificationNote" class="classification-note"><b>نوادر العملات:</b> أدخل جهة الإصدار، الفئة، السنة، الإصدار، نوع العملة وحالتها. نفس بقية الخطوات مشتركة مع نوادر المقتنيات.</div>
           <label><span id="countryLabelText">الدولة / جهة الإصدار <span class="required-mark">*</span></span><input id="country" placeholder="مثال: المملكة العربية السعودية"></label>
           <label><span id="denominationLabelText">الفئة <span class="required-mark">*</span></span><input id="denomination" placeholder="مثال: 50 ريال"></label>
@@ -36,56 +178,432 @@
           <label>نوع وحدة المخزون<select id="inventoryUnitType"><option value="piece">قطعة</option><option value="coin">عملة</option><option value="set">طقم</option><option value="bundle">حزمة</option><option value="strap">رزمة</option><option value="lot">مجموعة</option></select></label>
           <label>عدد الوحدات<input id="inventoryUnitCount" type="number" min="1" value="1"></label>
           <label>عدد القطع في الوحدة<input id="piecesPerUnit" type="number" min="1" value="1"></label>
-          <div class="wide"><h3>الصور — من خزينة الصور فقط <span class="required-mark">*</span></h3><div class="vault-guide">لا ترفع أو تنسخ الصور من هنا. اضغط «فتح خزينة الصور»، حدد الصور ثم «سحب المحدد للمقتنى». الصورة تبقى ملفًا واحدًا في النظام وتتحول حالتها من متاحة إلى مرتبطة بهذا المقتنى.</div><div class="actions"><button class="btn" id="openVaultPicker" type="button">🖼️ فتح خزينة الصور</button><span id="vaultSelectionInfo" class="muted">لم يتم سحب صور بعد</span></div></div>
+
+          <div class="wide">
+            <h3>الصور — من خزينة الصور فقط <span class="required-mark">*</span></h3>
+            <div class="vault-guide">لا ترفع أو تنسخ الصور من هنا. اضغط «فتح خزينة الصور»، حدد الصور ثم اسحبها للمقتنى. الصورة تبقى ملفًا واحدًا في النظام وتصبح مرتبطة بهذا المقتنى.</div>
+            <div class="actions"><button class="btn" id="openVaultPicker" type="button">🖼️ فتح خزينة الصور</button><span id="vaultSelectionInfo" class="muted">لم يتم سحب صور بعد</span></div>
+          </div>
           <div class="wide vault-selected" id="selectedVaultImages"></div>
-          <div class="wide"><h3>جدول أسعار المقتنى</h3><p class="muted">نفس جدول الأسعار للمتجرين. تبقى الأسعار داخل الإدارة والمستودع ولا تنشر تلقائيًا في السوق.</p></div>
-          <div class="wide"><table class="price-table"><thead><tr><th>البيان</th><th>السعر (ر.س)</th></tr></thead><tbody><tr><td><b>سعر الشراء</b></td><td><input id="purchase" type="number" min="0" step="0.01" placeholder="0.00"></td></tr><tr><td><b>سعر البيع</b></td><td><input id="salePrice" type="number" min="0" step="0.01" placeholder="0.00"></td></tr></tbody></table></div>
+
+          <div class="wide"><h3>جدول أسعار المقتنى</h3><p class="muted">الأسعار داخل الإدارة والمستودع ولا تنشر تلقائيًا في السوق.</p></div>
+          <div class="wide"><table class="price-table"><thead><tr><th>البيان</th><th>السعر (ر.س)</th></tr></thead><tbody>
+            <tr><td><b>سعر الشراء</b></td><td><input id="purchase" type="number" min="0" step="0.01" placeholder="0.00"></td></tr>
+            <tr><td><b>سعر البيع</b></td><td><input id="salePrice" type="number" min="0" step="0.01" placeholder="0.00"></td></tr>
+          </tbody></table></div>
           <label>تكلفة الشحن<input id="shipping" type="number" min="0" step="0.01"></label>
           <label>تكاليف أخرى<input id="other" type="number" min="0" step="0.01"></label>
-          <details class="wide"><summary>موقع التخزين (اختياري)</summary><div class="form-grid" style="margin-top:10px"><label>المستودع<input id="warehouse" value="المستودع الرئيسي"></label><label>الخزانة<input id="cabinet"></label><label>الرف<input id="shelf"></label><label>الصندوق<input id="box"></label><label>الألبوم<input id="album"></label><label>الصفحة / الجيب<input id="pocket"></label></div></details>
+          <details class="wide"><summary>موقع التخزين (اختياري)</summary><div class="form-grid" style="margin-top:10px">
+            <label>المستودع<input id="warehouse" value="المستودع الرئيسي"></label><label>الخزانة<input id="cabinet"></label>
+            <label>الرف<input id="shelf"></label><label>الصندوق<input id="box"></label><label>الألبوم<input id="album"></label><label>الصفحة / الجيب<input id="pocket"></label>
+          </div></details>
           <label class="wide">ملاحظات<textarea id="notes" placeholder="أي تفاصيل تساعد الإدارة على المراجعة"></textarea></label>
         </div>
+
         <div id="saveStatus" class="muted"></div>
-        <div class="actions"><button class="btn ghost" id="saveDraft" type="button">حفظ كمسودة</button><button class="btn" id="sendApproval" type="button">إرسال للاعتماد</button><button class="btn ghost" id="resetForm" type="button">إدخال جديد</button></div>
+        <div id="singleActions" class="actions">
+          <button class="btn ghost" id="saveDraft" type="button">حفظ كمسودة</button>
+          <button class="btn" id="sendApproval" type="button">إرسال للاعتماد</button>
+          <button class="btn ghost" id="resetForm" type="button">إدخال جديد</button>
+        </div>
+        <div id="bulkFormActions" class="actions hidden">
+          <button class="btn" id="addToBulk" type="button">إضافة / تحديث في القائمة</button>
+          <button class="btn ghost" id="newBulkItem" type="button">مقتنى جديد داخل القائمة</button>
+          <button class="btn ghost" id="removeBulkCurrent" type="button">إزالة الحالي من القائمة</button>
+        </div>
       </section>
-      <aside class="panel"><h2>سجلاتي</h2><p class="muted">السجلات من المتجرين تظهر في مكان واحد. يمكن تعديل المسودة أو السجل الذي أعادته الإدارة للتعديل فقط.</p><div id="rows" class="rows"></div></aside>
+
+      <aside class="panel">
+        <h2>سجلاتي</h2>
+        <p class="muted">السجلات المحفوظة من المتجرين تظهر هنا. في الإدخال الجماعي تظهر القائمة المؤقتة أعلى الصفحة حتى تحفظها أو ترسلها.</p>
+        <div id="rows" class="rows"></div>
+      </aside>
     </div>
   </main>
 </div>
-<div id="vaultModal" class="vault-modal hidden"><div class="vault-modal-card"><div class="vault-modal-head"><div><h2 style="margin:0">خزينة الصور</h2><p class="muted" style="margin:4px 0 0">الخزينة نفسها للمتجرين. اختر حتى 8 صور، وترتيب الاختيار يحدد الصورة الأولى والثانية ثم الإضافية.</p></div><button type="button" id="closeVaultPicker" class="btn ghost">إغلاق</button></div><div id="vaultPickerStatus" class="notice">جارٍ تحميل الصور المتاحة…</div><div id="vaultPickerGrid" class="vault-picker-grid"></div><div class="actions" style="position:sticky;bottom:-16px;background:#0a1929;padding:12px 0"><button type="button" id="pullVaultSelected" class="btn">سحب المحدد للمقتنى</button><button type="button" id="refreshVaultPicker" class="btn ghost">↻ تحديث</button></div></div></div>
+
+<div id="vaultModal" class="vault-modal hidden">
+  <div class="vault-modal-card">
+    <div class="vault-modal-head">
+      <div><h2 id="vaultModalTitle" style="margin:0">خزينة الصور</h2><p id="vaultModalHelp" class="muted" style="margin:4px 0 0">اختر حتى 8 صور للمقتنى.</p></div>
+      <button type="button" id="closeVaultPicker" class="btn ghost">إغلاق</button>
+    </div>
+    <div id="vaultPickerStatus" class="notice">جارٍ تحميل الصور المتاحة…</div>
+    <div id="vaultPickerGrid" class="vault-picker-grid"></div>
+    <div class="actions" style="position:sticky;bottom:-16px;background:#0a1929;padding:12px 0">
+      <button type="button" id="pullVaultSelected" class="btn">سحب المحدد</button>
+      <button type="button" id="refreshVaultPicker" class="btn ghost">↻ تحديث</button>
+    </div>
+  </div>
+</div>
+
 <script>
-const $=id=>document.getElementById(id);let operator=null,rows=[],currentImages={items:[]},vaultAvailable=[],pickerSelected=new Set();
+const $=id=>document.getElementById(id);
+let operator=null,rows=[],currentImages={items:[]},vaultAvailable=[],pickerSelected=new Set();
+let entryMode='single',pickerMode='single',bulkQueue=[],bulkSelected=new Set(),bulkBusy=false;
+const BULK_KEY='nawaderDataEntryBulkQueueV1';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const STORE_LABELS={coins:'نوادر العملات',collectibles:'نوادر المقتنيات'};
 const CATEGORY_LABELS={other:'أخرى',fantasia:'فنتازيا',antiques:'تحف','prayer-beads':'سبح','vehicles-models':'سيارات ومجسمات','aviation-marine':'طائرات وسفن','jewelry-stones':'خواتم وأحجار',games:'ألعاب ومقتنيات'};
+const FORM_TEXT_IDS=['country','denomination','year','issueEdition','type','condition','serial','purchase','salePrice','shipping','other','warehouse','cabinet','shelf','box','album','pocket','notes'];
+
 function statusLabel(s){return({draft:'مسودة',pending:'بانتظار الاعتماد',needs_changes:'معاد للتعديل',approved:'معتمد للمستودع',rejected:'مرفوض'})[s]||s||'—'}
-async function api(url,opt={}){const r=await fetch(url,{credentials:'same-origin',headers:{...(opt.body?{'Content-Type':'application/json'}:{}),...(opt.headers||{})},...opt});let j={};try{j=await r.json()}catch{}if(!r.ok)throw new Error(j.error||('خطأ '+r.status));return j}
+async function api(url,opt={}){
+  const r=await fetch(url,{credentials:'same-origin',headers:{...(opt.body?{'Content-Type':'application/json'}:{}),...(opt.headers||{})},...opt});
+  let j={};try{j=await r.json()}catch{}
+  if(!r.ok)throw new Error(j.error||('خطأ '+r.status));return j
+}
 function setNotice(msg,type=''){const n=$('notice');n.className='notice'+(type?' '+type:'');n.textContent=msg}
-function storeLabel(){return STORE_LABELS[$('storeType').value]||STORE_LABELS.coins}
-function syncStore(){const c=$('storeType').value==='collectibles',editing=!!$('recordId').value;$('categoryLabel').classList.toggle('hidden',!c);if(!c)$('collectibleCategory').value='other';$('activeStoreBadge').textContent=storeLabel();$('countryLabelText').innerHTML=c?'الدولة / المنشأ <span class="required-mark">*</span>':'الدولة / جهة الإصدار <span class="required-mark">*</span>';$('denominationLabelText').innerHTML=c?'اسم المقتنى <span class="required-mark">*</span>':'الفئة <span class="required-mark">*</span>';$('yearLabelText').textContent=c?'سنة الصنع / الإصدار':'السنة';$('issueLabelText').textContent=c?'السلسلة / الموديل / الإصدار':'الإصدار / السلسلة';$('typeLabelText').textContent=c?'نوع المقتنى':'نوع العملة';$('conditionLabelText').textContent=c?'حالة المقتنى':'الحالة';$('serialLabelText').textContent=c?'رقم / معرّف المقتنى (إن وجد)':'الرقم التسلسلي (إن وجد)';$('country').placeholder=c?'مثال: الصين / السعودية / إيطاليا':'مثال: المملكة العربية السعودية';$('denomination').placeholder=c?'مثال: مجسم سيارة / خاتم / تحفة':'مثال: 50 ريال';$('year').placeholder=c?'مثال: 1998 أو حديث':'مثال: 1977';$('issueEdition').placeholder=c?'السلسلة أو الموديل أو الإصدار':'الإصدار أو السلسلة';$('type').placeholder=c?'تحفة / مجسم / حجر / خاتم...':'عملة ورقية / معدنية';$('condition').placeholder=c?'جديد / ممتاز / جيد...':'UNC / ممتاز / جيد...';$('classificationNote').innerHTML=c?'<b>نوادر المقتنيات:</b> اختر التصنيف ثم أدخل المنشأ واسم المقتنى والسنة والسلسلة والنوع والحالة. الصور والأسعار والحفظ والاعتماد هي نفسها تمامًا.':'<b>نوادر العملات:</b> أدخل جهة الإصدار والفئة والسنة والإصدار ونوع العملة وحالتها. الصور والأسعار والحفظ والاعتماد هي نفسها تمامًا.';$('formTitle').textContent=(editing?'تعديل مقتنى — ':'إضافة مقتنى جديد — ')+storeLabel();localStorage.setItem('nawaderDataEntryStore',$('storeType').value)}
+function storeLabel(v=$('storeType').value){return STORE_LABELS[v]||STORE_LABELS.coins}
+function makeKey(){return 'b-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8)}
+function cloneImages(items){return (items||[]).map(x=>({id:String(x.id||''),url:String(x.url||'')})).filter(x=>x.id||x.url)}
+
+function syncStore(){
+  const c=$('storeType').value==='collectibles',editing=!!$('recordId').value||!!$('bulkEditKey').value;
+  $('categoryLabel').classList.toggle('hidden',!c);if(!c)$('collectibleCategory').value='other';
+  $('activeStoreBadge').textContent=storeLabel();
+  $('countryLabelText').innerHTML=c?'الدولة / المنشأ <span class="required-mark">*</span>':'الدولة / جهة الإصدار <span class="required-mark">*</span>';
+  $('denominationLabelText').innerHTML=c?'اسم المقتنى <span class="required-mark">*</span>':'الفئة <span class="required-mark">*</span>';
+  $('yearLabelText').textContent=c?'سنة الصنع / الإصدار':'السنة';
+  $('issueLabelText').textContent=c?'السلسلة / الموديل / الإصدار':'الإصدار / السلسلة';
+  $('typeLabelText').textContent=c?'نوع المقتنى':'نوع العملة';
+  $('conditionLabelText').textContent=c?'حالة المقتنى':'الحالة';
+  $('serialLabelText').textContent=c?'رقم / معرّف المقتنى (إن وجد)':'الرقم التسلسلي (إن وجد)';
+  $('country').placeholder=c?'مثال: الصين / السعودية / إيطاليا':'مثال: المملكة العربية السعودية';
+  $('denomination').placeholder=c?'مثال: مجسم سيارة / خاتم / تحفة':'مثال: 50 ريال';
+  $('year').placeholder=c?'مثال: 1998 أو حديث':'مثال: 1977';
+  $('issueEdition').placeholder=c?'السلسلة أو الموديل أو الإصدار':'الإصدار أو السلسلة';
+  $('type').placeholder=c?'تحفة / مجسم / حجر / خاتم...':'عملة ورقية / معدنية';
+  $('condition').placeholder=c?'جديد / ممتاز / جيد...':'UNC / ممتاز / جيد...';
+  $('classificationNote').innerHTML=c?'<b>نوادر المقتنيات:</b> كل مقتنى مستقل في الاسم والسعر والمواصفات. اختر التصنيف ثم أدخل المنشأ والاسم والسنة والنوع والحالة.':'<b>نوادر العملات:</b> أدخل جهة الإصدار والفئة والسنة والإصدار ونوع العملة وحالتها.';
+  $('formTitle').textContent=(editing?'تعديل مقتنى — ':'إضافة مقتنى جديد — ')+storeLabel();
+  localStorage.setItem('nawaderDataEntryStore',$('storeType').value)
+}
 $('storeType').addEventListener('change',syncStore);
+
 function currentImageUrls(){return currentImages.items.map(x=>x.url).filter(Boolean)}
 function currentVaultIds(){return currentImages.items.map(x=>x.id).filter(Boolean)}
 function imageRole(i){return i===0?'الصورة الأولى':i===1?'الصورة الثانية':`إضافية ${i-1}`}
-function renderSelectedImages(){const el=$('selectedVaultImages'),items=currentImages.items||[];el.innerHTML=items.map((x,i)=>`<article class="vault-selected-card"><span class="vault-role">${esc(imageRole(i))}</span><img src="${esc(x.url)}" alt=""><button type="button" class="vault-remove" onclick="removeCurrentImage(${i})">إزالة من المقتنى</button></article>`).join('')||'<p class="muted">لا توجد صور مسحوبة لهذا المقتنى.</p>';$('vaultSelectionInfo').textContent=items.length?`${items.length} صورة مرتبطة بالنموذج`:'لم يتم سحب صور بعد'}
-window.removeCurrentImage=async i=>{const x=currentImages.items[i];if(!x)return;currentImages.items.splice(i,1);renderSelectedImages();if(x.id){try{await api('/api/image-vault/release',{method:'POST',body:JSON.stringify({ids:[x.id]})})}catch{}}}
-function payload(mode){const urls=currentImageUrls(),sale=Number($('salePrice').value||0);return{id:$('recordId').value,mode,storeType:$('storeType').value,collectibleCategory:$('collectibleCategory').value,country:$('country').value.trim(),denomination:$('denomination').value.trim(),year:$('year').value.trim(),issueEdition:$('issueEdition').value.trim(),type:$('type').value.trim(),condition:$('condition').value.trim(),serial:$('serial').value.trim(),collectionClass:$('collectionClass').value,inventoryUnitType:$('inventoryUnitType').value,inventoryUnitCount:Number($('inventoryUnitCount').value||1),piecesPerUnit:Number($('piecesPerUnit').value||1),imageVaultIds:currentVaultIds(),frontImage:urls[0]||'',backImage:urls[1]||'',additionalImages:urls.slice(2,8),purchase:Number($('purchase').value||0),salePrice:sale,expectedPrice:sale,shipping:Number($('shipping').value||0),other:Number($('other').value||0),warehouse:$('warehouse').value.trim(),cabinet:$('cabinet').value.trim(),shelf:$('shelf').value.trim(),box:$('box').value.trim(),album:$('album').value.trim(),pocket:$('pocket').value.trim(),notes:$('notes').value.trim()}}
-function validateBeforeSubmit(){const missing=[];if(!$('country').value.trim())missing.push($('storeType').value==='collectibles'?'الدولة / المنشأ':'الدولة / جهة الإصدار');if(!$('denomination').value.trim())missing.push($('storeType').value==='collectibles'?'اسم المقتنى':'الفئة');if(!currentImageUrls().length)missing.push('صورة واحدة على الأقل من خزينة الصور');if(missing.length){setNotice('أكمل الحقول المطلوبة قبل الإرسال: '+missing.join('، '),'error');return false}return true}
-async function loadVaultPicker(){try{$('vaultPickerStatus').className='notice';$('vaultPickerStatus').textContent='جارٍ تحميل الصور المتاحة…';const r=await api('/api/image-vault/available?limit=100');vaultAvailable=r.images||[];pickerSelected=new Set();renderVaultPicker();$('vaultPickerStatus').className='notice good';$('vaultPickerStatus').textContent=`متاح الآن ${Number(r.total||vaultAvailable.length)} صورة. اختر الصور بالترتيب ثم اسحبها للمقتنى.`}catch(e){$('vaultPickerStatus').className='notice error';$('vaultPickerStatus').textContent=e.message}}
-function renderVaultPicker(){const existing=new Set(currentVaultIds()),availableRows=vaultAvailable.filter(x=>!existing.has(x.id));$('vaultPickerGrid').innerHTML=availableRows.map(x=>{const selected=pickerSelected.has(x.id),order=[...pickerSelected].indexOf(x.id)+1;return`<article class="vault-pick ${selected?'selected':''}" onclick="toggleVaultPick('${esc(x.id)}')">${selected?`<span class="pick-no">${order}</span>`:''}<img src="${esc(x.url||'')}" alt=""><div class="muted" style="margin-top:5px">${x.status==='reserved'?'محجوزة لك':'متاحة'}</div></article>`}).join('')||'<p class="muted">لا توجد صور متاحة حاليًا في الخزينة.</p>'}
-window.toggleVaultPick=id=>{if(pickerSelected.has(id))pickerSelected.delete(id);else{if(currentImages.items.length+pickerSelected.size>=8){alert('الحد الأقصى 8 صور للمقتنى.');return}pickerSelected.add(id)}renderVaultPicker()}
-async function pullSelectedFromVault(){const ids=[...pickerSelected];if(!ids.length){alert('حدد صورة واحدة على الأقل.');return}try{const r=await api('/api/image-vault/pull',{method:'POST',body:JSON.stringify({ids})});for(const x of (r.images||[])){if(!currentImages.items.some(y=>y.id===x.id))currentImages.items.push({id:x.id,url:x.url})}renderSelectedImages();$('vaultModal').classList.add('hidden');setNotice(`تم سحب ${ids.length} صورة من الخزينة إلى ${storeLabel()}. لم يتم نسخ أي ملف.`,'good')}catch(e){alert(e.message);await loadVaultPicker()}}
-$('openVaultPicker').onclick=async()=>{$('vaultModal').classList.remove('hidden');await loadVaultPicker()};$('closeVaultPicker').onclick=()=>$('vaultModal').classList.add('hidden');$('refreshVaultPicker').onclick=loadVaultPicker;$('pullVaultSelected').onclick=pullSelectedFromVault;
-async function save(mode){if(mode==='submit'&&!validateBeforeSubmit())return;const b=mode==='submit'?$('sendApproval'):$('saveDraft'),old=b.textContent;try{b.disabled=true;$('saveDraft').disabled=true;$('sendApproval').disabled=true;$('saveStatus').textContent=mode==='submit'?'جارٍ الإرسال للاعتماد…':'جارٍ حفظ المسودة…';await api('/api/data-entry/submissions',{method:'POST',body:JSON.stringify(payload(mode))});$('saveStatus').textContent=mode==='submit'?'✓ تم الإرسال للإدارة — بانتظار الاعتماد':'✓ تم حفظ المسودة';setNotice(mode==='submit'?`تم إرسال مقتنى ${storeLabel()} للاعتماد. لن يدخل المستودع إلا بعد اعتماد الإدارة.`:'تم حفظ المسودة ويمكنك العودة لتعديلها.','good');await loadRows();resetForm(true)}catch(e){$('saveStatus').textContent='';setNotice(e.message,'error')}finally{b.textContent=old;$('saveDraft').disabled=false;$('sendApproval').disabled=false;b.disabled=false}}
-$('saveDraft').onclick=()=>save('draft');$('sendApproval').onclick=()=>{if(confirm(`إرسال هذا المقتنى من ${storeLabel()} للإدارة للاعتماد؟ بعد الإرسال لن تستطيع تعديله حتى تعيده الإدارة للتعديل.`))save('submit')};
-function resetForm(keepStore=false){const ids=currentVaultIds(),chosen=keepStore?$('storeType').value:(localStorage.getItem('nawaderDataEntryStore')||'coins');if(ids.length)api('/api/image-vault/release',{method:'POST',body:JSON.stringify({ids})}).catch(()=>{});for(const id of ['recordId','country','denomination','year','issueEdition','type','condition','serial','purchase','salePrice','shipping','other','cabinet','shelf','box','album','pocket','notes'])$(id).value='';$('storeType').value=['coins','collectibles'].includes(chosen)?chosen:'coins';$('collectibleCategory').value='other';$('collectionClass').value='single';$('inventoryUnitType').value='piece';$('inventoryUnitCount').value=1;$('piecesPerUnit').value=1;$('warehouse').value='المستودع الرئيسي';currentImages={items:[]};renderSelectedImages();$('adminFeedback').classList.add('hidden');$('saveStatus').textContent='';syncStore();scrollTo({top:0,behavior:'smooth'})}
-$('resetForm').onclick=()=>resetForm(true);
-function editRow(id){const r=rows.find(x=>x.id===id);if(!r||!['draft','needs_changes'].includes(r.status))return;$('recordId').value=r.id;$('storeType').value=r.storeType||'coins';$('collectibleCategory').value=r.collectibleCategory||'other';$('country').value=r.country||'';$('denomination').value=r.denomination||'';$('year').value=r.year||'';$('issueEdition').value=r.issueEdition||'';$('type').value=r.type||'';$('condition').value=r.condition||'';$('serial').value=r.serial||'';$('collectionClass').value=r.collectionClass||'single';$('inventoryUnitType').value=r.inventoryUnitType||'piece';$('inventoryUnitCount').value=r.inventoryUnitCount||1;$('piecesPerUnit').value=r.piecesPerUnit||1;$('purchase').value=r.purchase||'';$('salePrice').value=r.salePrice||r.expectedPrice||'';$('shipping').value=r.shipping||'';$('other').value=r.other||'';$('warehouse').value=r.warehouse||'المستودع الرئيسي';$('cabinet').value=r.cabinet||'';$('shelf').value=r.shelf||'';$('box').value=r.box||'';$('album').value=r.album||'';$('pocket').value=r.pocket||'';$('notes').value=r.notes||'';const urls=[r.frontImage,r.backImage,...(Array.isArray(r.additionalImages)?r.additionalImages:[])].filter(Boolean).slice(0,8),ids=Array.isArray(r.vaultImageIds)?r.vaultImageIds:[];currentImages={items:urls.map((url,i)=>({id:ids[i]||'',url}))};renderSelectedImages();syncStore();$('formTitle').textContent='تعديل: '+(r.country||'')+' — '+(r.denomination||'')+' — '+storeLabel();if(r.adminNote){$('adminFeedback').className='notice';$('adminFeedback').innerHTML='<b>ملاحظة الإدارة:</b> '+esc(r.adminNote)}else $('adminFeedback').classList.add('hidden');scrollTo({top:0,behavior:'smooth'})}
-function renderRows(){const el=$('rows');el.innerHTML=rows.map(r=>{const imgs=[r.frontImage,r.backImage,...(r.additionalImages||[])].filter(Boolean),editable=['draft','needs_changes'].includes(r.status),store=r.storeType==='collectibles'?'collectibles':'coins',category=store==='collectibles'?(CATEGORY_LABELS[r.collectibleCategory]||'أخرى'):'';return`<article class="row ${esc(r.status||'')}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><h3>${esc(r.country||'—')} — ${esc(r.denomination||'—')}</h3><span class="chip">${esc(statusLabel(r.status))}</span></div><div class="meta"><span class="chip store-chip">${esc(STORE_LABELS[store])}</span>${category?`<span>التصنيف: ${esc(category)}</span>`:''}<span>${esc(r.year||'')}</span><span>الكمية: ${Number(r.quantity||r.inventoryUnitCount||1)}</span><span>شراء: ${Number(r.purchase||0).toLocaleString('ar-SA')}</span><span>بيع: ${Number(r.salePrice||r.expectedPrice||0).toLocaleString('ar-SA')}</span></div>${imgs.length?`<div class="thumbs">${imgs.slice(0,4).map(x=>`<img src="${esc(x)}">`).join('')}</div>`:''}${r.adminNote?`<div class="row-note"><b>ملاحظة الإدارة:</b> ${esc(r.adminNote)}</div>`:''}<div class="actions">${editable?`<button class="smallbtn" onclick="editRow('${esc(r.id)}')">تعديل</button>`:''}</div></article>`}).join('')||'<p class="muted">لا توجد سجلات بعد. ابدأ بإضافة أول مقتنى.</p>'}
-async function loadRows(){const r=await api('/api/data-entry/submissions');operator=r.operator;rows=r.submissions||[];const c=r.counts||{};$('cDraft').textContent=c.draft||0;$('cPending').textContent=c.pending||0;$('cNeeds').textContent=c.needsChanges||0;$('cApproved').textContent=c.approved||0;$('cRejected').textContent=c.rejected||0;renderRows()}
+function renderSelectedImages(){
+  const items=currentImages.items||[];
+  $('selectedVaultImages').innerHTML=items.map((x,i)=>`<article class="vault-selected-card"><span class="vault-role">${esc(imageRole(i))}</span><img src="${esc(x.url)}" alt=""><button type="button" class="vault-remove" onclick="removeCurrentImage(${i})">إزالة من المقتنى</button></article>`).join('')||'<p class="muted">لا توجد صور مسحوبة لهذا المقتنى.</p>';
+  $('vaultSelectionInfo').textContent=items.length?`${items.length} صورة مرتبطة بالنموذج`:'لم يتم سحب صور بعد'
+}
+window.removeCurrentImage=async i=>{
+  const x=currentImages.items[i];if(!x)return;
+  currentImages.items.splice(i,1);renderSelectedImages();
+  if(entryMode==='bulk'&&$('bulkEditKey').value)saveCurrentBulkToQueue(false);
+  if(x.id){try{await api('/api/image-vault/release',{method:'POST',body:JSON.stringify({ids:[x.id]})})}catch{}}
+};
+
+function formData(){
+  return{
+    id:$('recordId').value||'',bulkKey:$('bulkEditKey').value||'',storeType:$('storeType').value,collectibleCategory:$('collectibleCategory').value,
+    country:$('country').value.trim(),denomination:$('denomination').value.trim(),year:$('year').value.trim(),issueEdition:$('issueEdition').value.trim(),
+    type:$('type').value.trim(),condition:$('condition').value.trim(),serial:$('serial').value.trim(),collectionClass:$('collectionClass').value,
+    inventoryUnitType:$('inventoryUnitType').value,inventoryUnitCount:Number($('inventoryUnitCount').value||1),piecesPerUnit:Number($('piecesPerUnit').value||1),
+    images:cloneImages(currentImages.items),purchase:Number($('purchase').value||0),salePrice:Number($('salePrice').value||0),shipping:Number($('shipping').value||0),
+    other:Number($('other').value||0),warehouse:$('warehouse').value.trim()||'المستودع الرئيسي',cabinet:$('cabinet').value.trim(),shelf:$('shelf').value.trim(),
+    box:$('box').value.trim(),album:$('album').value.trim(),pocket:$('pocket').value.trim(),notes:$('notes').value.trim()
+  }
+}
+function dataToPayload(d,mode){
+  const imgs=cloneImages(d.images),urls=imgs.map(x=>x.url).filter(Boolean),ids=imgs.map(x=>x.id).filter(Boolean),sale=Number(d.salePrice||0);
+  return{id:d.id||'',mode,storeType:d.storeType||'coins',collectibleCategory:d.collectibleCategory||'other',country:String(d.country||'').trim(),
+    denomination:String(d.denomination||'').trim(),year:String(d.year||'').trim(),issueEdition:String(d.issueEdition||'').trim(),type:String(d.type||'').trim(),
+    condition:String(d.condition||'').trim(),serial:String(d.serial||'').trim(),collectionClass:d.collectionClass||'single',inventoryUnitType:d.inventoryUnitType||'piece',
+    inventoryUnitCount:Number(d.inventoryUnitCount||1),piecesPerUnit:Number(d.piecesPerUnit||1),imageVaultIds:ids,frontImage:urls[0]||'',backImage:urls[1]||'',
+    additionalImages:urls.slice(2,8),purchase:Number(d.purchase||0),salePrice:sale,expectedPrice:sale,shipping:Number(d.shipping||0),other:Number(d.other||0),
+    warehouse:String(d.warehouse||'المستودع الرئيسي').trim(),cabinet:String(d.cabinet||'').trim(),shelf:String(d.shelf||'').trim(),box:String(d.box||'').trim(),
+    album:String(d.album||'').trim(),pocket:String(d.pocket||'').trim(),notes:String(d.notes||'').trim()}
+}
+function payload(mode){return dataToPayload(formData(),mode)}
+function missingFor(d){
+  const m=[];if(!String(d.country||'').trim())m.push(d.storeType==='collectibles'?'الدولة / المنشأ':'الدولة / جهة الإصدار');
+  if(!String(d.denomination||'').trim())m.push(d.storeType==='collectibles'?'اسم المقتنى':'الفئة');
+  if(!cloneImages(d.images).length)m.push('صورة من الخزينة');return m
+}
+function validateBeforeSubmit(){const m=missingFor(formData());if(m.length){setNotice('أكمل الحقول المطلوبة قبل الإرسال: '+m.join('، '),'error');return false}return true}
+
+function batchAssignedIds(exceptKey=''){
+  const s=new Set();
+  for(const q of bulkQueue){if(q.bulkKey===exceptKey)continue;for(const x of cloneImages(q.images))if(x.id)s.add(x.id)}
+  return s
+}
+async function loadVaultPicker(){
+  try{
+    $('vaultPickerStatus').className='notice';$('vaultPickerStatus').textContent='جارٍ تحميل الصور المتاحة…';
+    const r=await api('/api/image-vault/available?limit=100');vaultAvailable=r.images||[];pickerSelected=new Set();renderVaultPicker();
+    $('vaultPickerStatus').className='notice good';
+    const cap=pickerMode==='bulk'?50:8;
+    $('vaultPickerStatus').textContent=`متاح الآن ${Number(r.total||vaultAvailable.length)} صورة. يمكنك تحديد حتى ${cap} صورة في هذه العملية.`
+  }catch(e){$('vaultPickerStatus').className='notice error';$('vaultPickerStatus').textContent=e.message}
+}
+function renderVaultPicker(){
+  const currentKey=$('bulkEditKey').value||'',blocked=batchAssignedIds(currentKey),existing=new Set(currentVaultIds());
+  const availableRows=vaultAvailable.filter(x=>!existing.has(x.id)&&!blocked.has(x.id));
+  $('vaultPickerGrid').innerHTML=availableRows.map(x=>{
+    const selected=pickerSelected.has(x.id),order=[...pickerSelected].indexOf(x.id)+1;
+    return`<article class="vault-pick ${selected?'selected':''}" onclick="toggleVaultPick('${esc(x.id)}')">${selected?`<span class="pick-no">${order}</span>`:''}<img src="${esc(x.url||'')}" alt=""><div class="muted" style="margin-top:5px">${x.status==='reserved'?'محجوزة لك':'متاحة'}</div></article>`
+  }).join('')||'<p class="muted">لا توجد صور متاحة غير مرتبطة بقائمة العمل الحالية.</p>'
+}
+window.toggleVaultPick=id=>{
+  if(pickerSelected.has(id))pickerSelected.delete(id);
+  else{
+    const max=pickerMode==='bulk'?50:8;
+    if(pickerSelected.size>=max){alert(`الحد الأقصى في هذه العملية ${max} صورة.`);return}
+    if(pickerMode==='single'&&currentImages.items.length+pickerSelected.size>=8){alert('الحد الأقصى 8 صور للمقتنى.');return}
+    pickerSelected.add(id)
+  }
+  renderVaultPicker()
+};
+async function reserveImages(ids){
+  const all=[];
+  try{
+    for(let i=0;i<ids.length;i+=8){
+      const r=await api('/api/image-vault/pull',{method:'POST',body:JSON.stringify({ids:ids.slice(i,i+8)})});
+      all.push(...(r.images||[]))
+    }
+    return all
+  }catch(e){
+    const pulledIds=all.map(x=>x.id).filter(Boolean);
+    if(pulledIds.length)try{await api('/api/image-vault/release',{method:'POST',body:JSON.stringify({ids:pulledIds})})}catch{}
+    throw e
+  }
+}
+async function pullSelectedFromVault(){
+  const ids=[...pickerSelected];if(!ids.length){alert('حدد صورة واحدة على الأقل.');return}
+  try{
+    const pulled=await reserveImages(ids);
+    if(pickerMode==='bulk'){
+      setEntryMode('bulk');
+      if($('bulkEditKey').value)saveCurrentBulkToQueue(false);
+      const group=Math.max(1,Math.min(8,Number($('bulkGroupSize').value||2))),created=[];
+      for(let i=0;i<pulled.length;i+=group){
+        const q=blankBulkRecord();q.images=pulled.slice(i,i+group).map(x=>({id:x.id,url:x.url}));bulkQueue.push(q);created.push(q.bulkKey)
+      }
+      persistBulk();renderBulkQueue();$('vaultModal').classList.add('hidden');
+      setNotice(`تم سحب ${pulled.length} صورة وتكوين ${created.length} مقتنى في قائمة الإدخال الجماعي. أكمل بيانات كل بطاقة ثم احفظ أو أرسل دفعة واحدة.`,'good');
+      if(created.length)editBulkItem(created[0])
+    }else{
+      for(const x of pulled){if(!currentImages.items.some(y=>y.id===x.id))currentImages.items.push({id:x.id,url:x.url})}
+      renderSelectedImages();$('vaultModal').classList.add('hidden');setNotice(`تم سحب ${pulled.length} صورة من الخزينة إلى ${storeLabel()}.`,'good')
+    }
+  }catch(e){alert(e.message);await loadVaultPicker()}
+}
+function openVault(mode){
+  pickerMode=mode;
+  $('vaultModalTitle').textContent=mode==='bulk'?'خزينة الصور — سحب جماعي':'خزينة الصور — المقتنى الحالي';
+  $('vaultModalHelp').textContent=mode==='bulk'?'حدد حتى 50 صورة. سيتم تقسيمها تلقائيًا حسب «صور لكل مقتنى» ثم يمكنك تعديل كل بطاقة بشكل مستقل.':'اختر حتى 8 صور؛ ترتيب الاختيار يحدد الصورة الأولى والثانية ثم الصور الإضافية.';
+  $('pullVaultSelected').textContent=mode==='bulk'?'سحب الصور وتكوين مقتنيات':'سحب المحدد للمقتنى';
+  $('vaultModal').classList.remove('hidden');loadVaultPicker()
+}
+$('openVaultPicker').onclick=()=>openVault('single');
+$('openBulkVault').onclick=()=>openVault('bulk');
+$('closeVaultPicker').onclick=()=>$('vaultModal').classList.add('hidden');
+$('refreshVaultPicker').onclick=loadVaultPicker;$('pullVaultSelected').onclick=pullSelectedFromVault;
+
+async function save(mode){
+  if(mode==='submit'&&!validateBeforeSubmit())return;
+  const b=mode==='submit'?$('sendApproval'):$('saveDraft'),old=b.textContent;
+  try{
+    b.disabled=true;$('saveDraft').disabled=true;$('sendApproval').disabled=true;
+    $('saveStatus').textContent=mode==='submit'?'جارٍ الإرسال للاعتماد…':'جارٍ حفظ المسودة…';
+    await api('/api/data-entry/submissions',{method:'POST',body:JSON.stringify(payload(mode))});
+    $('saveStatus').textContent=mode==='submit'?'✓ تم الإرسال للإدارة — بانتظار الاعتماد':'✓ تم حفظ المسودة';
+    setNotice(mode==='submit'?`تم إرسال مقتنى ${storeLabel()} للاعتماد. لن يدخل المستودع إلا بعد اعتماد الإدارة.`:'تم حفظ المسودة ويمكنك العودة لتعديلها.','good');
+    await loadRows();clearForm({release:true,keepStore:true})
+  }catch(e){$('saveStatus').textContent='';setNotice(e.message,'error')}
+  finally{b.textContent=old;$('saveDraft').disabled=false;$('sendApproval').disabled=false;b.disabled=false}
+}
+$('saveDraft').onclick=()=>save('draft');
+$('sendApproval').onclick=()=>{if(confirm(`إرسال هذا المقتنى من ${storeLabel()} للإدارة للاعتماد؟ بعد الإرسال لن تستطيع تعديله حتى تعيده الإدارة للتعديل.`))save('submit')};
+
+function clearForm({release=false,keepStore=true}={}){
+  const ids=currentVaultIds(),chosen=keepStore?$('storeType').value:(localStorage.getItem('nawaderDataEntryStore')||'coins');
+  if(release&&ids.length)api('/api/image-vault/release',{method:'POST',body:JSON.stringify({ids})}).catch(()=>{});
+  for(const id of FORM_TEXT_IDS)$(id).value='';
+  $('recordId').value='';$('bulkEditKey').value='';$('storeType').value=['coins','collectibles'].includes(chosen)?chosen:'coins';
+  $('collectibleCategory').value='other';$('collectionClass').value='single';$('inventoryUnitType').value='piece';$('inventoryUnitCount').value=1;$('piecesPerUnit').value=1;$('warehouse').value='المستودع الرئيسي';
+  currentImages={items:[]};renderSelectedImages();$('adminFeedback').classList.add('hidden');$('saveStatus').textContent='';syncStore()
+}
+$('resetForm').onclick=()=>{clearForm({release:true,keepStore:true});scrollTo({top:0,behavior:'smooth'})};
+
+function setEntryMode(mode){
+  if(mode===entryMode)return;
+  if(entryMode==='bulk'&&$('bulkEditKey').value)saveCurrentBulkToQueue(false);
+  entryMode=mode==='bulk'?'bulk':'single';
+  $('bulkPanel').classList.toggle('hidden',entryMode!=='bulk');
+  $('singleActions').classList.toggle('hidden',entryMode!=='single');
+  $('bulkFormActions').classList.toggle('hidden',entryMode!=='bulk');
+  $('singleModeBtn').className='btn '+(entryMode==='single'?'active':'ghost');
+  $('bulkModeBtn').className='btn '+(entryMode==='bulk'?'active':'ghost');
+  $('modeHelp').textContent=entryMode==='bulk'?'الوضع الجماعي: اسحب عشرات الصور، قسّمها إلى مقتنيات، عدّل كل بطاقة ثم احفظ/أرسل دفعة واحدة.':'الوضع الحالي: إدخال مقتنى واحد.';
+  if(entryMode==='single'){$('bulkEditKey').value='';clearForm({release:false,keepStore:true})}
+  else{renderBulkQueue()}
+}
+$('singleModeBtn').onclick=()=>setEntryMode('single');$('bulkModeBtn').onclick=()=>setEntryMode('bulk');
+
+function blankBulkRecord(){
+  return{bulkKey:makeKey(),id:'',storeType:$('storeType').value||'coins',collectibleCategory:$('collectibleCategory').value||'other',
+    country:'',denomination:'',year:'',issueEdition:'',type:'',condition:'',serial:'',collectionClass:'single',inventoryUnitType:'piece',
+    inventoryUnitCount:1,piecesPerUnit:1,images:[],purchase:0,salePrice:0,shipping:0,other:0,warehouse:'المستودع الرئيسي',
+    cabinet:'',shelf:'',box:'',album:'',pocket:'',notes:'',lastError:''}
+}
+function persistBulk(){try{localStorage.setItem(BULK_KEY,JSON.stringify(bulkQueue.slice(0,100)))}catch{}}
+function restoreBulk(){
+  try{const a=JSON.parse(localStorage.getItem(BULK_KEY)||'[]');if(Array.isArray(a))bulkQueue=a.slice(0,100).map(x=>({...blankBulkRecord(),...x,bulkKey:x.bulkKey||makeKey(),images:cloneImages(x.images)}))}catch{bulkQueue=[]}
+}
+function saveCurrentBulkToQueue(show=true){
+  if(entryMode!=='bulk')return null;
+  const d=formData();let key=d.bulkKey;
+  if(!key){key=makeKey();d.bulkKey=key;$('bulkEditKey').value=key;bulkQueue.push(d)}
+  else{const i=bulkQueue.findIndex(x=>x.bulkKey===key);if(i>=0)bulkQueue[i]={...bulkQueue[i],...d,bulkKey:key,lastError:''};else bulkQueue.push({...d,bulkKey:key})}
+  persistBulk();renderBulkQueue();if(show)setNotice('تم حفظ المقتنى داخل قائمة الإدخال الجماعي. لم يُرسل للإدارة بعد.','good');return key
+}
+$('addToBulk').onclick=()=>saveCurrentBulkToQueue(true);
+$('newBulkItem').onclick=()=>{if($('bulkEditKey').value)saveCurrentBulkToQueue(false);clearForm({release:false,keepStore:true});$('bulkEditKey').value='';setNotice('ابدأ بيانات المقتنى التالي ثم اضغط «إضافة / تحديث في القائمة».','')};
+
+function loadFormData(d){
+  $('recordId').value=d.id||'';$('bulkEditKey').value=d.bulkKey||'';$('storeType').value=d.storeType||'coins';$('collectibleCategory').value=d.collectibleCategory||'other';
+  for(const id of ['country','denomination','year','issueEdition','type','condition','serial','cabinet','shelf','box','album','pocket','notes'])$(id).value=d[id]||'';
+  $('collectionClass').value=d.collectionClass||'single';$('inventoryUnitType').value=d.inventoryUnitType||'piece';$('inventoryUnitCount').value=d.inventoryUnitCount||1;$('piecesPerUnit').value=d.piecesPerUnit||1;
+  $('purchase').value=d.purchase||'';$('salePrice').value=d.salePrice||'';$('shipping').value=d.shipping||'';$('other').value=d.other||'';$('warehouse').value=d.warehouse||'المستودع الرئيسي';
+  currentImages={items:cloneImages(d.images)};renderSelectedImages();syncStore()
+}
+window.editBulkItem=key=>{
+  if(entryMode!=='bulk')setEntryMode('bulk');
+  const current=$('bulkEditKey').value;if(current&&current!==key)saveCurrentBulkToQueue(false);
+  const q=bulkQueue.find(x=>x.bulkKey===key);if(!q)return;loadFormData(q);renderBulkQueue();
+  $('formTitle').textContent='تعديل من القائمة: '+(q.denomination||'مقتنى غير مسمى')+' — '+storeLabel(q.storeType);
+  document.querySelector('.grid').scrollIntoView({behavior:'smooth',block:'start'})
+};
+async function removeBulkItem(key){
+  const q=bulkQueue.find(x=>x.bulkKey===key);if(!q)return;
+  if(!confirm('إزالة هذا المقتنى من القائمة وإعادة صوره المحجوزة إلى الخزينة؟'))return;
+  const ids=cloneImages(q.images).map(x=>x.id).filter(Boolean);bulkQueue=bulkQueue.filter(x=>x.bulkKey!==key);bulkSelected.delete(key);
+  if(ids.length)try{await api('/api/image-vault/release',{method:'POST',body:JSON.stringify({ids})})}catch{}
+  if($('bulkEditKey').value===key)clearForm({release:false,keepStore:true});
+  persistBulk();renderBulkQueue()
+}
+window.removeBulkItem=removeBulkItem;
+$('removeBulkCurrent').onclick=()=>{const k=$('bulkEditKey').value;if(k)removeBulkItem(k);else setNotice('لا يوجد مقتنى محدد من القائمة.','warn')};
+
+window.toggleBulkSelect=(key,checked)=>{if(checked)bulkSelected.add(key);else bulkSelected.delete(key);renderBulkQueue()};
+function renderBulkQueue(){
+  const complete=bulkQueue.filter(q=>!missingFor(q).length).length;
+  $('bTotal').textContent=bulkQueue.length;$('bComplete').textContent=complete;$('bIncomplete').textContent=bulkQueue.length-complete;$('bSelected').textContent=[...bulkSelected].filter(k=>bulkQueue.some(q=>q.bulkKey===k)).length;
+  const active=$('bulkEditKey').value;
+  $('bulkList').innerHTML=bulkQueue.map((q,i)=>{
+    const miss=missingFor(q),ok=!miss.length,imgs=cloneImages(q.images);
+    return`<article class="batch-card ${ok?'complete':'incomplete'} ${active===q.bulkKey?'active-card':''}">
+      <div class="batch-title"><label style="flex-direction:row;align-items:center"><input type="checkbox" ${bulkSelected.has(q.bulkKey)?'checked':''} onchange="toggleBulkSelect('${esc(q.bulkKey)}',this.checked)"> <b>#${i+1} ${esc(q.denomination||'مقتنى غير مسمى')}</b></label><span class="batch-status ${ok?'good':'bad'}">${ok?'مكتمل':'ناقص'}</span></div>
+      <div class="meta"><span class="chip store-chip">${esc(storeLabel(q.storeType))}</span><span>${esc(q.country||'بدون دولة')}</span><span>${imgs.length} صورة</span><span>بيع: ${Number(q.salePrice||0).toLocaleString('ar-SA')}</span></div>
+      ${imgs.length?`<div class="thumbs">${imgs.slice(0,4).map(x=>`<img src="${esc(x.url)}" alt="">`).join('')}</div>`:''}
+      ${miss.length?`<div class="row-note">المطلوب: ${esc(miss.join('، '))}</div>`:''}${q.lastError?`<div class="row-note">خطأ: ${esc(q.lastError)}</div>`:''}
+      <div class="actions"><button class="smallbtn" onclick="editBulkItem('${esc(q.bulkKey)}')">فتح وتعديل</button><button class="smallbtn" onclick="removeBulkItem('${esc(q.bulkKey)}')">إزالة</button></div>
+    </article>`
+  }).join('')||'<p class="muted">القائمة فارغة. اضغط «سحب صور جماعي من الخزينة» أو أدخل مقتنى ثم أضفه إلى القائمة.</p>';
+  persistBulk()
+}
+$('selectAllBulk').onclick=()=>{bulkSelected=new Set(bulkQueue.map(q=>q.bulkKey));renderBulkQueue()};
+$('selectCompleteBulk').onclick=()=>{bulkSelected=new Set(bulkQueue.filter(q=>!missingFor(q).length).map(q=>q.bulkKey));renderBulkQueue()};
+
+$('applyBulkField').onclick=()=>{
+  if($('bulkEditKey').value)saveCurrentBulkToQueue(false);
+  const field=$('bulkApplyField').value,targets=bulkQueue.filter(q=>bulkSelected.has(q.bulkKey));
+  if(!targets.length){setNotice('حدد بطاقة واحدة أو أكثر من قائمة الإدخال الجماعي أولًا.','error');return}
+  let value;
+  if(['storeType','collectibleCategory','country','year','type','condition','warehouse','shipping','other'].includes(field)){
+    value=$(field).value;
+    if(['shipping','other'].includes(field))value=Number(value||0)
+  }else return;
+  for(const q of targets)q[field]=value;
+  persistBulk();renderBulkQueue();setNotice(`تم تطبيق الحقل المشترك على ${targets.length} مقتنى.`,'good')
+};
+
+async function clearBulkQueue(){
+  if(!bulkQueue.length)return;if(!confirm('تفريغ قائمة الإدخال الجماعي وإعادة الصور المحجوزة إلى الخزينة؟'))return;
+  const ids=[...new Set(bulkQueue.flatMap(q=>cloneImages(q.images).map(x=>x.id).filter(Boolean)))];
+  if(ids.length)try{await api('/api/image-vault/release',{method:'POST',body:JSON.stringify({ids})})}catch{}
+  bulkQueue=[];bulkSelected.clear();localStorage.removeItem(BULK_KEY);clearForm({release:false,keepStore:true});renderBulkQueue();setNotice('تم تفريغ القائمة وإعادة الصور غير المحفوظة إلى الخزينة.','good')
+}
+$('clearBulkQueue').onclick=clearBulkQueue;
+
+async function runBulk(mode,scope){
+  if(bulkBusy)return;if($('bulkEditKey').value)saveCurrentBulkToQueue(false);
+  let targets=[];
+  if(scope==='selected')targets=bulkQueue.filter(q=>bulkSelected.has(q.bulkKey));
+  else if(scope==='complete')targets=bulkQueue.filter(q=>!missingFor(q).length);
+  else targets=[...bulkQueue];
+  if(!targets.length){setNotice(scope==='selected'?'حدد مقتنيات أولًا.':'لا توجد مقتنيات مناسبة للعملية.','error');return}
+  if(mode==='submit'){
+    const bad=targets.filter(q=>missingFor(q).length);
+    if(bad.length){setNotice(`تعذر الإرسال: ${bad.length} مقتنى ناقص. أكمل الدولة/الاسم والصورة لكل مقتنى.`,'error');return}
+    if(!confirm(`إرسال ${targets.length} مقتنى للإدارة للاعتماد؟`))return
+  }
+  bulkBusy=true;for(const id of ['saveAllDrafts','submitSelectedBulk','submitCompleteBulk'])$(id).disabled=true;
+  let done=0,failed=0;const successes=[];
+  $('bulkStatus').textContent=`0 / ${targets.length}`;$('bulkProgress').style.width='0%';
+  for(const q of targets){
+    try{
+      const r=await api('/api/data-entry/submissions',{method:'POST',body:JSON.stringify(dataToPayload(q,mode))});
+      successes.push(q.bulkKey);q.id=(r.submission&&r.submission.id)||q.id||'';q.lastError=''
+    }catch(e){q.lastError=e.message;failed++}
+    done++;$('bulkStatus').textContent=`${done} / ${targets.length}${failed?` — أخفق ${failed}`:''}`;$('bulkProgress').style.width=Math.round(done/targets.length*100)+'%';renderBulkQueue()
+  }
+  bulkQueue=bulkQueue.filter(q=>!successes.includes(q.bulkKey));for(const k of successes)bulkSelected.delete(k);
+  if($('bulkEditKey').value&&successes.includes($('bulkEditKey').value))clearForm({release:false,keepStore:true});
+  persistBulk();renderBulkQueue();await loadRows();
+  bulkBusy=false;for(const id of ['saveAllDrafts','submitSelectedBulk','submitCompleteBulk'])$(id).disabled=false;
+  setNotice(failed?`اكتملت العملية جزئيًا: نجح ${successes.length} وتعذر ${failed}. بقيت العناصر المتعذرة في القائمة مع سبب الخطأ.`:(mode==='submit'?`تم إرسال ${successes.length} مقتنى للإدارة للاعتماد.`:`تم حفظ ${successes.length} مقتنى كمسودات.`),failed?'warn':'good')
+}
+$('saveAllDrafts').onclick=()=>runBulk('draft','all');$('submitSelectedBulk').onclick=()=>runBulk('submit','selected');$('submitCompleteBulk').onclick=()=>runBulk('submit','complete');
+
+function editRow(id){
+  const r=rows.find(x=>x.id===id);if(!r||!['draft','needs_changes'].includes(r.status))return;
+  if(entryMode!=='single')setEntryMode('single');
+  $('recordId').value=r.id;$('storeType').value=r.storeType||'coins';$('collectibleCategory').value=r.collectibleCategory||'other';
+  for(const fid of ['country','denomination','year','issueEdition','type','condition','serial','cabinet','shelf','box','album','pocket','notes'])$(fid).value=r[fid]||'';
+  $('collectionClass').value=r.collectionClass||'single';$('inventoryUnitType').value=r.inventoryUnitType||'piece';$('inventoryUnitCount').value=r.inventoryUnitCount||1;$('piecesPerUnit').value=r.piecesPerUnit||1;
+  $('purchase').value=r.purchase||'';$('salePrice').value=r.salePrice||r.expectedPrice||'';$('shipping').value=r.shipping||'';$('other').value=r.other||'';$('warehouse').value=r.warehouse||'المستودع الرئيسي';
+  const urls=[r.frontImage,r.backImage,...(Array.isArray(r.additionalImages)?r.additionalImages:[])].filter(Boolean).slice(0,8),ids=Array.isArray(r.vaultImageIds)?r.vaultImageIds:[];
+  currentImages={items:urls.map((url,i)=>({id:ids[i]||'',url}))};renderSelectedImages();syncStore();
+  $('formTitle').textContent='تعديل: '+(r.country||'')+' — '+(r.denomination||'')+' — '+storeLabel();
+  if(r.adminNote){$('adminFeedback').className='notice';$('adminFeedback').innerHTML='<b>ملاحظة الإدارة:</b> '+esc(r.adminNote)}else $('adminFeedback').classList.add('hidden');
+  scrollTo({top:0,behavior:'smooth'})
+}
+window.editRow=editRow;
+
+function renderRows(){
+  $('rows').innerHTML=rows.map(r=>{
+    const imgs=[r.frontImage,r.backImage,...(r.additionalImages||[])].filter(Boolean),editable=['draft','needs_changes'].includes(r.status),store=r.storeType==='collectibles'?'collectibles':'coins',category=store==='collectibles'?(CATEGORY_LABELS[r.collectibleCategory]||'أخرى'):'';
+    return`<article class="row ${esc(r.status||'')}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><h3>${esc(r.country||'—')} — ${esc(r.denomination||'—')}</h3><span class="chip">${esc(statusLabel(r.status))}</span></div>
+    <div class="meta"><span class="chip store-chip">${esc(STORE_LABELS[store])}</span>${category?`<span>التصنيف: ${esc(category)}</span>`:''}<span>${esc(r.year||'')}</span><span>الكمية: ${Number(r.quantity||r.inventoryUnitCount||1)}</span><span>شراء: ${Number(r.purchase||0).toLocaleString('ar-SA')}</span><span>بيع: ${Number(r.salePrice||r.expectedPrice||0).toLocaleString('ar-SA')}</span></div>
+    ${imgs.length?`<div class="thumbs">${imgs.slice(0,4).map(x=>`<img src="${esc(x)}" alt="">`).join('')}</div>`:''}${r.adminNote?`<div class="row-note"><b>ملاحظة الإدارة:</b> ${esc(r.adminNote)}</div>`:''}
+    <div class="actions">${editable?`<button class="smallbtn" onclick="editRow('${esc(r.id)}')">تعديل</button>`:''}</div></article>`
+  }).join('')||'<p class="muted">لا توجد سجلات بعد. ابدأ بإضافة أول مقتنى.</p>'
+}
+async function loadRows(){
+  const r=await api('/api/data-entry/submissions');operator=r.operator;rows=r.submissions||[];const c=r.counts||{};
+  $('cDraft').textContent=c.draft||0;$('cPending').textContent=c.pending||0;$('cNeeds').textContent=c.needsChanges||0;$('cApproved').textContent=c.approved||0;$('cRejected').textContent=c.rejected||0;renderRows()
+}
 function maskPhone(v){const d=String(v||'').replace(/\D/g,'');if(!d)return '—';return d.length>4?'••••'+d.slice(-4):d}
-function showGate(title,message,person=null){let who='';if(person){const name=person.alias||person.displayName||person.name||'الحساب الحالي';who=`<div class="device-card"><div><b>الحساب المسجل في هذا المتصفح:</b> ${esc(name)}</div><div class="muted">الجوال: ${esc(maskPhone(person.phone))}</div></div>`}$('gate').className='panel loginbox';$('gate').innerHTML=`<h2>${esc(title)}</h2><p>${esc(message)}</p>${who}<p class="muted">تسجيل الدخول لا ينتقل تلقائيًا بين الكمبيوتر والجوال أو بين Chrome ومتصفح واتساب. كل متصفح يحتاج جلسة الحساب الخاصة به.</p><div class="gate-actions">${person?'<a class="btn" href="/account-logout?next=%2Fdata-entry">تبديل الحساب وتسجيل الدخول</a>':'<a class="btn" href="/account?next=%2Fdata-entry">تسجيل الدخول لهذا الجهاز</a>'}<a class="btn ghost" href="/account">فتح حسابي</a></div>`}
-async function init(){let me=null;try{try{me=await api('/api/participant/me');operator=me.participant}catch(e){showGate('يلزم تسجيل الدخول على هذا الجهاز',e.message||'لا توجد جلسة حساب في هذا المتصفح.');return}try{await loadRows()}catch(e){if(String(e.message||'').includes('صلاحية مسؤول إدخال البيانات')){showGate('الحساب الحالي ليس مسؤول إدخال البيانات','الصلاحية غير مفعلة للحساب المسجل في هذا المتصفح. إذا كانت مفعلة لحساب آخر، بدّل الحساب ثم سجّل الدخول بنفس حساب المسؤول.',me.participant);return}throw e}$('gate').classList.add('hidden');$('app').classList.remove('hidden');const saved=localStorage.getItem('nawaderDataEntryStore');if(['coins','collectibles'].includes(saved))$('storeType').value=saved;syncStore();renderSelectedImages()}catch(e){showGate('تعذر فتح صفحة مسؤول إدخال البيانات',e.message||'حدث خطأ غير متوقع.',me&&me.participant)}}
+function showGate(title,message,person=null){
+  let who='';if(person){const name=person.alias||person.displayName||person.name||'الحساب الحالي';who=`<div class="device-card"><div><b>الحساب المسجل في هذا المتصفح:</b> ${esc(name)}</div><div class="muted">الجوال: ${esc(maskPhone(person.phone))}</div></div>`}
+  $('gate').className='panel loginbox';$('gate').innerHTML=`<h2>${esc(title)}</h2><p>${esc(message)}</p>${who}<p class="muted">تسجيل الدخول لا ينتقل تلقائيًا بين الكمبيوتر والجوال أو بين Chrome ومتصفح واتساب. كل متصفح يحتاج جلسة الحساب الخاصة به.</p><div class="gate-actions">${person?'<a class="btn" href="/account-logout?next=%2Fdata-entry">تبديل الحساب وتسجيل الدخول</a>':'<a class="btn" href="/account?next=%2Fdata-entry">تسجيل الدخول لهذا الجهاز</a>'}<a class="btn ghost" href="/account">فتح حسابي</a></div>`
+}
+async function init(){
+  let me=null;
+  try{
+    try{me=await api('/api/participant/me');operator=me.participant}catch(e){showGate('يلزم تسجيل الدخول على هذا الجهاز',e.message||'لا توجد جلسة حساب في هذا المتصفح.');return}
+    try{await loadRows()}catch(e){if(String(e.message||'').includes('صلاحية مسؤول إدخال البيانات')){showGate('الحساب الحالي ليس مسؤول إدخال البيانات','الصلاحية غير مفعلة للحساب المسجل في هذا المتصفح. إذا كانت مفعلة لحساب آخر، بدّل الحساب ثم سجّل الدخول بنفس حساب المسؤول.',me.participant);return}throw e}
+    $('gate').classList.add('hidden');$('app').classList.remove('hidden');
+    const saved=localStorage.getItem('nawaderDataEntryStore');if(['coins','collectibles'].includes(saved))$('storeType').value=saved;
+    restoreBulk();syncStore();renderSelectedImages();renderBulkQueue()
+  }catch(e){showGate('تعذر فتح صفحة مسؤول إدخال البيانات',e.message||'حدث خطأ غير متوقع.',me&&me.participant)}
+}
 init();
 </script>
-</body></html>
+</body>
+</html>
