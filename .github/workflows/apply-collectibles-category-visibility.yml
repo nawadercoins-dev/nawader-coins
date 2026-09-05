@@ -1,0 +1,49 @@
+name: Apply collectibles category visibility
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-collectibles-category-visibility.yml'
+      - 'tools/patch_collectibles_category_visibility.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply isolated visibility patch
+        run: python tools/patch_collectibles_category_visibility.py
+      - name: Validate only targeted visibility changes
+        run: |
+          python -m py_compile server.py
+          git diff --check
+          grep -q 'id="visitorCollectiblesAntiques"' admin/index.html
+          grep -q 'id="visitorCollectiblesPrayerBeads"' admin/index.html
+          grep -q 'id="visitorCollectiblesVehiclesModels"' admin/index.html
+          grep -q 'id="visitorCollectiblesAviationMarine"' admin/index.html
+          grep -q 'id="visitorCollectiblesJewelryStones"' admin/index.html
+          grep -q 'id="visitorCollectiblesGames"' admin/index.html
+          grep -q 'id="visitorCollectiblesOther"' admin/index.html
+          grep -q 'collectiblesAntiques' admin/app.js
+          grep -q 'collectiblesPrayerBeads' server.py
+          grep -q 'data-section="collectiblesJewelryStones"' public/collectibles_home.html
+          grep -q 'COLLECTIBLE_CATEGORY_KEYS' public/section_visibility.js
+          grep -q 'COLLECTIBLE_SECTION_KEYS' public/public_market.js
+      - name: Commit targeted application changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add admin/index.html admin/app.js server.py public/section_visibility.js public/collectibles_home.html public/public_market.js
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "feat: collectibles category visibility controls"
+            git push origin HEAD:main
+          fi
