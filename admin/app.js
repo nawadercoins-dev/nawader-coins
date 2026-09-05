@@ -3634,6 +3634,13 @@ async function loadAdminSettingsPanel() {
     if ($("visitorSectionAnnouncements")) $("visitorSectionAnnouncements").checked = vs.announcements !== false;
     if ($("visitorSectionLiveAuction")) $("visitorSectionLiveAuction").checked = vs.liveAuction !== false;
     if ($("visitorSectionCollectiblesStore")) $("visitorSectionCollectiblesStore").checked = vs.collectiblesStore !== false;
+    if ($("visitorCollectiblesAntiques")) $("visitorCollectiblesAntiques").checked = vs.collectiblesAntiques !== false;
+    if ($("visitorCollectiblesPrayerBeads")) $("visitorCollectiblesPrayerBeads").checked = vs.collectiblesPrayerBeads !== false;
+    if ($("visitorCollectiblesVehiclesModels")) $("visitorCollectiblesVehiclesModels").checked = vs.collectiblesVehiclesModels !== false;
+    if ($("visitorCollectiblesAviationMarine")) $("visitorCollectiblesAviationMarine").checked = vs.collectiblesAviationMarine !== false;
+    if ($("visitorCollectiblesJewelryStones")) $("visitorCollectiblesJewelryStones").checked = vs.collectiblesJewelryStones !== false;
+    if ($("visitorCollectiblesGames")) $("visitorCollectiblesGames").checked = vs.collectiblesGames !== false;
+    if ($("visitorCollectiblesOther")) $("visitorCollectiblesOther").checked = vs.collectiblesOther !== false;
     $("platformName").value = st.platformName || "نوادر العملات";
     $("adminEmail").value = st.adminEmail || "";
     if ($("ocrTesseractPath"))
@@ -3669,6 +3676,13 @@ if ($("saveSettings"))
             announcements: $("visitorSectionAnnouncements") ? !!$("visitorSectionAnnouncements").checked : true,
             liveAuction: $("visitorSectionLiveAuction") ? !!$("visitorSectionLiveAuction").checked : true,
             collectiblesStore: $("visitorSectionCollectiblesStore") ? !!$("visitorSectionCollectiblesStore").checked : true,
+            collectiblesAntiques: $("visitorCollectiblesAntiques") ? !!$("visitorCollectiblesAntiques").checked : true,
+            collectiblesPrayerBeads: $("visitorCollectiblesPrayerBeads") ? !!$("visitorCollectiblesPrayerBeads").checked : true,
+            collectiblesVehiclesModels: $("visitorCollectiblesVehiclesModels") ? !!$("visitorCollectiblesVehiclesModels").checked : true,
+            collectiblesAviationMarine: $("visitorCollectiblesAviationMarine") ? !!$("visitorCollectiblesAviationMarine").checked : true,
+            collectiblesJewelryStones: $("visitorCollectiblesJewelryStones") ? !!$("visitorCollectiblesJewelryStones").checked : true,
+            collectiblesGames: $("visitorCollectiblesGames") ? !!$("visitorCollectiblesGames").checked : true,
+            collectiblesOther: $("visitorCollectiblesOther") ? !!$("visitorCollectiblesOther").checked : true,
           },
           platformName: $("platformName").value.trim() || "نوادر العملات",
           adminEmail: $("adminEmail").value.trim(),
@@ -3687,6 +3701,13 @@ if ($("saveSettings"))
       if ($("visitorSectionAnnouncements")) $("visitorSectionAnnouncements").checked = savedVs.announcements !== false;
       if ($("visitorSectionLiveAuction")) $("visitorSectionLiveAuction").checked = savedVs.liveAuction !== false;
       if ($("visitorSectionCollectiblesStore")) $("visitorSectionCollectiblesStore").checked = savedVs.collectiblesStore !== false;
+      if ($("visitorCollectiblesAntiques")) $("visitorCollectiblesAntiques").checked = savedVs.collectiblesAntiques !== false;
+      if ($("visitorCollectiblesPrayerBeads")) $("visitorCollectiblesPrayerBeads").checked = savedVs.collectiblesPrayerBeads !== false;
+      if ($("visitorCollectiblesVehiclesModels")) $("visitorCollectiblesVehiclesModels").checked = savedVs.collectiblesVehiclesModels !== false;
+      if ($("visitorCollectiblesAviationMarine")) $("visitorCollectiblesAviationMarine").checked = savedVs.collectiblesAviationMarine !== false;
+      if ($("visitorCollectiblesJewelryStones")) $("visitorCollectiblesJewelryStones").checked = savedVs.collectiblesJewelryStones !== false;
+      if ($("visitorCollectiblesGames")) $("visitorCollectiblesGames").checked = savedVs.collectiblesGames !== false;
+      if ($("visitorCollectiblesOther")) $("visitorCollectiblesOther").checked = savedVs.collectiblesOther !== false;
       st.textContent = "✅ تم حفظ الإعدادات وتأكيدها من الخادم.";
     } catch (e) {
       st.textContent = "⚠️ " + e.message;

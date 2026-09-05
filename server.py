@@ -1036,7 +1036,7 @@ def overdue_due_for(pid):
 
 def load_settings():
     defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':True,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','whatsappVerificationNumber':'966551892409','duesTrackingStartedAt':'','paymentBankName':'','paymentAccountName':'','paymentIban':'','paymentInstructions':'حوّل المبلغ النهائي بعد اعتماد الشحن، ثم ارفع صورة إشعار التحويل من صفحة المستحقات.','paymentWhatsapp':'','visitorSections':{'market':True,'auction':True,'specialNumbers':True,'transitionalIssues':True,
-            'fantasia':True,'promotions':True,'announcements':True,'liveAuction':True,'collectiblesStore':True},'fullPublicEnableV493':False}
+            'fantasia':True,'promotions':True,'announcements':True,'liveAuction':True,'collectiblesStore':True,'collectiblesAntiques':True,'collectiblesPrayerBeads':True,'collectiblesVehiclesModels':True,'collectiblesAviationMarine':True,'collectiblesJewelryStones':True,'collectiblesGames':True,'collectiblesOther':True},'fullPublicEnableV493':False}
     x=load_json(SETTINGS,defaults.copy())
     defaults.update(x if isinstance(x,dict) else {})
     vis=defaults.get('visitorSections')
@@ -1051,6 +1051,13 @@ def load_settings():
         'announcements': bool(vis.get('announcements',True)),
         'liveAuction': bool(vis.get('liveAuction',True)),
         'collectiblesStore': bool(vis.get('collectiblesStore',True)),
+        'collectiblesAntiques': bool(vis.get('collectiblesAntiques',True)),
+        'collectiblesPrayerBeads': bool(vis.get('collectiblesPrayerBeads',True)),
+        'collectiblesVehiclesModels': bool(vis.get('collectiblesVehiclesModels',True)),
+        'collectiblesAviationMarine': bool(vis.get('collectiblesAviationMarine',True)),
+        'collectiblesJewelryStones': bool(vis.get('collectiblesJewelryStones',True)),
+        'collectiblesGames': bool(vis.get('collectiblesGames',True)),
+        'collectiblesOther': bool(vis.get('collectiblesOther',True)),
     }
     # V4.9.3 one-time corrective migration:
     # previous market-first launch mode may have left public sections/auction fee disabled.
@@ -1066,6 +1073,13 @@ def load_settings():
             'announcements':True,
             'liveAuction':True,
             'collectiblesStore':True,
+            'collectiblesAntiques':True,
+            'collectiblesPrayerBeads':True,
+            'collectiblesVehiclesModels':True,
+            'collectiblesAviationMarine':True,
+            'collectiblesJewelryStones':True,
+            'collectiblesGames':True,
+            'collectiblesOther':True,
         }
         defaults['entryFeeEnabled']=True
         defaults['fullPublicEnableV493']=True
@@ -1084,6 +1098,13 @@ def effective_visitor_sections(settings=None):
         'announcements':vs.get('announcements',True) is not False,
         'liveAuction':vs.get('liveAuction',True) is not False,
         'collectiblesStore':vs.get('collectiblesStore',True) is not False,
+        'collectiblesAntiques':vs.get('collectiblesAntiques',True) is not False,
+        'collectiblesPrayerBeads':vs.get('collectiblesPrayerBeads',True) is not False,
+        'collectiblesVehiclesModels':vs.get('collectiblesVehiclesModels',True) is not False,
+        'collectiblesAviationMarine':vs.get('collectiblesAviationMarine',True) is not False,
+        'collectiblesJewelryStones':vs.get('collectiblesJewelryStones',True) is not False,
+        'collectiblesGames':vs.get('collectiblesGames',True) is not False,
+        'collectiblesOther':vs.get('collectiblesOther',True) is not False,
     }
 
 BACKUP_FILES=[
@@ -4221,7 +4242,7 @@ class H(SimpleHTTPRequestHandler):
                 incoming=d.get('visitorSections')
                 if isinstance(incoming,dict):
                     current=dict(st.get('visitorSections') or {})
-                    for key in ('market','auction','specialNumbers','transitionalIssues','fantasia','promotions','announcements','liveAuction','collectiblesStore'):
+                    for key in ('market','auction','specialNumbers','transitionalIssues','fantasia','promotions','announcements','liveAuction','collectiblesStore','collectiblesAntiques','collectiblesPrayerBeads','collectiblesVehiclesModels','collectiblesAviationMarine','collectiblesJewelryStones','collectiblesGames','collectiblesOther'):
                         if key in incoming: current[key]=bool(incoming[key])
                     st['visitorSections']=current
                 save_json(SETTINGS,st)

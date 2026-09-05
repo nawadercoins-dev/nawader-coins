@@ -1,6 +1,16 @@
 // Visitor section visibility v2 — presentation only; server routes also enforce the same settings.
 (()=>{
 'use strict';
+const COLLECTIBLE_CATEGORY_KEYS={
+  'fantasia':'fantasia',
+  'antiques':'collectiblesAntiques',
+  'prayer-beads':'collectiblesPrayerBeads',
+  'vehicles-models':'collectiblesVehiclesModels',
+  'aviation-marine':'collectiblesAviationMarine',
+  'jewelry-stones':'collectiblesJewelryStones',
+  'games':'collectiblesGames',
+  'other':'collectiblesOther'
+};
 const PATH_KEYS={
   '/announcements':'announcements','/announcements.html':'announcements',
   '/live-auction':'liveAuction','/live_auction.html':'liveAuction',
@@ -21,10 +31,11 @@ function controlledHidden(el,hide){
 function enabled(vs,key){return !key || (vs||{})[key]!==false}
 function linkVisible(a,vs){
   let u;try{u=new URL(a.getAttribute('href')||'',location.origin)}catch{return true}
-  const p=cleanPath(u.pathname),store=String(u.searchParams.get('store')||'').toLowerCase();
+  const p=cleanPath(u.pathname),store=String(u.searchParams.get('store')||'').toLowerCase(),category=String(u.searchParams.get('category')||'').toLowerCase();
   if((p==='/market'||p==='/public_market.html'||p==='/public-market') && !enabled(vs,'market'))return false;
   if((p==='/auction'||p==='/public_auction.html'||p==='/public-auction'||p==='/daily-auction') && !enabled(vs,'auction'))return false;
   if((p==='/market'||p==='/auction') && store==='collectibles' && !enabled(vs,'collectiblesStore'))return false;
+  if((p==='/market'||p==='/public_market.html'||p==='/public-market') && store==='collectibles' && category && category!=='all'){const catKey=COLLECTIBLE_CATEGORY_KEYS[category];if(catKey&&!enabled(vs,catKey))return false;}
   const key=PATH_KEYS[p];
   if(key && !enabled(vs,key))return false;
   if(p==='/fantasia' && !enabled(vs,'collectiblesStore'))return false;
