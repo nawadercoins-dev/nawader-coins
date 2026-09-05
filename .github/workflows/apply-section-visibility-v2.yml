@@ -1,0 +1,51 @@
+name: Apply isolated section visibility upgrade
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-section-visibility-v2.yml'
+      - 'tools/patch_section_visibility_v2.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply isolated visibility patch
+        run: python tools/patch_section_visibility_v2.py
+      - name: Validate only visibility upgrade
+        run: |
+          python -m py_compile server.py
+          node --check public/section_visibility.js
+          node --check public/visitor.js
+          node --check admin/app.js
+          git diff --check
+          grep -q "id=\"visitorSectionCollectiblesStore\"" admin/index.html
+          grep -q "id=\"visitorSectionPromotions\"" admin/index.html
+          grep -q "id=\"visitorSectionAnnouncements\"" admin/index.html
+          grep -q "id=\"visitorSectionLiveAuction\"" admin/index.html
+          grep -q "'collectiblesStore':vs.get('collectiblesStore',True) is not False" server.py
+          grep -q "data-section=\"promotions\"" public/public_home.html
+          grep -q "data-section=\"fantasia\"" public/collectibles_home.html
+          grep -q "data-section=\"collectiblesStore\"" public/dar_home.html
+          test -f public/section_visibility.js
+      - name: Show touched application files
+        run: git diff --name-only
+      - name: Commit isolated visibility upgrade
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server.py admin/index.html admin/app.js public/visitor.js public/section_visibility.js public/public_home.html public/collectibles_home.html public/dar_home.html
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "feat: safe visitor section visibility controls"
+            git push origin HEAD:main
+          fi
