@@ -1,0 +1,31 @@
+name: Apply refund cancel centers v1
+on:
+  push:
+    paths:
+      - tools/patch_refund_cancel_centers_v1.py
+      - .github/workflows/apply-refund-cancel-centers-v1.yml
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python tools/patch_refund_cancel_centers_v1.py
+      - name: Validate
+        run: |
+          node --check admin/app.js
+          grep -q "refund-cancel-centers-v1" admin/app.js
+          grep -q "اعتماد الاسترداد" admin/app.js
+          grep -q "حركة الملغي والمسترد في المستودع" admin/app.js
+          git diff --check
+      - name: Commit fix
+        run: |
+          if git diff --quiet; then echo "No changes"; exit 0; fi
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add admin/app.js
+          git commit -m "feat: add cancellation and refund approval centers"
+          git push origin HEAD:main
