@@ -1,0 +1,38 @@
+name: Apply shipping address activation v1
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/patch_shipping_address_activation_v1.py'
+      - '.github/workflows/apply-shipping-address-activation-v1.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply patch
+        run: python tools/patch_shipping_address_activation_v1.py
+      - name: Validate
+        run: |
+          python -m py_compile server.py
+          grep -q 'shipping-address-activation-v1' server.py
+          grep -q 'shipping-address-focus-v1' public/account.html
+          grep -q 'تم حفظ العنوان وتفعيله' public/account.html
+          grep -q 'shipping_address_incomplete' server.py
+          git diff --check
+      - name: Commit application fix
+        run: |
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add server.py public/account.html
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "fix: activate saved shipping address and route customer to address form"
+            git push origin HEAD:main
+          fi
