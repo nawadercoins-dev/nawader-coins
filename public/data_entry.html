@@ -109,6 +109,10 @@ textarea{min-height:100px;resize:vertical}
 /* data-entry-pending-recall-v1 */
 .pending-toolbar{border-color:#655a3b;background:#182313}.pending-select{width:20px;height:20px;accent-color:#d6b15a}.row.pending{border-color:#4d6580}.row .thumbs img{cursor:zoom-in}.row.assigned,.row.pending,.row.draft,.row.needs_changes{cursor:default}.row .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.row .actions .smallbtn{min-width:110px}.row.assigned{border-color:#b99647;box-shadow:inset 0 0 0 1px #b9964744}.row.assigned h3{color:#f0d995}.de-viewer{position:fixed;inset:0;z-index:3000;background:#000d;display:flex;flex-direction:column;padding:10px}.de-viewer.hidden{display:none}.de-viewer-tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:8px;background:#0a1929;border:1px solid #40566d;border-radius:12px}.de-viewer-stage{flex:1;min-height:0;overflow:hidden;display:grid;place-items:center;touch-action:none}.de-viewer-stage img{max-width:94%;max-height:94%;object-fit:contain;transform-origin:center;user-select:none;cursor:grab}.de-viewer-stage img:active{cursor:grabbing}.de-viewer-caption{text-align:center;padding:6px;color:#f0d995;font-weight:800}
 
+
+/* data-entry-assigned-selection-v1 */
+.assigned-toolbar{border-color:#816b33;background:#171f2a}.assigned-select{width:20px;height:20px;accent-color:#d6b15a}.row.assigned .assigned-select{flex:0 0 auto}
+
 </style>
 </head>
 <body>
@@ -259,6 +263,12 @@ textarea{min-height:100px;resize:vertical}
           <button id="clearDraftSelection" type="button" class="smallbtn">إلغاء التحديد</button>
           <button id="assignSelectedDrafts" type="button" class="btn">إرسال المحدد لمسؤول إدخال البيانات</button>
           <span id="draftSelectionCount" class="muted">0 محدد</span>
+        </div>
+        <div class="assignment-toolbar assigned-toolbar">
+          <button id="selectAllAssignedRows" type="button" class="smallbtn">تحديد كل قيد الإدخال</button>
+          <button id="clearAssignedSelection" type="button" class="smallbtn">إلغاء التحديد</button>
+          <button id="openSelectedAssigned" type="button" class="btn ghost">✎ فتح أول المحدد</button>
+          <span id="assignedSelectionCount" class="muted">0 محدد</span>
         </div>
         <div class="assignment-toolbar pending-toolbar">
           <button id="selectAllPendingRows" type="button" class="smallbtn">تحديد كل المرسلة للاعتماد</button>
@@ -625,18 +635,23 @@ function editRow(id){
 }
 window.editRow=editRow;
 
-let selectedDraftRows=new Set(),selectedPendingRows=new Set();
+let selectedDraftRows=new Set(),selectedAssignedRows=new Set(),selectedPendingRows=new Set();
 function syncDraftSelection(){
   const drafts=rows.filter(r=>['draft','needs_changes'].includes(r.status));
+  const assigned=rows.filter(r=>r.status==='assigned');
   const pending=rows.filter(r=>r.status==='pending');
   selectedDraftRows=new Set([...selectedDraftRows].filter(id=>drafts.some(r=>String(r.id)===String(id))));
+  selectedAssignedRows=new Set([...selectedAssignedRows].filter(id=>assigned.some(r=>String(r.id)===String(id))));
   selectedPendingRows=new Set([...selectedPendingRows].filter(id=>pending.some(r=>String(r.id)===String(id))));
   if($('draftSelectionCount'))$('draftSelectionCount').textContent=`${selectedDraftRows.size} محدد`;
+  if($('assignedSelectionCount'))$('assignedSelectionCount').textContent=`${selectedAssignedRows.size} محدد`;
   if($('pendingSelectionCount'))$('pendingSelectionCount').textContent=`${selectedPendingRows.size} محدد`;
   if($('assignSelectedDrafts'))$('assignSelectedDrafts').disabled=!selectedDraftRows.size;
+  if($('openSelectedAssigned'))$('openSelectedAssigned').disabled=!selectedAssignedRows.size;
   if($('withdrawSelectedPending'))$('withdrawSelectedPending').disabled=!selectedPendingRows.size
 }
 window.toggleDraftRow=(id,checked)=>{checked?selectedDraftRows.add(String(id)):selectedDraftRows.delete(String(id));syncDraftSelection()};
+window.toggleAssignedRow=(id,checked)=>{checked?selectedAssignedRows.add(String(id)):selectedAssignedRows.delete(String(id));syncDraftSelection()};
 window.togglePendingRow=(id,checked)=>{checked?selectedPendingRows.add(String(id)):selectedPendingRows.delete(String(id));syncDraftSelection()};
 
 let DEVIEW={imgs:[],idx:0,scale:1,x:0,y:0,drag:false,px:0,py:0};
@@ -645,8 +660,8 @@ window.previewRowImages=(id,idx=0)=>{const r=rows.find(x=>String(x.id)===String(
 
 function renderRows(){
   $('rows').innerHTML=rows.map(r=>{
-    const imgs=[r.frontImage,r.backImage,...(r.additionalImages||[])].filter(Boolean),editable=['draft','needs_changes','assigned'].includes(r.status),assignable=['draft','needs_changes'].includes(r.status),recallable=r.status==='pending',store=r.storeType==='collectibles'?'collectibles':'coins',category=store==='collectibles'?(CATEGORY_LABELS[r.collectibleCategory]||'أخرى'):'';
-    const selector=assignable?`<input class="row-select" type="checkbox" aria-label="تحديد المسودة" ${selectedDraftRows.has(String(r.id))?'checked':''} onchange="toggleDraftRow('${esc(r.id)}',this.checked)">`:recallable?`<input class="pending-select" type="checkbox" aria-label="تحديد المرسل للاعتماد" ${selectedPendingRows.has(String(r.id))?'checked':''} onchange="togglePendingRow('${esc(r.id)}',this.checked)">`:r.status==='assigned'?`<span class="chip">مهمة جاهزة للعمل</span>`:'';
+    const imgs=[r.frontImage,r.backImage,...(r.additionalImages||[])].filter(Boolean),editable=['draft','needs_changes','assigned'].includes(r.status),assignable=['draft','needs_changes'].includes(r.status),assignedSelectable=r.status==='assigned',recallable=r.status==='pending',store=r.storeType==='collectibles'?'collectibles':'coins',category=store==='collectibles'?(CATEGORY_LABELS[r.collectibleCategory]||'أخرى'):'';
+    const selector=assignable?`<input class="row-select" type="checkbox" aria-label="تحديد المسودة" ${selectedDraftRows.has(String(r.id))?'checked':''} onchange="toggleDraftRow('${esc(r.id)}',this.checked)">`:assignedSelectable?`<input class="assigned-select" type="checkbox" aria-label="تحديد قيد الإدخال" ${selectedAssignedRows.has(String(r.id))?'checked':''} onchange="toggleAssignedRow('${esc(r.id)}',this.checked)">`:recallable?`<input class="pending-select" type="checkbox" aria-label="تحديد المرسل للاعتماد" ${selectedPendingRows.has(String(r.id))?'checked':''} onchange="togglePendingRow('${esc(r.id)}',this.checked)">`:'';
     return`<article class="row ${esc(r.status||'')}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div style="display:flex;gap:8px;align-items:center">${selector}<h3>${esc(r.country||'—')} — ${esc(r.denomination||'—')}</h3></div><span class="chip">${esc(statusLabel(r.status))}</span></div>
     <div class="meta"><span class="chip store-chip">${esc(STORE_LABELS[store])}</span>${category?`<span>التصنيف: ${esc(category)}</span>`:''}<span>${esc(r.year||'')}</span><span>الكمية: ${Number(r.quantity||r.inventoryUnitCount||1)}</span><span>شراء: ${Number(r.purchase||0).toLocaleString('ar-SA')}</span><span>بيع: ${Number(r.salePrice||r.expectedPrice||0).toLocaleString('ar-SA')}</span></div>
     ${imgs.length?`<div class="thumbs">${imgs.slice(0,4).map((x,n)=>`<img src="${esc(x)}" alt="" onclick="previewRowImages('${esc(r.id)}',${n})">`).join('')}</div>`:''}${r.adminNote?`<div class="row-note"><b>ملاحظة الإدارة:</b> ${esc(r.adminNote)}</div>`:''}
@@ -656,6 +671,9 @@ function renderRows(){
 }
 if($('selectAllDraftRows')) $('selectAllDraftRows').onclick=()=>{selectedDraftRows=new Set(rows.filter(r=>['draft','needs_changes'].includes(r.status)).map(r=>String(r.id)));renderRows()};
 if($('clearDraftSelection')) $('clearDraftSelection').onclick=()=>{selectedDraftRows.clear();renderRows()};
+if($('selectAllAssignedRows')) $('selectAllAssignedRows').onclick=()=>{selectedAssignedRows=new Set(rows.filter(r=>r.status==='assigned').map(r=>String(r.id)));renderRows()};
+if($('clearAssignedSelection')) $('clearAssignedSelection').onclick=()=>{selectedAssignedRows.clear();renderRows()};
+if($('openSelectedAssigned')) $('openSelectedAssigned').onclick=()=>{const id=[...selectedAssignedRows][0];if(id)editRow(id)};
 if($('selectAllPendingRows')) $('selectAllPendingRows').onclick=()=>{selectedPendingRows=new Set(rows.filter(r=>r.status==='pending').map(r=>String(r.id)));renderRows()};
 if($('clearPendingSelection')) $('clearPendingSelection').onclick=()=>{selectedPendingRows.clear();renderRows()};
 $('assignSelectedDrafts').onclick=async()=>{
