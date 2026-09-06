@@ -1,0 +1,41 @@
+name: Apply admin approval edit and return fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-admin-approval-edit-return.yml'
+      - 'tools/patch_admin_approval_edit_return_lightbox_close.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply patch
+        run: python tools/patch_admin_approval_edit_return_lightbox_close.py
+      - name: Validate
+        run: |
+          python -m py_compile server.py
+          git diff --check
+          grep -q "api/data-entry/admin-edit" server.py
+          grep -q "editPendingDataEntry" admin/app.js
+          grep -q "إرجاع لمسؤول إدخال البيانات" admin/app.js
+          grep -q "admin-approval-edit-close-v1" admin/styles.css
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server.py admin/app.js admin/styles.css
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "fix: add admin edit return actions and reliable lightbox close"
+            git push origin HEAD:main
+          fi
