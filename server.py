@@ -3199,13 +3199,22 @@ class H(SimpleHTTPRequestHandler):
                 if not participant_permissions(pid).get('dataEntry'):
                     self.sendj({'error':'صلاحية مسؤول إدخال البيانات غير مفعلة لهذا الحساب'},403); return
                 mode=str(d.get('mode') or 'draft').strip().lower()
-                if mode not in ('draft','submit','assign'): mode='draft'
+                if mode not in ('draft','submit','assign','withdraw'): mode='draft'
                 sid=str(d.get('id') or '').strip()
                 rows=load_collectible_submissions(); row=None
                 if sid:
                     row=next((x for x in rows if str(x.get('id'))==sid and x.get('submissionSource')=='data_entry' and (str(x.get('dataEntryParticipantId') or '')==pid or str(x.get('status') or '')=='assigned')),None)
                     if not row:
                         self.sendj({'error':'سجل الإدخال غير موجود'},404); return
+                    if mode=='withdraw':
+                        if row.get('status')!='pending':
+                            self.sendj({'error':'يمكن استرجاع المقتنى فقط وهو بانتظار الاعتماد وقبل صدور قرار الإدارة'},409); return
+                        now=datetime.datetime.now().isoformat()
+                        row['status']='assigned'; row['withdrawnAt']=now; row['updated']=now
+                        save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
+                        add_notification('admin','','approval','↩ تم استرجاع مقتنى من الاعتماد',f"استرجع مسؤول إدخال البيانات {row.get('dataEntryName') or 'المسؤول'} مقتنى قبل اعتماد الإدارة لإجراء تعديل عليه.",sid,'/admin')
+                        append_operation('استرجاع مقتنى من انتظار الاعتماد للتعديل',{'submissionId':sid,'operatorId':pid},actor='مسؤول إدخال البيانات')
+                        self.sendj({'ok':True,'submission':row}); return
                     if mode=='assign':
                         if row.get('status') not in ('draft','needs_changes'):
                             self.sendj({'error':'يمكن إرسال المسودات أو المعاد للتعديل فقط لمسؤول إدخال البيانات'},409); return

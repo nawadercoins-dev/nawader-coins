@@ -106,6 +106,9 @@ textarea{min-height:100px;resize:vertical}
 .assignment-toolbar .muted{margin-inline-start:auto}.row-select{width:20px;height:20px;accent-color:#d6b15a}.row.assigned{border-color:#846f37;box-shadow:inset 0 0 0 1px #846f3733}
 @media(max-width:560px){.assignment-toolbar .btn{flex:1}.assignment-toolbar .muted{width:100%;margin:0;text-align:center}}
 
+/* data-entry-pending-recall-v1 */
+.pending-toolbar{border-color:#655a3b;background:#182313}.pending-select{width:20px;height:20px;accent-color:#d6b15a}.row.pending{border-color:#4d6580}.row .thumbs img{cursor:zoom-in}.de-viewer{position:fixed;inset:0;z-index:3000;background:#000d;display:flex;flex-direction:column;padding:10px}.de-viewer.hidden{display:none}.de-viewer-tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:8px;background:#0a1929;border:1px solid #40566d;border-radius:12px}.de-viewer-stage{flex:1;min-height:0;overflow:hidden;display:grid;place-items:center;touch-action:none}.de-viewer-stage img{max-width:94%;max-height:94%;object-fit:contain;transform-origin:center;user-select:none;cursor:grab}.de-viewer-stage img:active{cursor:grabbing}.de-viewer-caption{text-align:center;padding:6px;color:#f0d995;font-weight:800}
+
 </style>
 </head>
 <body>
@@ -256,6 +259,12 @@ textarea{min-height:100px;resize:vertical}
           <button id="clearDraftSelection" type="button" class="smallbtn">إلغاء التحديد</button>
           <button id="assignSelectedDrafts" type="button" class="btn">إرسال المحدد لمسؤول إدخال البيانات</button>
           <span id="draftSelectionCount" class="muted">0 محدد</span>
+        </div>
+        <div class="assignment-toolbar pending-toolbar">
+          <button id="selectAllPendingRows" type="button" class="smallbtn">تحديد كل المرسلة للاعتماد</button>
+          <button id="clearPendingSelection" type="button" class="smallbtn">إلغاء التحديد</button>
+          <button id="withdrawSelectedPending" type="button" class="btn ghost">↩ استرجاع المحدد للتعديل</button>
+          <span id="pendingSelectionCount" class="muted">0 محدد</span>
         </div>
         <div id="rows" class="rows"></div>
       </aside>
@@ -616,26 +625,39 @@ function editRow(id){
 }
 window.editRow=editRow;
 
-let selectedDraftRows=new Set();
+let selectedDraftRows=new Set(),selectedPendingRows=new Set();
 function syncDraftSelection(){
   const drafts=rows.filter(r=>['draft','needs_changes'].includes(r.status));
+  const pending=rows.filter(r=>r.status==='pending');
   selectedDraftRows=new Set([...selectedDraftRows].filter(id=>drafts.some(r=>String(r.id)===String(id))));
+  selectedPendingRows=new Set([...selectedPendingRows].filter(id=>pending.some(r=>String(r.id)===String(id))));
   if($('draftSelectionCount'))$('draftSelectionCount').textContent=`${selectedDraftRows.size} محدد`;
-  if($('assignSelectedDrafts'))$('assignSelectedDrafts').disabled=!selectedDraftRows.size
+  if($('pendingSelectionCount'))$('pendingSelectionCount').textContent=`${selectedPendingRows.size} محدد`;
+  if($('assignSelectedDrafts'))$('assignSelectedDrafts').disabled=!selectedDraftRows.size;
+  if($('withdrawSelectedPending'))$('withdrawSelectedPending').disabled=!selectedPendingRows.size
 }
 window.toggleDraftRow=(id,checked)=>{checked?selectedDraftRows.add(String(id)):selectedDraftRows.delete(String(id));syncDraftSelection()};
+window.togglePendingRow=(id,checked)=>{checked?selectedPendingRows.add(String(id)):selectedPendingRows.delete(String(id));syncDraftSelection()};
+
+let DEVIEW={imgs:[],idx:0,scale:1,x:0,y:0,drag:false,px:0,py:0};
+function drawDEViewer(){const im=document.getElementById('deViewerImg');if(im)im.style.transform=`translate(${DEVIEW.x}px,${DEVIEW.y}px) scale(${DEVIEW.scale})`;const c=document.getElementById('deViewerCaption');if(c)c.textContent=DEVIEW.imgs.length?`${DEVIEW.idx+1} / ${DEVIEW.imgs.length}`:''}
+window.previewRowImages=(id,idx=0)=>{const r=rows.find(x=>String(x.id)===String(id));if(!r)return;DEVIEW.imgs=[r.frontImage,r.backImage,...(r.additionalImages||[])].filter(Boolean);if(!DEVIEW.imgs.length)return;DEVIEW.idx=Math.max(0,Math.min(idx,DEVIEW.imgs.length-1));DEVIEW.scale=1;DEVIEW.x=DEVIEW.y=0;let v=document.getElementById('deViewer');if(!v){v=document.createElement('div');v.id='deViewer';v.className='de-viewer';v.innerHTML=`<div class="de-viewer-tools"><button class="smallbtn" data-dv="close">✕ إغلاق</button><button class="smallbtn" data-dv="prev">‹ السابق</button><button class="smallbtn" data-dv="zin">＋ تكبير</button><button class="smallbtn" data-dv="zout">− تصغير</button><button class="smallbtn" data-dv="reset">إظهار كامل</button><button class="smallbtn" data-dv="next">التالي ›</button></div><div class="de-viewer-stage"><img id="deViewerImg" alt="معاينة"></div><div id="deViewerCaption" class="de-viewer-caption"></div>`;document.body.appendChild(v);v.querySelectorAll('[data-dv]').forEach(b=>b.onclick=()=>{const a=b.dataset.dv;if(a==='close'){v.classList.add('hidden');return}if(a==='prev')DEVIEW.idx=(DEVIEW.idx-1+DEVIEW.imgs.length)%DEVIEW.imgs.length;if(a==='next')DEVIEW.idx=(DEVIEW.idx+1)%DEVIEW.imgs.length;if(a==='zin')DEVIEW.scale=Math.min(6,DEVIEW.scale+.25);if(a==='zout')DEVIEW.scale=Math.max(.35,DEVIEW.scale-.25);if(a==='reset'){DEVIEW.scale=1;DEVIEW.x=DEVIEW.y=0}document.getElementById('deViewerImg').src=DEVIEW.imgs[DEVIEW.idx];drawDEViewer()});const st=v.querySelector('.de-viewer-stage');st.onpointerdown=e=>{DEVIEW.drag=true;DEVIEW.px=e.clientX;DEVIEW.py=e.clientY;st.setPointerCapture?.(e.pointerId)};st.onpointermove=e=>{if(!DEVIEW.drag)return;DEVIEW.x+=e.clientX-DEVIEW.px;DEVIEW.y+=e.clientY-DEVIEW.py;DEVIEW.px=e.clientX;DEVIEW.py=e.clientY;drawDEViewer()};st.onpointerup=st.onpointercancel=()=>DEVIEW.drag=false;st.onwheel=e=>{e.preventDefault();DEVIEW.scale=Math.max(.35,Math.min(6,DEVIEW.scale+(e.deltaY<0?.2:-.2)));drawDEViewer()}}v.classList.remove('hidden');document.getElementById('deViewerImg').src=DEVIEW.imgs[DEVIEW.idx];drawDEViewer()};
+
 function renderRows(){
   $('rows').innerHTML=rows.map(r=>{
-    const imgs=[r.frontImage,r.backImage,...(r.additionalImages||[])].filter(Boolean),editable=['draft','needs_changes','assigned'].includes(r.status),assignable=['draft','needs_changes'].includes(r.status),store=r.storeType==='collectibles'?'collectibles':'coins',category=store==='collectibles'?(CATEGORY_LABELS[r.collectibleCategory]||'أخرى'):'';
-    return`<article class="row ${esc(r.status||'')}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div style="display:flex;gap:8px;align-items:center">${assignable?`<input class="row-select" type="checkbox" aria-label="تحديد المسودة" ${selectedDraftRows.has(String(r.id))?'checked':''} onchange="toggleDraftRow('${esc(r.id)}',this.checked)">`:''}<h3>${esc(r.country||'—')} — ${esc(r.denomination||'—')}</h3></div><span class="chip">${esc(statusLabel(r.status))}</span></div>
+    const imgs=[r.frontImage,r.backImage,...(r.additionalImages||[])].filter(Boolean),editable=['draft','needs_changes','assigned'].includes(r.status),assignable=['draft','needs_changes'].includes(r.status),recallable=r.status==='pending',store=r.storeType==='collectibles'?'collectibles':'coins',category=store==='collectibles'?(CATEGORY_LABELS[r.collectibleCategory]||'أخرى'):'';
+    const selector=assignable?`<input class="row-select" type="checkbox" aria-label="تحديد المسودة" ${selectedDraftRows.has(String(r.id))?'checked':''} onchange="toggleDraftRow('${esc(r.id)}',this.checked)">`:recallable?`<input class="pending-select" type="checkbox" aria-label="تحديد المرسل للاعتماد" ${selectedPendingRows.has(String(r.id))?'checked':''} onchange="togglePendingRow('${esc(r.id)}',this.checked)">`:'';
+    return`<article class="row ${esc(r.status||'')}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div style="display:flex;gap:8px;align-items:center">${selector}<h3>${esc(r.country||'—')} — ${esc(r.denomination||'—')}</h3></div><span class="chip">${esc(statusLabel(r.status))}</span></div>
     <div class="meta"><span class="chip store-chip">${esc(STORE_LABELS[store])}</span>${category?`<span>التصنيف: ${esc(category)}</span>`:''}<span>${esc(r.year||'')}</span><span>الكمية: ${Number(r.quantity||r.inventoryUnitCount||1)}</span><span>شراء: ${Number(r.purchase||0).toLocaleString('ar-SA')}</span><span>بيع: ${Number(r.salePrice||r.expectedPrice||0).toLocaleString('ar-SA')}</span></div>
-    ${imgs.length?`<div class="thumbs">${imgs.slice(0,4).map(x=>`<img src="${esc(x)}" alt="">`).join('')}</div>`:''}${r.adminNote?`<div class="row-note"><b>ملاحظة الإدارة:</b> ${esc(r.adminNote)}</div>`:''}
-    <div class="actions">${editable?`<button class="smallbtn" onclick="editRow('${esc(r.id)}')">${r.status==='assigned'?'فتح وإكمال':'تعديل'}</button>`:''}</div></article>`
+    ${imgs.length?`<div class="thumbs">${imgs.slice(0,4).map((x,n)=>`<img src="${esc(x)}" alt="" onclick="previewRowImages('${esc(r.id)}',${n})">`).join('')}</div>`:''}${r.adminNote?`<div class="row-note"><b>ملاحظة الإدارة:</b> ${esc(r.adminNote)}</div>`:''}
+    <div class="actions">${imgs.length?`<button class="smallbtn" onclick="previewRowImages('${esc(r.id)}',0)">معاينة الصور</button>`:''}${editable?`<button class="smallbtn" onclick="editRow('${esc(r.id)}')">${r.status==='assigned'?'فتح وإكمال':'تعديل'}</button>`:''}${recallable?`<button class="smallbtn" onclick="withdrawPendingRows(['${esc(r.id)}'])">↩ استرجاع للتعديل</button>`:''}</div></article>`
   }).join('')||'<p class="muted">لا توجد سجلات بعد. ابدأ بإضافة أول مقتنى.</p>';
   syncDraftSelection()
 }
 $('selectAllDraftRows').onclick=()=>{selectedDraftRows=new Set(rows.filter(r=>['draft','needs_changes'].includes(r.status)).map(r=>String(r.id)));renderRows()};
 $('clearDraftSelection').onclick=()=>{selectedDraftRows.clear();renderRows()};
+$('selectAllPendingRows').onclick=()=>{selectedPendingRows=new Set(rows.filter(r=>r.status==='pending').map(r=>String(r.id)));renderRows()};
+$('clearPendingSelection').onclick=()=>{selectedPendingRows.clear();renderRows()};
 $('assignSelectedDrafts').onclick=async()=>{
   const ids=[...selectedDraftRows];if(!ids.length)return;
   if(!confirm(`إرسال ${ids.length} مسودة لمسؤول إدخال البيانات؟`))return;
@@ -643,6 +665,8 @@ $('assignSelectedDrafts').onclick=async()=>{
   for(const id of ids){try{await api('/api/data-entry/submissions',{method:'POST',body:JSON.stringify({id,mode:'assign'})});ok++}catch(e){failed++}}
   selectedDraftRows.clear();await loadRows();setNotice(failed?`تم إرسال ${ok} وتعذر ${failed}.`:`تم إرسال ${ok} مسودة لمسؤول إدخال البيانات وأصبحت «قيد الإدخال».`,failed?'warn':'good')
 };
+window.withdrawPendingRows=async(ids)=>{ids=(ids||[]).filter(Boolean);if(!ids.length)return;if(!confirm(`استرجاع ${ids.length} مقتنى من انتظار الاعتماد إلى «قيد الإدخال» للتعديل؟`))return;let ok=0,failed=0;for(const id of ids){try{await api('/api/data-entry/submissions',{method:'POST',body:JSON.stringify({id,mode:'withdraw'})});ok++}catch(e){failed++}}selectedPendingRows.clear();await loadRows();setNotice(failed?`تم استرجاع ${ok} وتعذر ${failed}.`:`تم استرجاع ${ok} مقتنى. يمكنك الآن فتحه وتعديله ثم إرساله للاعتماد مرة أخرى.`,failed?'warn':'good')};
+$('withdrawSelectedPending').onclick=()=>withdrawPendingRows([...selectedPendingRows]);
 async function loadRows(){
   const r=await api('/api/data-entry/submissions');operator=r.operator;rows=r.submissions||[];const c=r.counts||{};
   $('cDraft').textContent=c.draft||0;$('cPending').textContent=c.pending||0;$('cNeeds').textContent=c.needsChanges||0;$('cApproved').textContent=c.approved||0;$('cRejected').textContent=c.rejected||0;
