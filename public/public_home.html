@@ -24,6 +24,13 @@
 .hero .whatsapp{margin-top:13px}
 @media(max-width:760px){.logo{width:min(190px,56vw)}.store-nav{gap:7px;margin-top:15px}.store-nav a{font-size:13px;padding:9px 11px}}
 
+
+.live-entry{display:inline-flex;align-items:center;gap:8px;color:#fff!important;text-decoration:none!important;border:1px solid #ffffff38!important;border-radius:999px!important;padding:9px 13px!important;background:#ffffff0c!important;font-weight:900!important;position:relative}
+.live-entry .live-dot{width:10px;height:10px;border-radius:50%;background:#8b93a1;box-shadow:0 0 0 0 transparent;flex:0 0 auto}
+.live-entry.live-active{background:linear-gradient(135deg,#8c1525,#d6293d)!important;border-color:#ff6d7e!important;box-shadow:0 0 0 1px #ff829055,0 0 24px #d6293d66}
+.live-entry.live-active .live-dot{background:#ff263f;animation:livePulse 1.05s infinite}
+@keyframes livePulse{0%{box-shadow:0 0 0 0 #ff263f99}70%{box-shadow:0 0 0 10px #ff263f00}100%{box-shadow:0 0 0 0 #ff263f00}}
+
 </style>
 </head>
 <body>
@@ -40,6 +47,7 @@
 <a href="/market?store=coins">السوق</a>
 <a href="/auction?store=coins">المزادات</a>
 <a href="/account">حسابي</a>
+<a id="globalLiveEntry" class="live-entry" href="/live-auction"><span class="live-dot" aria-hidden="true"></span><span class="live-text">بث مباشر</span></a>
 </nav>
 <a class="whatsapp" href="https://wa.me/966551892409" target="_blank" rel="noopener">تواصل معنا عبر واتساب</a>
 </section>

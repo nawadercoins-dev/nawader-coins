@@ -48,6 +48,13 @@ footer{text-align:center;color:#8fa2b8;margin-top:30px}
  .stores{grid-template-columns:1fr}.store{min-height:285px}.art{font-size:64px}.services{grid-template-columns:1fr 1fr}
 }
 @media(max-width:430px){.top{display:block}.topnav{margin-top:11px;justify-content:center}.brand{justify-content:center}.services{grid-template-columns:1fr}.store h3{font-size:29px}}
+
+.live-entry{display:inline-flex;align-items:center;gap:8px;color:#fff!important;text-decoration:none!important;border:1px solid #ffffff38!important;border-radius:999px!important;padding:9px 13px!important;background:#ffffff0c!important;font-weight:900!important;position:relative}
+.live-entry .live-dot{width:10px;height:10px;border-radius:50%;background:#8b93a1;box-shadow:0 0 0 0 transparent;flex:0 0 auto}
+.live-entry.live-active{background:linear-gradient(135deg,#8c1525,#d6293d)!important;border-color:#ff6d7e!important;box-shadow:0 0 0 1px #ff829055,0 0 24px #d6293d66}
+.live-entry.live-active .live-dot{background:#ff263f;animation:livePulse 1.05s infinite}
+@keyframes livePulse{0%{box-shadow:0 0 0 0 #ff263f99}70%{box-shadow:0 0 0 10px #ff263f00}100%{box-shadow:0 0 0 0 #ff263f00}}
+
 </style>
 </head>
 <body>
@@ -61,6 +68,7 @@ footer{text-align:center;color:#8fa2b8;margin-top:30px}
     <a href="/announcements">الإعلانات</a>
     <a href="/notifications">الإشعارات</a>
     <a href="/account">حسابي</a>
+<a id="globalLiveEntry" class="live-entry" href="/live-auction"><span class="live-dot" aria-hidden="true"></span><span class="live-text">بث مباشر</span></a>
   </nav>
 </header>
 
@@ -105,5 +113,10 @@ footer{text-align:center;color:#8fa2b8;margin-top:30px}
 <footer>دار المقتنيات — نوادر العملات · نوادر المقتنيات</footer>
 </main>
 <script src="/section_visibility.js?v=2" defer></script>
+
+<script>
+(()=>{const el=document.getElementById('globalLiveEntry');if(!el)return;const text=el.querySelector('.live-text');async function refresh(){try{const r=await fetch('/api/public/live-auctions',{cache:'no-store'});const d=await r.json();const live=(d.sessions||[]).find(s=>String(s.status)==='live');if(live){el.classList.add('live-active');el.href='/live-auction?session='+encodeURIComponent(live.id);if(text)text.textContent='بث مباشر الآن';el.setAttribute('aria-label','البث المباشر يعمل الآن — اضغط للدخول')}else{el.classList.remove('live-active');el.href='/live-auction';if(text)text.textContent='بث مباشر';el.setAttribute('aria-label','الدخول إلى صفحة البث المباشر')}}catch(_){el.classList.remove('live-active');el.href='/live-auction';if(text)text.textContent='بث مباشر'}}refresh();setInterval(refresh,5000)})();
+</script>
+
 </body>
 </html>

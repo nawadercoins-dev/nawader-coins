@@ -6,6 +6,13 @@
 .nav a.active{background:linear-gradient(135deg,#b88728,#e1be68);color:#10233b;font-weight:900;border-color:#ebcf83}
 @media(max-width:430px){.hero-logo{width:min(170px,52vw)}}
 
+
+.live-entry{display:inline-flex;align-items:center;gap:8px;color:#fff!important;text-decoration:none!important;border:1px solid #ffffff38!important;border-radius:999px!important;padding:9px 13px!important;background:#ffffff0c!important;font-weight:900!important;position:relative}
+.live-entry .live-dot{width:10px;height:10px;border-radius:50%;background:#8b93a1;box-shadow:0 0 0 0 transparent;flex:0 0 auto}
+.live-entry.live-active{background:linear-gradient(135deg,#8c1525,#d6293d)!important;border-color:#ff6d7e!important;box-shadow:0 0 0 1px #ff829055,0 0 24px #d6293d66}
+.live-entry.live-active .live-dot{background:#ff263f;animation:livePulse 1.05s infinite}
+@keyframes livePulse{0%{box-shadow:0 0 0 0 #ff263f99}70%{box-shadow:0 0 0 10px #ff263f00}100%{box-shadow:0 0 0 0 #ff263f00}}
+
 </style></head><body><main class="wrap"><section class="hero">
 <small style="color:#ebcf83;font-weight:900">دار المقتنيات</small>
 <img class="hero-logo" src="/assets/dar-al-muqtanyat-logo.webp" alt="شعار دار المقتنيات">
@@ -18,6 +25,7 @@
 <a href="/market?store=collectibles">السوق</a>
 <a href="/auction?store=collectibles">المزادات</a>
 <a href="/account?store=collectibles">حسابي</a>
+<a id="globalLiveEntry" class="live-entry" href="/live-auction"><span class="live-dot" aria-hidden="true"></span><span class="live-text">بث مباشر</span></a>
 </nav>
 </section>
 <section class="categories" data-section="market"><a class="cat" data-section="fantasia" href="/market?store=collectibles&category=fantasia">🎭<b>فنتازيا</b></a><a class="cat" data-section="collectiblesAntiques" href="/market?store=collectibles&category=antiques">🏺<b>تحف</b></a><a class="cat" data-section="collectiblesPrayerBeads" href="/market?store=collectibles&category=prayer-beads">📿<b>سبح</b></a><a class="cat" data-section="collectiblesVehiclesModels" href="/market?store=collectibles&category=vehicles-models">🚗<b>سيارات ومجسمات</b></a><a class="cat" data-section="collectiblesAviationMarine" href="/market?store=collectibles&category=aviation-marine">✈️<b>طائرات وسفن وقطارات</b></a><a class="cat" data-section="collectiblesJewelryStones" href="/market?store=collectibles&category=jewelry-stones">💍<b>خواتم وأحجار</b></a><a class="cat" data-section="collectiblesGames" href="/market?store=collectibles&category=games">🧸<b>ألعاب ومقتنيات</b></a><a class="cat" data-section="collectiblesOther" href="/market?store=collectibles&category=other">🧰<b>أخرى</b></a></section>
@@ -32,4 +40,9 @@ async function get(url){let r=await fetch(url,{cache:'no-store'});if(!r.ok)throw
 async function load(id,url,href,isAuction=false){let box=$(id);try{let d=await get(url);if(isAuction&&Number(d.serverEpochMs)>0)auctionClockOffset=Number(d.serverEpochMs)-Date.now();let rows=d.items||[];box.innerHTML=rows.slice(0,24).map(i=>card(i,href,isAuction)).join('')||'<span class="empty">لا توجد مقتنيات منشورة في هذا القسم حتى الآن.</span>';paint()}catch(_){box.innerHTML='<span class="empty">تعذر تحميل القسم مؤقتًا.</span>'}}
 function paint(){document.querySelectorAll('.collectible-auction-clock').forEach(x=>{let item={auctionEnd:x.dataset.end,auctionEndEpochMs:Number(x.dataset.endMs||0)};x.textContent='⏱ '+clock(item)})}
 setInterval(paint,1000);load('marketRail','/api/public/market?store=collectibles','/market?store=collectibles');load('auctionRail','/api/public/auctions?store=collectibles','/auction?store=collectibles',true);load('fantasiaRail','/api/public/fantasia?store=collectibles','/market?store=collectibles&category=fantasia')})();
-</script></body></html>
+</script>
+<script>
+(()=>{const el=document.getElementById('globalLiveEntry');if(!el)return;const text=el.querySelector('.live-text');async function refresh(){try{const r=await fetch('/api/public/live-auctions',{cache:'no-store'});const d=await r.json();const live=(d.sessions||[]).find(s=>String(s.status)==='live');if(live){el.classList.add('live-active');el.href='/live-auction?session='+encodeURIComponent(live.id);if(text)text.textContent='بث مباشر الآن';el.setAttribute('aria-label','البث المباشر يعمل الآن — اضغط للدخول')}else{el.classList.remove('live-active');el.href='/live-auction';if(text)text.textContent='بث مباشر';el.setAttribute('aria-label','الدخول إلى صفحة البث المباشر')}}catch(_){el.classList.remove('live-active');el.href='/live-auction';if(text)text.textContent='بث مباشر'}}refresh();setInterval(refresh,5000)})();
+</script>
+
+</body></html>
