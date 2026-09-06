@@ -1,0 +1,36 @@
+name: Apply shipping address save response v3
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/patch_shipping_address_save_response_v3.py'
+      - '.github/workflows/apply-shipping-address-save-response-v3.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply patch
+        run: python tools/patch_shipping_address_save_response_v3.py
+      - name: Validate
+        run: |
+          python -m py_compile server.py
+          grep -q 'shipping-address-save-response-v3' server.py
+          grep -q "flatShippingFee':flat_shipping_fee()" server.py
+          git diff --check
+      - name: Commit application fix
+        run: |
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add server.py
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "fix: save shipping address without shared database error"
+            git push origin HEAD:main
+          fi
