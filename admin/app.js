@@ -5104,3 +5104,38 @@ async function renderDues(){
     document.querySelectorAll('[data-order-due][data-order-action]').forEach(b=>b.onclick=async()=>{const a=b.dataset.orderAction,label=a==='paid'?'اعتماد استلام المبلغ ونقل الطلب إلى التجهيز والشحن؟':a==='cancelled'?'إلغاء المستحق/الطلب وإخراجه من المركز؟':'إرجاع الطلب إلى غير مسدد؟';if(!confirm(label))return;try{await api('/api/order/payment-admin',{method:'POST',body:JSON.stringify({id:b.dataset.orderDue,action:a})});await renderDues();if(typeof renderOrders==='function')await renderOrders();await renderAdminNotifications()}catch(e){alert(e.message)}});
   }catch(e){$('duesList').innerHTML=`<p class="muted">${esc(e.message||'تعذر تحميل المستحقات')}</p>`}
 }
+
+
+// dues-foreign-viewer-cleanup-v4
+(function(){
+  const cues=['السابق','تكبير','تصغير','تدوير','توسيط','إظهار كامل','100%','ملء الشاشة','التالي'];
+  function duesActive(){return !!document.querySelector('#dues.view.active, #dues.active');}
+  function score(el){
+    const txt=(el.innerText||'').replace(/\s+/g,' ');
+    return cues.reduce((n,c)=>n+(txt.includes(c)?1:0),0);
+  }
+  function hideForeignViewer(){
+    if(!duesActive()) return;
+    const candidates=[...document.querySelectorAll('section,div,dialog,aside')];
+    for(const el of candidates){
+      if(el.closest('#dues')) continue;
+      if(score(el)<5) continue;
+      const r=el.getBoundingClientRect();
+      if(r.height<180 || r.width<420) continue;
+      el.dataset.hiddenOnDues='1';
+      el.style.setProperty('display','none','important');
+    }
+    document.querySelectorAll('.image-viewer,.viewer-tools').forEach(el=>{
+      if(!el.closest('#dues')) el.style.setProperty('display','none','important');
+    });
+  }
+  function restoreOutsideDues(){
+    if(duesActive()) return;
+    document.querySelectorAll('[data-hidden-on-dues="1"]').forEach(el=>{el.style.removeProperty('display');delete el.dataset.hiddenOnDues;});
+    document.querySelectorAll('.image-viewer,.viewer-tools').forEach(el=>el.style.removeProperty('display'));
+  }
+  const sync=()=>{if(duesActive()) hideForeignViewer(); else restoreOutsideDues();};
+  document.addEventListener('click',()=>setTimeout(sync,0),true);
+  new MutationObserver(()=>setTimeout(sync,0)).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style']});
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',sync); else sync();
+})();
