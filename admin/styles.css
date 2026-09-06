@@ -6407,3 +6407,22 @@ html.lightbox-open,body.lightbox-open{overflow:hidden!important}
  .lightbox-close{position:fixed!important;top:8px!important;right:8px!important}
  .lightbox-toolbar{padding-right:62px!important}
 }
+
+
+/* admin-persistent-lightbox-remove-v1 */
+/* The collectible viewer must never occupy page space unless it is intentionally opened. */
+#coinLightbox:not([open]),
+.coin-lightbox:not([open]){
+  display:none!important;
+  visibility:hidden!important;
+  width:0!important;
+  height:0!important;
+  min-height:0!important;
+  max-height:0!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+}
+#coinLightbox[open],.coin-lightbox[open]{
+  visibility:visible!important;
+}

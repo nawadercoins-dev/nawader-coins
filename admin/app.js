@@ -5251,3 +5251,22 @@ async function renderDues(){
     await oldWarehouse.apply(this,arguments); ensureStyles(); const orders=await fetchOrdersSafe(); mount('warehouseView','warehouse-refund-cancel-center','حركة الملغي والمسترد في المستودع',orders,false);
   };
 })();
+
+
+// admin-persistent-lightbox-remove-v1
+(function(){
+  function closePersistentAdminViewer(){
+    const d=document.getElementById('coinLightbox');
+    if(!d)return;
+    try{ if(d.open && typeof d.close==='function') d.close(); else d.removeAttribute('open'); }catch(_){ try{d.removeAttribute('open')}catch(__){} }
+    document.documentElement.classList.remove('lightbox-open');
+    document.body?.classList.remove('lightbox-open');
+  }
+  // Close any stale viewer on first admin load and every navigation between admin sections.
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',closePersistentAdminViewer,{once:true});
+  else closePersistentAdminViewer();
+  document.addEventListener('click',(e)=>{
+    if(e.target.closest?.('nav [data-v], .dashboard-go, [data-go]')) setTimeout(closePersistentAdminViewer,0);
+  },true);
+  window.__closePersistentAdminViewer=closePersistentAdminViewer;
+})();
