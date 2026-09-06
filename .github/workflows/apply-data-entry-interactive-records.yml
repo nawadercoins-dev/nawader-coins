@@ -1,0 +1,45 @@
+name: Apply data-entry interactive records
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-data-entry-interactive-records.yml'
+      - 'tools/patch_data_entry_interactive_records.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply interactive records patch
+        run: python tools/patch_data_entry_interactive_records.py
+      - name: Validate page
+        run: |
+          git diff --check
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('public/data_entry.html').read_text(encoding='utf-8')
+          assert '✎ فتح وإكمال البيانات' in s
+          assert '🔎 معاينة الصور' in s
+          assert 'استرجاع للتعديل' in s
+          assert "if($('selectAllPendingRows'))" in s
+          print('data-entry interaction checks passed')
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data_entry.html
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "fix: activate data-entry record actions"
+            git push origin HEAD:main
+          fi
