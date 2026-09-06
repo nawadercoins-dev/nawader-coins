@@ -125,13 +125,16 @@ def load_collectible_submissions(): return load_json(COLLECTIBLE_SUBMISSIONS,{'s
 def load_image_vault(): return load_json(IMAGE_VAULT,{'images':[]}).get('images',[])
 def load_live_auctions(): return load_json(LIVE_AUCTIONS,{'sessions':[]}).get('sessions',[])
 
-# flat-shipping-35-v1
-FLAT_SHIPPING_FEE=35.0
+# flat-shipping-configurable-v2
+def flat_shipping_fee():
+    try:
+        return max(0.0, round(float(load_settings().get('flatShippingFee',35.0)),2))
+    except Exception:
+        return 35.0
 
 def apply_flat_shipping_for_participant(orders, participant_id):
-    """Apply one fixed 35 SAR shipping charge across all active unpaid orders for the participant.
-    The charge is attached to one order only; sibling orders in the same unpaid batch carry 0 shipping
-    so the customer is never charged 35 per item/order.
+    """Apply one configurable flat shipping charge across all active unpaid orders for a participant.
+    The configured amount is attached to one order only; sibling orders in the same unpaid batch carry 0 shipping.
     """
     pid=str(participant_id or '')
     active=[o for o in orders if str(o.get('participantId') or '')==pid and str(o.get('paymentStatus') or 'unpaid') not in ('paid','refunded','proof_submitted') and str(o.get('status') or '') in ('new','awaiting_payment','stalled') and not o.get('archived') and not o.get('cancellationRequestedAt')]
@@ -140,7 +143,7 @@ def apply_flat_shipping_for_participant(orders, participant_id):
     active.sort(key=lambda o: str(o.get('created') or ''))
     primary=active[0]
     for o in active:
-        fee=FLAT_SHIPPING_FEE if o is primary else 0.0
+        fee=flat_shipping_fee() if o is primary else 0.0
         o['shippingFee']=fee
         o['shippingFeeConfirmed']=True
         o['shippingFeePolicy']='flat_per_active_batch'
@@ -1060,7 +1063,7 @@ def overdue_due_for(pid):
     return None
 
 def load_settings():
-    defaults={'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':True,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','whatsappVerificationNumber':'966551892409','duesTrackingStartedAt':'','paymentBankName':'','paymentAccountName':'','paymentIban':'','paymentInstructions':'حوّل المبلغ النهائي بعد اعتماد الشحن، ثم ارفع صورة إشعار التحويل من صفحة المستحقات.','paymentWhatsapp':'','visitorSections':{'market':True,'auction':True,'specialNumbers':True,'transitionalIssues':True,
+    defaults={'flatShippingFee':35.0,'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':True,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','whatsappVerificationNumber':'966551892409','duesTrackingStartedAt':'','paymentBankName':'','paymentAccountName':'','paymentIban':'','paymentInstructions':'حوّل المبلغ النهائي بعد اعتماد الشحن، ثم ارفع صورة إشعار التحويل من صفحة المستحقات.','paymentWhatsapp':'','visitorSections':{'market':True,'auction':True,'specialNumbers':True,'transitionalIssues':True,
             'fantasia':True,'promotions':True,'announcements':True,'liveAuction':True,'collectiblesStore':True,'collectiblesAntiques':True,'collectiblesPrayerBeads':True,'collectiblesVehiclesModels':True,'collectiblesAviationMarine':True,'collectiblesJewelryStones':True,'collectiblesGames':True,'collectiblesOther':True},'fullPublicEnableV493':False}
     x=load_json(SETTINGS,defaults.copy())
     defaults.update(x if isinstance(x,dict) else {})
@@ -2269,7 +2272,7 @@ class H(SimpleHTTPRequestHandler):
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
         if p=='/api/settings/public':
-            st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'visitorSections':effective_visitor_sections(st),'marketFirstLaunch':MARKET_FIRST_LAUNCH,'whatsappVerificationNumber':st.get('whatsappVerificationNumber','966551892409'),'payment':{'method':'bank_transfer','bankName':st.get('paymentBankName',''),'accountName':st.get('paymentAccountName',''),'iban':st.get('paymentIban',''),'instructions':st.get('paymentInstructions',''),'whatsapp':st.get('paymentWhatsapp','')}}); return
+            st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'visitorSections':effective_visitor_sections(st),'marketFirstLaunch':MARKET_FIRST_LAUNCH,'whatsappVerificationNumber':st.get('whatsappVerificationNumber','966551892409'),'flatShippingFee':flat_shipping_fee(),'payment':{'method':'bank_transfer','bankName':st.get('paymentBankName',''),'accountName':st.get('paymentAccountName',''),'iban':st.get('paymentIban',''),'instructions':st.get('paymentInstructions',''),'whatsapp':st.get('paymentWhatsapp','')}}); return
         if p=='/api/settings/admin':
             if not self.require_admin(api=True): return
             self.sendj({'settings':load_settings()}); return
@@ -5074,6 +5077,19 @@ class H(SimpleHTTPRequestHandler):
                     try: append_save_audit({'id':iid,'ok':False,'country':country,'denomination':denom,'created':datetime.datetime.now().isoformat(),'reason':str(e)})
                     except Exception: pass
                     self.sendj({'ok':False,'error':'فشل حفظ السجل على القرص: '+str(e)},500); return
+            if p=='/api/shipping-policy':
+                if not self.require_admin(api=True): return
+                try: fee=max(0.0,round(float(d.get('flatShippingFee')),2))
+                except Exception: self.sendj({'error':'مبلغ الشحن غير صالح'},400); return
+                if fee>10000: self.sendj({'error':'مبلغ الشحن غير منطقي'},400); return
+                st=load_settings(); st['flatShippingFee']=fee; save_json(SETTINGS,st)
+                rows=load_orders(); pids=sorted({str(o.get('participantId') or '') for o in rows if str(o.get('participantId') or '')})
+                affected=0
+                for pid in pids:
+                    affected+=apply_flat_shipping_for_participant(rows,pid)
+                if rows: save_json(ORDERS,{'orders':rows})
+                append_operation('تعديل سياسة الشحن الثابت',{'flatShippingFee':fee,'affectedOrders':affected},actor='الإدارة')
+                self.sendj({'ok':True,'flatShippingFee':fee,'affectedOrders':affected}); return
             if p=='/api/merge':
                 incoming=d.get('items',[]); ids={i.get('id') for i in items}; ss={sig(i) for i in items}; added=0
                 for x in incoming:

@@ -4979,3 +4979,37 @@ document.querySelectorAll('[data-v="live-auctions"],.dashboard-go[data-go="live-
   document.addEventListener('fullscreenchange',()=>{ try{lbDraw()}catch(_){ } });
   window.__closeAdminLightbox=safeClose;
 })();
+
+
+// configurable-flat-shipping-v2
+(function(){
+  async function installFlatShippingControl(){
+    const view=document.getElementById('orders');
+    if(!view||document.getElementById('flatShippingPolicyBox')) return;
+    const panel=view.querySelector('.panel')||view;
+    const box=document.createElement('div');
+    box.id='flatShippingPolicyBox';
+    box.style.cssText='margin:12px 0;padding:12px;border:1px solid rgba(212,164,71,.55);border-radius:14px;background:rgba(7,27,53,.45);display:flex;gap:10px;align-items:end;flex-wrap:wrap';
+    box.innerHTML='<label style="display:grid;gap:6px;min-width:220px"><b>رسوم الشحن الثابتة للعميل</b><span style="font-size:.82rem;opacity:.8">تُحسب مرة واحدة على جميع طلباته النشطة غير المسددة، مهما كان عدد القطع.</span><input id="flatShippingFeeInput" type="number" min="0" step="1" inputmode="decimal" style="padding:10px;border-radius:9px"></label><button id="saveFlatShippingFee" class="gold-action" type="button">حفظ وتطبيق على الطلبات النشطة</button><span id="flatShippingFeeStatus"></span>';
+    const anchor=panel.querySelector('.auction-title-row');
+    if(anchor) anchor.insertAdjacentElement('afterend',box); else panel.prepend(box);
+    try{
+      const d=await api('/api/settings/admin');
+      const fee=Number(d?.settings?.flatShippingFee ?? 35);
+      document.getElementById('flatShippingFeeInput').value=Number.isFinite(fee)?fee:35;
+    }catch(e){ document.getElementById('flatShippingFeeStatus').textContent='تعذر قراءة قيمة الشحن'; }
+    document.getElementById('saveFlatShippingFee').onclick=async()=>{
+      const input=document.getElementById('flatShippingFeeInput');
+      const status=document.getElementById('flatShippingFeeStatus');
+      const fee=Number(input.value);
+      if(!Number.isFinite(fee)||fee<0){ status.textContent='⚠️ أدخل مبلغًا صحيحًا'; return; }
+      status.textContent='جارٍ الحفظ والتطبيق...';
+      try{
+        const r=await api('/api/shipping-policy',{method:'POST',body:JSON.stringify({flatShippingFee:fee})});
+        status.textContent=`✅ تم اعتماد ${Number(r.flatShippingFee).toLocaleString('ar-SA')} ر.س وتحديث ${Number(r.affectedOrders||0).toLocaleString('ar-SA')} طلب نشط`;
+        if(typeof renderOrders==='function') await renderOrders();
+      }catch(e){ status.textContent='⚠️ '+e.message; }
+    };
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',installFlatShippingControl); else installFlatShippingControl();
+})();
