@@ -498,14 +498,12 @@ if($('googleLogin'))$('googleLogin').onclick=e=>{if($('googleLogin').style.opaci
 if($('facebookLogin'))$('facebookLogin').onclick=e=>{if($('facebookLogin').style.opacity==='.55'){e.preventDefault();$('msg').textContent='⚠️ Facebook غير مهيأ على الخادم بعد.'}};
 $('register').onclick=async()=>{try{clearWaPending();$('waVerifyBox').hidden=true;let phone=$('phone').value.trim();if(!phone){$('msg').textContent='⚠️ رقم الجوال مطلوب';return}let endpoint=facebookLinkMode?'/api/facebook/link/start':googleLinkMode?'/api/google/link/start':'/api/participant/register';let r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('name').value.trim(),phone,country:$('regCountry')?.value||'',googleLink:googleLinkMode,facebookLink:facebookLinkMode})}),d=await r.json();if(!r.ok)throw Error(d.error||'تعذر إنشاء طلب التوثيق');if(!d.requestToken)throw Error('تعذر إنشاء مفتاح تحقق جديد. حدّث الصفحة وأعد المحاولة.');let pending={requestId:d.requestId,requestToken:d.requestToken,requestCode:d.requestCode,whatsappUrl:d.whatsappUrl,phone};saveWaPending(pending);showWaPending(pending);startWaPolling();$('msg').textContent=facebookLinkMode?'✅ تم إنشاء طلب ربط Facebook بالجوال. افتح واتساب وأرسل الرسالة الجاهزة من نفس الرقم.':googleLinkMode?'✅ تم إنشاء طلب ربط Google بالجوال. افتح واتساب وأرسل الرسالة الجاهزة من نفس الرقم.':'✅ تم إنشاء طلب التوثيق. افتح واتساب وأرسل الرسالة الجاهزة من نفس الرقم.'}catch(e){$('msg').textContent='⚠️ '+e.message}};
 $('waCheck').onclick=checkWaApproval;let restoredWa=getWaPending();if(restoredWa){showWaPending(restoredWa);startWaPolling();checkWaApproval()}
-async function routeAuthenticatedRole(){
-  try{
-    const r=await fetch('/api/auth/route',{cache:'no-store'}),d=await r.json();
-    if(r.ok&&d.authenticated&&d.role==='admin'&&d.redirect&&d.redirect!='/account'){
-      location.replace(d.redirect);return true;
-    }
-  }catch(e){}
-  return false;
-}
-routeAuthenticatedRole().then(routed=>{if(!routed){loadGoogleLoginState();loadFacebookLoginState();sync();window.addEventListener('storage',sync)}});
+// account-admin-redirect-fix-v1
+// /account is a customer-facing page. Never force an authenticated admin session
+// away from it; admins must be able to test the buyer checkout/order flow explicitly.
+async function routeAuthenticatedRole(){ return false; }
+loadGoogleLoginState();
+loadFacebookLoginState();
+sync();
+window.addEventListener('storage',sync);
 </script></body></html>
