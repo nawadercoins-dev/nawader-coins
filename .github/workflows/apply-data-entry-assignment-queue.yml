@@ -1,0 +1,41 @@
+name: Apply data-entry assignment queue
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-data-entry-assignment-queue.yml'
+      - 'tools/patch_data_entry_assignment_queue.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply assignment queue patch
+        run: python tools/patch_data_entry_assignment_queue.py
+      - name: Validate server and UI
+        run: |
+          python -m py_compile server.py
+          git diff --check
+          grep -q "assignment-queue-v1" public/data_entry.html
+          grep -q "assignSelectedDrafts" public/data_entry.html
+          grep -q "mode not in ('draft','submit','assign')" server.py
+          grep -q "row\['status'\]='assigned'" server.py
+      - name: Commit upgrade
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server.py public/data_entry.html
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "upgrade: add bulk assignment from drafts to data-entry queue"
+            git push origin HEAD:main
+          fi
