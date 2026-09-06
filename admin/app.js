@@ -4230,7 +4230,9 @@ window.openCoinLightbox = (imgs, idx = 0, caption = "") => {
   LB.scale = 1;
   LB.rot = 0;
   LB.x = LB.y = 0;
-  $("coinLightboxImg").src = LB.imgs[LB.idx];
+  const lbImg=$("coinLightboxImg");
+  lbImg.onload=()=>{ LB.scale=1; LB.rot=0; LB.x=LB.y=0; lbDraw(); };
+  lbImg.src = LB.imgs[LB.idx];
   $("coinLightboxCaption").textContent =
     (caption ? caption + " — " : "") + (LB.idx + 1) + " / " + LB.imgs.length;
   $("coinLightbox").showModal();
@@ -4263,6 +4265,12 @@ document.querySelectorAll("[data-lb]").forEach(
       if (a === "rl") LB.rot -= 90;
       if (a === "rr") LB.rot += 90;
       if (a === "center") {
+        LB.x = LB.y = 0;
+      }
+      // admin-lightbox-fit-v1: the CSS base size is already contain-fit; reset transform to show the whole image.
+      if (a === "fit") {
+        LB.scale = 1;
+        LB.rot = 0;
         LB.x = LB.y = 0;
       }
       if (a === "reset") {

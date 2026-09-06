@@ -6324,3 +6324,60 @@ body[data-admin-store="collectibles"] #add .coin-only-admin,
 #add #collectibleCategoryWrap[aria-hidden="true"] { display:none !important; }
 #form.store-coins #collectibleCategoryWrap,
 #form.store-coins #collectibleDetailsBox { display:none !important; }
+
+
+/* admin-lightbox-fit-v1 */
+.coin-lightbox{
+  width:min(1280px,98vw)!important;
+  height:94vh!important;
+  max-height:94vh!important;
+  padding:0!important;
+  overflow:hidden!important;
+  display:flex!important;
+  flex-direction:column!important;
+}
+.coin-lightbox[open]{display:flex!important}
+.lightbox-toolbar{
+  flex:0 0 auto;
+  position:relative;
+  z-index:3;
+  overflow-x:auto;
+  overflow-y:hidden;
+  flex-wrap:nowrap!important;
+  scrollbar-width:thin;
+}
+.lightbox-stage{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  height:auto!important;
+  width:100%!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:hidden!important;
+  position:relative!important;
+  touch-action:none!important;
+  cursor:grab;
+}
+.lightbox-stage:active{cursor:grabbing}
+.lightbox-stage img,
+#coinLightboxImg{
+  width:auto!important;
+  height:auto!important;
+  max-width:94%!important;
+  max-height:94%!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  margin:auto!important;
+  transform-origin:center center!important;
+  user-select:none!important;
+  -webkit-user-drag:none!important;
+  pointer-events:none!important;
+}
+.lightbox-caption{flex:0 0 auto;min-height:32px}
+@media(max-width:700px){
+  .coin-lightbox{width:100vw!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important}
+  .lightbox-toolbar{padding-inline:44px 8px!important}
+  .lightbox-toolbar button{white-space:nowrap!important;flex:0 0 auto!important}
+  .lightbox-stage img,#coinLightboxImg{max-width:98%!important;max-height:98%!important}
+}
