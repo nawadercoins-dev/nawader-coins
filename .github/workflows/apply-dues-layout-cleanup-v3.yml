@@ -1,0 +1,31 @@
+name: Apply dues layout cleanup v3
+on:
+  push:
+    paths:
+      - tools/patch_dues_layout_cleanup_v3.py
+      - .github/workflows/apply-dues-layout-cleanup-v3.yml
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python tools/patch_dues_layout_cleanup_v3.py
+      - name: Validate
+        run: |
+          node --check admin/app.js
+          grep -q "dues-layout-cleanup-v3" admin/app.js
+          grep -q "closeDuesImageViewer" admin/app.js
+          grep -q "body:has(#dues.view.active) .image-viewer" admin/app.js
+          git diff --check
+      - name: Commit fix
+        run: |
+          if git diff --quiet; then echo "No changes"; exit 0; fi
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add admin/app.js
+          git commit -m "fix: clean and align unified dues center"
+          git push origin HEAD:main
