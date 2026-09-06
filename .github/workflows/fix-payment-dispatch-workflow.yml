@@ -1,0 +1,31 @@
+name: Fix payment dispatch workflow
+on:
+  push:
+    paths:
+      - 'scripts/fix_payment_dispatch_workflow.py'
+      - '.github/workflows/fix-payment-dispatch-workflow.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python scripts/fix_payment_dispatch_workflow.py
+      - name: Validate
+        run: |
+          python -m py_compile server.py
+          grep -q "payment-dispatch-final-confirm-v1" server.py
+          grep -q "payment-dispatch-admin-v1" admin/app.js
+          grep -q "payment-mode-quick-controls-v1" admin/app.js
+          grep -q "payment-dialog-functional-controls-v2" public/account.html
+          grep -q "manualPaymentConfirm" public/account.html
+          grep -q "ordersBankPayEnabled" admin/app.js
+      - name: Commit fix
+        run: |
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add server.py admin/app.js public/account.html
+          git diff --cached --quiet || git commit -m "fix: move payment confirmation to final dispatch step"
+          git push
