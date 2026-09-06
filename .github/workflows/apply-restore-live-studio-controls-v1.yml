@@ -1,0 +1,40 @@
+name: Apply restore live studio controls v1
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/patch_restore_live_studio_controls_v1.py'
+      - '.github/workflows/apply-restore-live-studio-controls-v1.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python tools/patch_restore_live_studio_controls_v1.py
+      - name: Validate controls
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('public/live_studio.html').read_text(encoding='utf-8')
+          required=['startCamera','switchCamera','toggleMic','endStream','openLot','sellLot','closeLot','studioChatForm','toggleLiveMarket','studioTicker','studioTickerTrack']
+          missing=[x for x in required if f'id="{x}"' not in s]
+          assert not missing, missing
+          assert '/live_studio.js?v=5.4.6' in s
+          print('live studio controls validated')
+          PY
+          git diff --check
+      - name: Commit restored controls
+        run: |
+          if git diff --quiet; then
+            echo 'No changes'
+            exit 0
+          fi
+          git config user.name 'nawadercoins-dev'
+          git config user.email 'nawadercoins@gmail.com'
+          git add public/live_studio.html
+          git commit -m 'fix: restore live studio controls and auction ticker'
+          git push origin main
