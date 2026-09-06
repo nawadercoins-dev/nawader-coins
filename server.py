@@ -4037,9 +4037,28 @@ class H(SimpleHTTPRequestHandler):
                 if status in ('preparing','ready_to_ship','shipped') and str(row.get('paymentStatus') or '')!='paid':
                     self.sendj({'error':'لا يمكن تجهيز أو شحن الطلب قبل تأكيد السداد'},409); return
                 if status in ('ready_to_ship','shipped'):
+                    # shipping-address-activation-v1
                     addr=row.get('shippingAddress') if isinstance(row.get('shippingAddress'),dict) else {}
-                    if not str(addr.get('country') or '').strip() or not str(addr.get('city') or '').strip() or not str(addr.get('addressLine') or '').strip():
-                        self.sendj({'error':'أكمل عنوان التسليم في حساب العميل قبل جعل الطلب جاهزًا للشحن'},409); return
+                    def _shipping_complete(a):
+                        return bool(str((a or {}).get('country') or '').strip() and str((a or {}).get('city') or '').strip() and str((a or {}).get('addressLine') or '').strip())
+                    # Old orders may still have an empty address even after the customer saved a complete profile address.
+                    # Before rejecting the admin action, pull the latest saved customer address into this order.
+                    if not _shipping_complete(addr):
+                        pid=str(row.get('participantId') or '')
+                        person=next((x for x in load_people() if str(x.get('id') or '')==pid),None)
+                        profile_addr=(person or {}).get('shippingAddress') if isinstance((person or {}).get('shippingAddress'),dict) else {}
+                        if _shipping_complete(profile_addr):
+                            row['shippingAddress']=dict(profile_addr)
+                            row['shippingAddressSyncedAt']=datetime.datetime.now().isoformat()
+                            row['updated']=datetime.datetime.now().isoformat()
+                            save_json(ORDERS,{'orders':orders})
+                            addr=row['shippingAddress']
+                    if not _shipping_complete(addr):
+                        missing=[]
+                        if not str(addr.get('country') or '').strip(): missing.append('الدولة')
+                        if not str(addr.get('city') or '').strip(): missing.append('المدينة')
+                        if not str(addr.get('addressLine') or '').strip(): missing.append('العنوان بالتفصيل')
+                        self.sendj({'error':'عنوان التسليم غير مكتمل. أكمل '+('، '.join(missing) if missing else 'بيانات العنوان')+' في حساب العميل أولًا','code':'shipping_address_incomplete','actionUrl':'/account?focus=shipping#shippingPanel','missingAddressFields':missing},409); return
                     if not str(row.get('shippingCompany') or '').strip():
                         self.sendj({'error':'حدد شركة الشحن قبل جعل الطلب جاهزًا للشحن'},409); return
                 if status=='shipped' and not str(row.get('trackingNumber') or '').strip():
