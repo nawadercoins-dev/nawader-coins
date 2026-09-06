@@ -1,0 +1,30 @@
+name: Apply admin Arabic-first UI v2
+on:
+  push:
+    paths:
+      - tools/patch_admin_arabic_first_v2.py
+      - .github/workflows/apply-admin-arabic-first-v2.yml
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python tools/patch_admin_arabic_first_v2.py
+      - name: Validate
+        run: |
+          node --check admin/app.js
+          grep -q "admin-arabic-first-v2" admin/app.js
+          grep -q "بلاك ستيك" admin/app.js
+          git diff --check
+      - name: Commit UI localization correction
+        run: |
+          if git diff --quiet; then echo "No changes"; exit 0; fi
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add admin/app.js
+          git commit -m "fix: correct Arabic admin labels and preserve proper names"
+          git push origin HEAD:main
