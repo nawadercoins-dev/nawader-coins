@@ -1,0 +1,40 @@
+name: Apply admin lightbox controls
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-admin-lightbox-controls.yml'
+      - 'tools/patch_admin_lightbox_controls.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply robust lightbox controls
+        run: python tools/patch_admin_lightbox_controls.py
+      - name: Validate controls
+        run: |
+          git diff --check
+          grep -q 'admin-lightbox-controls-v2' admin/app.js
+          grep -q 'admin-lightbox-controls-v2' admin/styles.css
+          grep -q 'lightbox2' admin/index.html
+          grep -q '__closeAdminLightbox' admin/app.js
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add admin/app.js admin/styles.css admin/index.html
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "fix: make all admin image viewer controls reliable"
+            git push origin HEAD:main
+          fi
