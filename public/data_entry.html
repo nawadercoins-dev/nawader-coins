@@ -75,6 +75,31 @@ textarea{min-height:100px;resize:vertical}
 .mode-help{padding:10px 12px;border:1px dashed #7f6b3b;border-radius:12px;color:#d7cba7;margin-top:10px}
 @media(max-width:820px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.steps{grid-template-columns:repeat(2,1fr)}.form-grid{grid-template-columns:1fr}.rows{max-height:none}.panel{padding:13px}.batch-summary{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:420px){.stats{grid-template-columns:1fr 1fr}.actions .btn,.batch-actions .btn{flex:1}.top{align-items:flex-start}.steps{grid-template-columns:1fr 1fr}.batch-list{grid-template-columns:1fr}}
+
+/* data-entry-ux-v1 */
+/* واجهة إدخال أبسط: الصور في الوسط، أحجام ثابتة، وتقليل التشتيت البصري. */
+.vault-selected-card,.vault-pick,.batch-card,.row{overflow:hidden}
+.vault-selected-card img,.vault-pick img,.thumbs img,.batch-card .thumbs img{
+  object-fit:contain!important;object-position:center!important;background:#06111d
+}
+.vault-selected-card img{height:150px!important}
+.vault-pick img{height:135px!important}
+.thumbs{justify-content:center!important}
+.form-grid>label,.form-grid>.wide{min-width:0}
+.price-table input{text-align:center;font-weight:800}
+.smart-price-help{margin-top:6px;color:#b9c4d1;font-size:.84rem;line-height:1.6}
+.quick-entry-note{margin:10px 0 14px;padding:10px 12px;border:1px solid #425b73;border-radius:12px;background:#0d2034;color:#d9e2ea}
+.quick-entry-note b{color:#f0d995}
+/* في الصفحة الرئيسية نعرض المهم لمسؤول الإدخال فقط؛ الحالات الأخرى تبقى في السجلات. */
+.stats .stat:nth-child(n+3){display:none}
+.stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+@media(max-width:560px){
+  .wrap{padding:10px}.panel{border-radius:14px}.top{justify-content:center;text-align:center}
+  .links{width:100%;justify-content:center}.mode-switch{width:100%}.mode-switch .btn{flex:1}
+  .vault-selected{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .vault-selected-card img{height:125px!important}
+}
+
 </style>
 </head>
 <body>
@@ -91,6 +116,8 @@ textarea{min-height:100px;resize:vertical}
       <div><b>مسار موحّد للمتجرين</b><div class="muted">اختر المتجر أولًا، ثم أكمل نفس الخطوات: البيانات ← خزينة الصور ← الأسعار ← الإرسال للاعتماد.</div></div>
       <span id="activeStoreBadge" class="chip store-chip">نوادر العملات</span>
     </div>
+
+    <div class="quick-entry-note" id="data-entry-quick-note-v1"><b>المسار السريع:</b> اختر صورة من خزينة الصور ← ينتقل سعر الشراء تلقائيًا ← يحسب النظام سعر البيع افتراضيًا بربح 100% ← عدّل السعر للأعلى أو للأسفل إن رغبت ← أرسل للاعتماد.</div>
 
     <div class="mode-switch">
       <button id="singleModeBtn" class="btn active" type="button">مقتنى واحد</button>
@@ -190,6 +217,7 @@ textarea{min-height:100px;resize:vertical}
           <div class="wide"><table class="price-table"><thead><tr><th>البيان</th><th>السعر (ر.س)</th></tr></thead><tbody>
             <tr><td><b>سعر الشراء</b></td><td><input id="purchase" type="number" min="0" step="0.01" placeholder="0.00"></td></tr>
             <tr><td><b>سعر البيع</b></td><td><input id="salePrice" type="number" min="0" step="0.01" placeholder="0.00"></td></tr>
+            <tr><td><b>نسبة الربح الافتراضية</b></td><td><input id="profitPercent" type="number" min="-100" step="1" value="100"><div class="smart-price-help">100% = سعر البيع ضعف سعر الشراء. يمكنك تغيير النسبة أو تعديل سعر البيع مباشرة.</div></td></tr>
           </tbody></table></div>
           <label>تكلفة الشحن<input id="shipping" type="number" min="0" step="0.01"></label>
           <label>تكاليف أخرى<input id="other" type="number" min="0" step="0.01"></label>
@@ -256,7 +284,7 @@ async function api(url,opt={}){
 function setNotice(msg,type=''){const n=$('notice');n.className='notice'+(type?' '+type:'');n.textContent=msg}
 function storeLabel(v=$('storeType').value){return STORE_LABELS[v]||STORE_LABELS.coins}
 function makeKey(){return 'b-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8)}
-function cloneImages(items){return (items||[]).map(x=>({id:String(x.id||''),url:String(x.url||'')})).filter(x=>x.id||x.url)}
+function cloneImages(items){return (items||[]).map(x=>({id:String(x.id||''),url:String(x.url||''),purchasePrice:Number(x.purchasePrice||0)})).filter(x=>x.id||x.url)}
 
 function syncStore(){
   const c=$('storeType').value==='collectibles',editing=!!$('recordId').value||!!$('bulkEditKey').value;
@@ -286,7 +314,7 @@ function currentVaultIds(){return currentImages.items.map(x=>x.id).filter(Boolea
 function imageRole(i){return i===0?'الصورة الأولى':i===1?'الصورة الثانية':`إضافية ${i-1}`}
 function renderSelectedImages(){
   const items=currentImages.items||[];
-  $('selectedVaultImages').innerHTML=items.map((x,i)=>`<article class="vault-selected-card"><span class="vault-role">${esc(imageRole(i))}</span><img src="${esc(x.url)}" alt=""><button type="button" class="vault-remove" onclick="removeCurrentImage(${i})">إزالة من المقتنى</button></article>`).join('')||'<p class="muted">لا توجد صور مسحوبة لهذا المقتنى.</p>';
+  $('selectedVaultImages').innerHTML=items.map((x,i)=>`<article class="vault-selected-card"><span class="vault-role">${esc(imageRole(i))}</span><img src="${esc(x.url)}" alt="">${Number(x.purchasePrice||0)>0?`<div class="muted" style="text-align:center;margin-top:5px">شراء: ${Number(x.purchasePrice).toLocaleString('ar-SA')} ر.س</div>`:''}<button type="button" class="vault-remove" onclick="removeCurrentImage(${i})">إزالة من المقتنى</button></article>`).join('')||'<p class="muted">لا توجد صور مسحوبة لهذا المقتنى.</p>';
   $('vaultSelectionInfo').textContent=items.length?`${items.length} صورة مرتبطة بالنموذج`:'لم يتم سحب صور بعد'
 }
 window.removeCurrentImage=async i=>{
@@ -603,6 +631,37 @@ async function init(){
     restoreBulk();syncStore();renderSelectedImages();renderBulkQueue()
   }catch(e){showGate('تعذر فتح صفحة مسؤول إدخال البيانات',e.message||'حدث خطأ غير متوقع.',me&&me.participant)}
 }
+
+// data-entry-smart-pricing-v1
+let salePriceManuallyEdited=false;
+let lastVaultPurchaseApplied=null;
+function calcSuggestedSale(force=false){
+  const purchase=Number($('purchase')?.value||0), pct=Number($('profitPercent')?.value||100);
+  if(!purchase || (!$('salePrice')))return;
+  if(!force && salePriceManuallyEdited && Number($('salePrice').value||0)>0)return;
+  const suggested=Math.max(0,purchase*(1+pct/100));
+  $('salePrice').value=(Math.round(suggested*100)/100).toString();
+}
+function applyPurchaseFromVault(){
+  const prices=(currentImages.items||[]).map(x=>Number(x.purchasePrice||0)).filter(x=>x>0);
+  if(!prices.length)return;
+  const first=prices[0];
+  const purchaseEl=$('purchase');
+  if(!purchaseEl)return;
+  const current=Number(purchaseEl.value||0);
+  if(!current || current===Number(lastVaultPurchaseApplied||0)){
+    purchaseEl.value=String(first);
+    lastVaultPurchaseApplied=first;
+    salePriceManuallyEdited=false;
+    calcSuggestedSale(true);
+  }
+}
+$('purchase')?.addEventListener('input',()=>{salePriceManuallyEdited=false;calcSuggestedSale(true)});
+$('profitPercent')?.addEventListener('input',()=>{salePriceManuallyEdited=false;calcSuggestedSale(true)});
+$('salePrice')?.addEventListener('input',()=>{salePriceManuallyEdited=true});
+const _renderSelectedImages=renderSelectedImages;
+renderSelectedImages=function(){_renderSelectedImages();applyPurchaseFromVault()};
+
 init();
 </script>
 </body>

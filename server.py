@@ -3059,6 +3059,9 @@ class H(SimpleHTTPRequestHandler):
                 os.makedirs(UPLOAD_DIR,exist_ok=True)
                 n=int(self.headers.get('Content-Length','0'))
                 if n<=0 or n>50*1024*1024: self.sendj({'error':'حجم الصورة غير مناسب (الحد 50 ميجابايت)'},413); return
+                # image-vault-purchase-price-v1
+                try: purchase_price=max(0,float(str(self.headers.get('X-Purchase-Price') or '0').strip() or 0))
+                except Exception: purchase_price=0.0
                 ctype=(self.headers.get('Content-Type') or '').lower(); ext='.jpg'
                 if 'png' in ctype: ext='.png'
                 elif 'webp' in ctype: ext='.webp'
@@ -3083,7 +3086,7 @@ class H(SimpleHTTPRequestHandler):
                             except OSError: pass
                         name=os.path.basename(jpg); dst=jpg
                     except Exception: pass
-                now=datetime.datetime.now().isoformat(); rows=load_image_vault(); rec={'id':'iv-'+secrets.token_hex(7),'url':'/uploads/'+name,'filename':name,'status':'available','createdAt':now,'updatedAt':now,'sizeBytes':os.path.getsize(dst) if os.path.exists(dst) else n,'reservedByParticipantId':'','reservedByName':'','reservedAt':'','linkedSubmissionId':'','linkedItemId':'','linkHistory':[]}; rows.append(rec); save_json(IMAGE_VAULT,{'images':rows}); append_operation('رفع صورة إلى خزينة الصور',{'imageVaultId':rec['id'],'url':rec['url']},actor='الإدارة'); self.sendj({'ok':True,'image':rec}); return
+                now=datetime.datetime.now().isoformat(); rows=load_image_vault(); rec={'id':'iv-'+secrets.token_hex(7),'url':'/uploads/'+name,'filename':name,'status':'available','purchasePrice':purchase_price,'createdAt':now,'updatedAt':now,'sizeBytes':os.path.getsize(dst) if os.path.exists(dst) else n,'reservedByParticipantId':'','reservedByName':'','reservedAt':'','linkedSubmissionId':'','linkedItemId':'','linkHistory':[]}; rows.append(rec); save_json(IMAGE_VAULT,{'images':rows}); append_operation('رفع صورة إلى خزينة الصور',{'imageVaultId':rec['id'],'url':rec['url']},actor='الإدارة'); self.sendj({'ok':True,'image':rec}); return
             except Exception as e:
                 try:
                     if 'tmp' in locals() and os.path.exists(tmp): os.remove(tmp)

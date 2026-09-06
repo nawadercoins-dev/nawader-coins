@@ -4408,7 +4408,12 @@ async function uploadImagesToVault(){
       const original=files[i];
       if(status)status.textContent=`جارٍ تجهيز ورفع الصورة ${i+1} من ${files.length}…`;
       const f=await prepareVaultImageUpload(original);
-      const r=await fetch('/api/image-vault/upload',{method:'POST',credentials:'same-origin',headers:{'Content-Type':f.type||original.type||'image/jpeg','X-Original-Name':encodeURIComponent(original.name||'image')},body:f});
+      // image-vault-purchase-price-v1
+      const rawPurchase=window.prompt(`سعر شراء الصورة ${i+1} من ${files.length} — ${original.name||'الصورة'} (ر.س)`, '');
+      if(rawPurchase===null)throw new Error('تم إلغاء الرفع قبل حفظ سعر الشراء.');
+      const purchasePrice=Number(String(rawPurchase).replace(/,/g,'.').trim());
+      if(!Number.isFinite(purchasePrice)||purchasePrice<0)throw new Error('سعر الشراء غير صحيح. أدخل صفرًا أو رقمًا موجبًا.');
+      const r=await fetch('/api/image-vault/upload',{method:'POST',credentials:'same-origin',headers:{'Content-Type':f.type||original.type||'image/jpeg','X-Original-Name':encodeURIComponent(original.name||'image'),'X-Purchase-Price':String(purchasePrice)},body:f});
       const j=await r.json().catch(()=>({}));
       if(!r.ok){
         if(r.status===401)throw new Error('انتهت جلسة الإدارة. سجّل دخول الإدارة من جديد ثم أعد الرفع.');
