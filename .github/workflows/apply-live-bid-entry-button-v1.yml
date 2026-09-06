@@ -1,0 +1,31 @@
+name: Apply live bid entry button v1
+on:
+  push:
+    paths:
+      - 'tools/patch_live_bid_entry_button_v1.py'
+      - '.github/workflows/apply-live-bid-entry-button-v1.yml'
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python tools/patch_live_bid_entry_button_v1.py
+      - name: Validate
+        run: |
+          grep -q '>ادخل المزاد<' public/live_studio.html
+          grep -q '<span>المزايدة</span>' public/live_studio.html
+          grep -q "window.open('/live-auction?session='" public/live_studio.html
+          grep -q '<span>المزايدة</span><strong>' public/live_auction.js
+          git diff --check
+      - name: Commit
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'nawadercoins-dev'
+          git config user.email 'nawadercoins@gmail.com'
+          git add public/live_studio.html public/live_auction.html public/live_auction.js
+          git commit -m 'fix: activate bid entry button and rename auction action'
+          git push
