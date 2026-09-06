@@ -1,0 +1,36 @@
+name: Apply admin Arabic-first UI v1
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/patch_admin_arabic_first_v1.py'
+      - '.github/workflows/apply-admin-arabic-first-v1.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply patch
+        run: python tools/patch_admin_arabic_first_v1.py
+      - name: Validate
+        run: |
+          node --check admin/app.js
+          grep -q 'admin-arabic-first-v1' admin/app.js
+          grep -q "'Dashboard':'لوحة التحكم'" admin/app.js
+          git diff --check
+      - name: Commit UI localization
+        run: |
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add admin/app.js
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "feat: make admin interface Arabic-first"
+            git push origin HEAD:main
+          fi
