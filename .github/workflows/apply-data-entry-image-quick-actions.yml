@@ -1,0 +1,41 @@
+name: Apply data-entry image quick actions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-data-entry-image-quick-actions.yml'
+      - 'tools/patch_data_entry_image_quick_actions.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply patch
+        run: python tools/patch_data_entry_image_quick_actions.py
+      - name: Validate UI
+        run: |
+          git diff --check
+          grep -q 'data-entry-image-quick-actions-v1' public/data_entry.html
+          grep -q 'openDEInspect' public/data_entry.html
+          grep -q 'quickRecordBar' public/data_entry.html
+          grep -q 'استرجاع المرسل للتعديل' public/data_entry.html
+          grep -q 'معاينة أول المحدد' public/data_entry.html
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data_entry.html
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "fix: add data-entry image inspection and quick actions"
+            git push origin HEAD:main
+          fi
