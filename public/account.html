@@ -132,7 +132,7 @@ function openInvoice(orderId){if(!currentInvoiceParticipantId)return;location.hr
 function accountMoney(n){return Number(n||0).toLocaleString('ar-SA',{minimumFractionDigits:2,maximumFractionDigits:2})+' ر.س'}
 let accountOrdersCache=[],paymentSettingsCache=null,activePaymentOrderIds=[];
 function paymentStatusText(x){if(x.paymentStatus==='paid')return '✅ تم السداد وتم استلام المبلغ';if(x.manualPaymentStatus==='claimed')return '⏳ بانتظار مصادقة السداد من الإدارة';if(x.paymentStatus==='refunded')return '↩ تم الاسترداد';if(x.paymentProofStatus==='pending'||x.paymentStatus==='proof_submitted')return '📤 إثبات السداد قيد المراجعة';if(x.paymentProofStatus==='rejected')return '⚠️ يلزم إعادة إثبات السداد';return x.shippingFeeConfirmed?'جاهز للسداد':'بانتظار تحديد الشحن'}
-async function getPaymentSettings(){if(paymentSettingsCache)return paymentSettingsCache;let r=await fetch('/api/settings/public',{cache:'no-store'}),d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'تعذر تحميل بيانات السداد');paymentSettingsCache=d.payment||{};const pm=paymentSettingsCache;const manual=document.getElementById('paymentManualInfo'),bank=document.getElementById('paymentBankInfo'),form=document.getElementById('paymentForm');if(manual){manual.hidden=!pm.manualModeEnabled;const t=document.getElementById('paymentManualText');if(t)t.textContent=pm.manualInstructions||'سيتم التواصل معك من الإدارة لإرسال تعليمات السداد المناسبة لهذا الطلب.';}if(bank)bank.hidden=!pm.bankModeEnabled;if(form)form.hidden=!!pm.manualModeEnabled&&!pm.bankModeEnabled;return paymentSettingsCache}
+async function getPaymentSettings(){if(paymentSettingsCache)return paymentSettingsCache;let r=await fetch('/api/settings/public',{cache:'no-store'}),d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'تعذر تحميل بيانات السداد');paymentSettingsCache=d.payment||{};const pm=paymentSettingsCache;const manual=document.getElementById('paymentManualInfo'),bank=document.getElementById('paymentBankInfo'),form=document.getElementById('paymentForm');if(manual){manual.hidden=!pm.manualModeEnabled;const t=document.getElementById('paymentManualText');if(t)t.textContent=pm.manualInstructions||'سيتم التواصل معك من الإدارة لإرسال تعليمات السداد المناسبة لهذا الطلب.';}if(bank){bank.hidden=false;bank.dataset.bankEnabled=pm.bankModeEnabled?'1':'0';if(!pm.bankModeEnabled)bank.innerHTML='<b>التحويل البنكي / IBAN</b><div class="payment-note">غير مفعّل حاليًا من الإدارة. يمكن تفعيله لاحقًا من إعدادات السداد دون حذف بياناته.</div>';}if(form)form.hidden=!pm.bankModeEnabled;return paymentSettingsCache}
 function eligiblePaymentOrder(x){return !!x&&x.shippingFeeConfirmed&&x.manualPaymentStatus!=='claimed'&&!['paid','refunded','proof_submitted'].includes(String(x.paymentStatus||''))&&!['cancelled','returned','completed'].includes(String(x.status||''))&&['new','awaiting_payment','stalled'].includes(String(x.status||''))&&!x.cancellationRequestedAt}
 function duesPaymentSummary(dues){
   dues=Array.isArray(dues)?dues:[];
@@ -167,12 +167,32 @@ async function openPayment(orderId){
   activePaymentOrderIds=rows.map(x=>x.id);let total=rows.reduce((s,x)=>s+Number(x.buyerTotal||0),0),dlg=$('paymentDialog');
   $('paymentOrdersSummary').innerHTML=rows.map(x=>`<div><span>${esc(x.orderNumber||x.itemTitle||'طلب')}</span><b>${accountMoney(x.buyerTotal)}</b></div>`).join('')+`<div><strong>الإجمالي النهائي</strong><strong>${accountMoney(total)}</strong></div>`;
   let p=await getPaymentSettings(),configured=!!String(p.iban||'').trim();
-  $('paymentBankInfo').innerHTML=`<b>بيانات التحويل البنكي</b>${p.bankName?`<div>البنك: <strong>${esc(p.bankName)}</strong></div>`:''}${p.accountName?`<div>اسم الحساب: <strong>${esc(p.accountName)}</strong></div>`:''}${p.iban?`<div>IBAN: <strong dir="ltr">${esc(p.iban)}</strong> <button type="button" onclick="navigator.clipboard?.writeText('${esc(p.iban)}')">نسخ</button></div>`:''}${p.instructions?`<div class="payment-note">${esc(p.instructions)}</div>`:''}${p.whatsapp?`<div>واتساب السداد: <strong dir="ltr">${esc(p.whatsapp)}</strong></div>`:''}${!configured?'<div class="payment-rejected">لم تضف الإدارة رقم IBAN بعد. تواصل مع الإدارة قبل التحويل.</div>':''}`;
-  $('paymentDialogMessage').textContent=`سيُربط إثبات التحويل بـ ${rows.length} طلب بقيمة إجمالية ${accountMoney(total)}.`;$('paymentReference').value='';$('paymentNote').value='';$('paymentProofFile').value='';$('paymentProofPreview').hidden=true;$('submitPaymentProof').disabled=!configured;
+  if(p.bankModeEnabled){$('paymentBankInfo').innerHTML=`<b>بيانات التحويل البنكي</b>${p.bankName?`<div>البنك: <strong>${esc(p.bankName)}</strong></div>`:''}${p.accountName?`<div>اسم الحساب: <strong>${esc(p.accountName)}</strong></div>`:''}${p.iban?`<div>IBAN: <strong dir="ltr">${esc(p.iban)}</strong> <button type="button" onclick="navigator.clipboard?.writeText('${esc(p.iban)}')">نسخ</button></div>`:''}${p.instructions?`<div class="payment-note">${esc(p.instructions)}</div>`:''}${p.whatsapp?`<div>واتساب السداد: <strong dir="ltr">${esc(p.whatsapp)}</strong></div>`:''}${!configured?'<div class="payment-rejected">الحساب البنكي مفعّل لكن رقم IBAN لم يُدخل بعد.</div>':''}`;}
+  $('paymentDialogMessage').textContent=`سيُربط إثبات التحويل بـ ${rows.length} طلب بقيمة إجمالية ${accountMoney(total)}.`;$('paymentReference').value='';$('paymentNote').value='';$('paymentProofFile').value='';$('paymentProofPreview').hidden=true;$('submitPaymentProof').disabled=!(p.bankModeEnabled&&configured);
   if(dlg.showModal)dlg.showModal();else dlg.setAttribute('open','');
 }
 window.openPayment=openPayment;
 $('closePaymentDialog').onclick=()=>{$('paymentDialog').close?.();$('paymentDialog').removeAttribute('open')};
+function closePaymentModal(){const d=$('paymentDialog');if(!d)return;try{d.close?.()}catch(e){}d.removeAttribute('open')}
+if($('paymentDialogX'))$('paymentDialogX').onclick=(e)=>{e.preventDefault();e.stopPropagation();closePaymentModal()};
+$('paymentDialog')?.addEventListener('click',(e)=>{if(e.target===$('paymentDialog'))closePaymentModal()});
+document.addEventListener('keydown',(e)=>{if(e.key==='Escape'&&$('paymentDialog')?.open)closePaymentModal()});
+if($('manualPaymentConfirm'))$('manualPaymentConfirm').onclick=async(e)=>{
+  e.preventDefault();
+  const btn=$('manualPaymentConfirm'),st=$('manualPaymentStatus');
+  if(!activePaymentOrderIds.length||!currentInvoiceParticipantId){if(st)st.textContent='تعذر تحديد الطلب. أغلق النافذة وافتح «سداد الآن» من جديد.';return}
+  if(!confirm('هل تؤكد أنك أتممت السداد وترغب بإرسال الطلب للإدارة لمصادقة استلام المبلغ؟'))return;
+  btn.disabled=true;if(st)st.textContent='جارٍ إرسال طلب المصادقة...';
+  try{
+    const r=await fetch('/api/visitor/order/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({participantId:currentInvoiceParticipantId,orderId:activePaymentOrderIds[0],action:'manual_payment_claim'})});
+    const d=await r.json().catch(()=>({}));if(!r.ok||d.ok===false)throw Error(d.error||'تعذر إرسال طلب المصادقة');
+    if(st)st.textContent='✅ تم الإرسال — بانتظار مصادقة السداد من الإدارة';
+    btn.textContent='⏳ بانتظار مصادقة الإدارة';btn.disabled=true;
+    paymentSettingsCache=null;
+    if(typeof loadOrders==='function')await loadOrders();
+    setTimeout(closePaymentModal,900);
+  }catch(err){btn.disabled=false;if(st)st.textContent='⚠️ '+err.message}
+};
 $('paymentProofFile').onchange=()=>{let f=$('paymentProofFile').files?.[0],img=$('paymentProofPreview');if(!f){img.hidden=true;return}img.src=URL.createObjectURL(f);img.hidden=false};
 $('paymentForm').onsubmit=async e=>{e.preventDefault();let v=NawaderVisitor.get(),file=$('paymentProofFile').files?.[0];if(!v||!file||!activePaymentOrderIds.length){alert('اختر صورة إثبات التحويل');return}let btn=$('submitPaymentProof'),old=btn.textContent;btn.disabled=true;btn.textContent='جارٍ رفع الإثبات...';try{let up=await fetch('/api/visitor/upload',{method:'POST',headers:{'Content-Type':file.type||'image/jpeg','X-Participant-Id':v.id},body:file}),ud=await up.json().catch(()=>({}));if(!up.ok)throw Error(ud.error||'تعذر رفع صورة التحويل');let r=await fetch('/api/visitor/payment-proof',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({participantId:v.id,orderIds:activePaymentOrderIds,proofUrl:ud.url,reference:$('paymentReference').value.trim(),note:$('paymentNote').value.trim()})}),d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'تعذر إرسال إثبات السداد');alert(d.message||'تم إرسال إثبات السداد');$('paymentDialog').close?.();$('paymentDialog').removeAttribute('open');await loadOrders(v)}catch(err){alert(err.message)}finally{btn.textContent=old;btn.disabled=false}};
 async function orderAction(orderId,action){
