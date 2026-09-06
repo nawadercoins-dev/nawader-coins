@@ -1,0 +1,29 @@
+name: Apply manual payment mode
+on:
+  push:
+    paths:
+      - 'scripts/apply_manual_payment_mode.py'
+      - '.github/workflows/apply-manual-payment-mode.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python scripts/apply_manual_payment_mode.py
+      - name: Validate patch
+        run: |
+          python -m py_compile server.py
+          grep -q "paymentManualModeEnabled" server.py
+          grep -q "paymentManualModeEnabled" admin/index.html
+          grep -q "paymentManualModeEnabled" admin/app.js
+          grep -q "paymentManualInfo" public/account.html
+      - name: Commit fix
+        run: |
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add server.py admin/index.html admin/app.js public/account.html
+          git diff --cached --quiet || git commit -m "feat: add switchable manual payment mode"
+          git push
