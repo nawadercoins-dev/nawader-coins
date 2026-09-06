@@ -1,0 +1,33 @@
+name: Apply returns refunds center v1
+on:
+  push:
+    paths:
+      - tools/patch_returns_refunds_center_v1.py
+      - .github/workflows/apply-returns-refunds-center-v1.yml
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python tools/patch_returns_refunds_center_v1.py
+      - name: Validate
+        run: |
+          python -m py_compile server.py
+          node --check admin/app.js
+          grep -q "returns-refunds-origin-restore-v1" server.py
+          grep -q "returns-refunds-center-v1" admin/app.js
+          grep -q "restore_order_visibility_to_origin" server.py
+          grep -q "الإلغاء والاسترداد" admin/app.js
+          git diff --check
+      - name: Commit fix
+        run: |
+          if git diff --quiet; then echo "No changes"; exit 0; fi
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add admin/app.js server.py
+          git commit -m "feat: add cancellation refund approval center and restore origin"
+          git push origin HEAD:main
