@@ -1,0 +1,29 @@
+name: Apply dues foreign viewer cleanup v4
+on:
+  push:
+    paths:
+      - tools/patch_dues_remove_foreign_viewer.py
+      - .github/workflows/apply-dues-foreign-viewer-cleanup-v4.yml
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python tools/patch_dues_remove_foreign_viewer.py
+      - name: Validate
+        run: |
+          node --check admin/app.js
+          grep -q "dues-foreign-viewer-cleanup-v4" admin/app.js
+          git diff --check
+      - name: Commit fix
+        run: |
+          if git diff --quiet; then echo "No changes"; exit 0; fi
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add admin/app.js
+          git commit -m "fix: remove unrelated image viewer from dues page"
+          git push origin HEAD:main
