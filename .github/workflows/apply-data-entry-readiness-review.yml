@@ -1,0 +1,44 @@
+name: Apply data-entry readiness review
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-data-entry-readiness-review.yml'
+      - 'tools/patch_data_entry_readiness_review.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply readiness review patch
+        run: python tools/patch_data_entry_readiness_review.py
+      - name: Validate UI
+        run: |
+          git diff --check
+          grep -q 'assignedReadinessBoard' public/data_entry.html
+          grep -q 'function assignedReadiness(r)' public/data_entry.html
+          grep -q 'يحتاج استكمال يدوي قبل الاعتماد' public/data_entry.html
+          grep -q 'readyAssignedCount' public/data_entry.html
+          grep -q 'manualAssignedCount' public/data_entry.html
+          grep -q 'data-dv="rleft"' public/data_entry.html
+          grep -q 'data-dv="enhance"' public/data_entry.html
+          grep -q 'data-entry-readiness-review-v1' public/data_entry.html
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data_entry.html
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "feat: add data-entry readiness queues and image review tools"
+            git push origin HEAD:main
+          fi
