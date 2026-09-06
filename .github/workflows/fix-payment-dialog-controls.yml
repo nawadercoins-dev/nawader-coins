@@ -1,0 +1,28 @@
+name: Fix payment dialog controls
+on:
+  push:
+    paths:
+      - 'scripts/fix_payment_dialog_controls.py'
+      - '.github/workflows/fix-payment-dialog-controls.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python scripts/fix_payment_dialog_controls.py
+      - name: Validate
+        run: |
+          grep -q "function closePaymentModal" public/account.html
+          grep -q "manual_payment_claim" public/account.html
+          grep -q "غير مفعّل حاليًا من الإدارة" public/account.html
+          grep -q "paymentDialogX" public/account.html
+      - name: Commit fix
+        run: |
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add public/account.html
+          git diff --cached --quiet || git commit -m "fix: activate payment dialog controls and keep IBAN capability visible"
+          git push
