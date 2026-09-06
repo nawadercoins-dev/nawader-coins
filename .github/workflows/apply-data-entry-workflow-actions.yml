@@ -1,0 +1,41 @@
+name: Apply data-entry workflow actions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-data-entry-workflow-actions.yml'
+      - 'tools/patch_data_entry_workflow_actions.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply data-entry workflow actions patch
+        run: python tools/patch_data_entry_workflow_actions.py
+      - name: Validate UI
+        run: |
+          git diff --check
+          grep -q 'id="submitSelectedAssigned"' public/data_entry.html
+          grep -q 'function submitAssignedSelection()' public/data_entry.html
+          grep -q 'function rowAsData(r)' public/data_entry.html
+          grep -q 'data-entry-workflow-actions-v1' public/data_entry.html
+          grep -q '✓ إرسال المحدد للاعتماد' public/data_entry.html
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data_entry.html
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "fix: complete data-entry selected workflow actions"
+            git push origin HEAD:main
+          fi
