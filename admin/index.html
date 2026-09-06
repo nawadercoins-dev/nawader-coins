@@ -1657,7 +1657,7 @@
             <h3 style="margin-top:0">💳 بيانات السداد والتحويل البنكي</h3>
             <p class="muted">تظهر هذه البيانات للعميل عند الضغط على «سداد الآن». لا يتم قبول إثبات السداد قبل اعتماد مبلغ الشحن.</p>
             <div class="settings-grid">
-              <label>اسم البنك<input id="paymentBankName" placeholder="مثال: مصرف الراجحي"></label>
+              <div class="panel" style="margin:12px 0"><h3>طريقة السداد الحالية</h3><label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input id="paymentManualModeEnabled" type="checkbox"> تفعيل السداد اليدوي المؤقت</label><label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input id="paymentBankModeEnabled" type="checkbox"> تفعيل السداد عبر الحساب البنكي / IBAN</label><label>تعليمات السداد اليدوي<textarea id="paymentManualInstructions" rows="3" placeholder="مثال: سيتم التواصل معك من الإدارة لإرسال تعليمات السداد المناسبة."></textarea></label><p class="muted">يمكن تفعيل اليدوي الآن، ثم إلغاؤه وتفعيل الحساب البنكي لاحقًا عند اعتماد المنصة والحساب التجاري.</p></div><label>اسم البنك<input id="paymentBankName" placeholder="مثال: مصرف الراجحي"></label>
               <label>اسم صاحب الحساب<input id="paymentAccountName" placeholder="اسم الحساب البنكي"></label>
               <label>رقم IBAN<input id="paymentIban" dir="ltr" placeholder="SA00..."></label>
               <label>واتساب السداد (اختياري)<input id="paymentWhatsapp" dir="ltr" placeholder="9665xxxxxxxx"></label>

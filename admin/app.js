@@ -3619,6 +3619,9 @@ async function loadAdminSettingsPanel() {
     $("settingsCharity").value = Number(st.charityProfitPercent || 0);
     $("settingsEntryFee").value = Number(st.auctionEntryFee || 0);
     $("settingsEntryEnabled").checked = !!st.entryFeeEnabled;
+    if ($("paymentManualModeEnabled")) $("paymentManualModeEnabled").checked = st.paymentManualModeEnabled !== false;
+    if ($("paymentBankModeEnabled")) $("paymentBankModeEnabled").checked = !!st.paymentBankModeEnabled;
+    if ($("paymentManualInstructions")) $("paymentManualInstructions").value = st.paymentManualInstructions || "سيتم التواصل معك من الإدارة لإرسال تعليمات السداد المناسبة لهذا الطلب.";
     if ($("paymentBankName")) $("paymentBankName").value = st.paymentBankName || "";
     if ($("paymentAccountName")) $("paymentAccountName").value = st.paymentAccountName || "";
     if ($("paymentIban")) $("paymentIban").value = st.paymentIban || "";
@@ -3661,6 +3664,9 @@ if ($("saveSettings"))
           charityProfitPercent: Number($("settingsCharity").value || 0),
           auctionEntryFee: Number($("settingsEntryFee").value || 0),
           entryFeeEnabled: !!$("settingsEntryEnabled").checked,
+          paymentManualModeEnabled: $("paymentManualModeEnabled") ? !!$("paymentManualModeEnabled").checked : true,
+          paymentBankModeEnabled: $("paymentBankModeEnabled") ? !!$("paymentBankModeEnabled").checked : false,
+          paymentManualInstructions: $("paymentManualInstructions") ? $("paymentManualInstructions").value.trim() : "",
           paymentBankName: $("paymentBankName") ? $("paymentBankName").value.trim() : "",
           paymentAccountName: $("paymentAccountName") ? $("paymentAccountName").value.trim() : "",
           paymentIban: $("paymentIban") ? $("paymentIban").value.trim() : "",
