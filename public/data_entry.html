@@ -113,6 +113,11 @@ textarea{min-height:100px;resize:vertical}
 /* data-entry-assigned-selection-v1 */
 .assigned-toolbar{border-color:#816b33;background:#171f2a}.assigned-select{width:20px;height:20px;accent-color:#d6b15a}.row.assigned .assigned-select{flex:0 0 auto}
 
+
+/* data-entry-workflow-actions-v1 */
+.workflow-label{margin:10px 2px 5px;color:#f0d995;font-weight:900;font-size:.9rem}.assigned-toolbar{box-shadow:inset 0 0 0 1px #d6b15a33}.assigned-toolbar .btn{min-width:170px}.row.assigned .actions{display:flex!important;gap:8px;flex-wrap:wrap}.row.assigned .actions .smallbtn{font-weight:800}
+@media(max-width:560px){.assigned-toolbar .btn,.assigned-toolbar .smallbtn{flex:1 1 46%}.workflow-label{text-align:center}}
+
 </style>
 </head>
 <body>
@@ -258,18 +263,22 @@ textarea{min-height:100px;resize:vertical}
       <aside class="panel">
         <h2>سجلاتي</h2>
         <p class="muted">حدد مسودة واحدة أو عدة مسودات ثم أرسلها دفعة واحدة لمسؤول إدخال البيانات. تتحول حالتها إلى «قيد الإدخال» حتى يكمل البيانات ويرسلها للاعتماد.</p>
+        <div class="workflow-label">1) المسودات — إرسال لمسؤول إدخال البيانات</div>
         <div class="assignment-toolbar">
           <button id="selectAllDraftRows" type="button" class="smallbtn">تحديد كل المسودات</button>
           <button id="clearDraftSelection" type="button" class="smallbtn">إلغاء التحديد</button>
           <button id="assignSelectedDrafts" type="button" class="btn">إرسال المحدد لمسؤول إدخال البيانات</button>
           <span id="draftSelectionCount" class="muted">0 محدد</span>
         </div>
+        <div class="workflow-label">2) قيد الإدخال — تعديل ثم إرسال للاعتماد</div>
         <div class="assignment-toolbar assigned-toolbar">
           <button id="selectAllAssignedRows" type="button" class="smallbtn">تحديد كل قيد الإدخال</button>
           <button id="clearAssignedSelection" type="button" class="smallbtn">إلغاء التحديد</button>
-          <button id="openSelectedAssigned" type="button" class="btn ghost">✎ فتح أول المحدد</button>
+          <button id="openSelectedAssigned" type="button" class="btn ghost">✎ فتح وتعديل المحدد</button>
+          <button id="submitSelectedAssigned" type="button" class="btn">✓ إرسال المحدد للاعتماد</button>
           <span id="assignedSelectionCount" class="muted">0 محدد</span>
         </div>
+        <div class="workflow-label">3) بانتظار الاعتماد — يمكن استرجاعه قبل قرار الإدارة</div>
         <div class="assignment-toolbar pending-toolbar">
           <button id="selectAllPendingRows" type="button" class="smallbtn">تحديد كل المرسلة للاعتماد</button>
           <button id="clearPendingSelection" type="button" class="smallbtn">إلغاء التحديد</button>
@@ -648,11 +657,47 @@ function syncDraftSelection(){
   if($('pendingSelectionCount'))$('pendingSelectionCount').textContent=`${selectedPendingRows.size} محدد`;
   if($('assignSelectedDrafts'))$('assignSelectedDrafts').disabled=!selectedDraftRows.size;
   if($('openSelectedAssigned'))$('openSelectedAssigned').disabled=!selectedAssignedRows.size;
+  if($('submitSelectedAssigned'))$('submitSelectedAssigned').disabled=!selectedAssignedRows.size;
   if($('withdrawSelectedPending'))$('withdrawSelectedPending').disabled=!selectedPendingRows.size
 }
 window.toggleDraftRow=(id,checked)=>{checked?selectedDraftRows.add(String(id)):selectedDraftRows.delete(String(id));syncDraftSelection()};
 window.toggleAssignedRow=(id,checked)=>{checked?selectedAssignedRows.add(String(id)):selectedAssignedRows.delete(String(id));syncDraftSelection()};
 window.togglePendingRow=(id,checked)=>{checked?selectedPendingRows.add(String(id)):selectedPendingRows.delete(String(id));syncDraftSelection()};
+
+function rowAsData(r){
+  const urls=[r.frontImage,r.backImage,...(Array.isArray(r.additionalImages)?r.additionalImages:[])].filter(Boolean).slice(0,8);
+  const ids=Array.isArray(r.vaultImageIds)?r.vaultImageIds:[];
+  return {
+    id:r.id||'',storeType:r.storeType||'coins',collectibleCategory:r.collectibleCategory||'other',country:r.country||'',denomination:r.denomination||'',
+    year:r.year||'',issueEdition:r.issueEdition||'',type:r.type||'',condition:r.condition||'',serial:r.serial||'',collectionClass:r.collectionClass||'single',
+    inventoryUnitType:r.inventoryUnitType||'piece',inventoryUnitCount:Number(r.inventoryUnitCount||r.quantity||1),piecesPerUnit:Number(r.piecesPerUnit||1),
+    images:urls.map((url,i)=>({id:ids[i]||'',url})),purchase:Number(r.purchase||0),salePrice:Number(r.salePrice||r.expectedPrice||0),
+    shipping:Number(r.shipping||0),other:Number(r.other||0),warehouse:r.warehouse||'المستودع الرئيسي',cabinet:r.cabinet||'',shelf:r.shelf||'',
+    box:r.box||'',album:r.album||'',pocket:r.pocket||'',notes:r.notes||''
+  };
+}
+
+async function submitAssignedSelection(){
+  const ids=[...selectedAssignedRows];
+  if(!ids.length){setNotice('حدد مقتنى واحدًا أو أكثر من «قيد الإدخال» أولًا.','error');return}
+  const selected=ids.map(id=>rows.find(r=>String(r.id)===String(id))).filter(Boolean);
+  const incomplete=selected.map(r=>({r,missing:missingFor(rowAsData(r))})).filter(x=>x.missing.length);
+  if(incomplete.length){
+    setNotice(`يوجد ${incomplete.length} مقتنى ناقص. افتح «تعديل المحدد» وأكمل: ${[...new Set(incomplete.flatMap(x=>x.missing))].join('، ')}.`,'error');
+    return;
+  }
+  if(!confirm(`إرسال ${selected.length} مقتنى محدد للإدارة للاعتماد؟`))return;
+  const btn=$('submitSelectedAssigned'); if(btn)btn.disabled=true;
+  let ok=0,failed=0,firstError='';
+  for(const r of selected){
+    try{await api('/api/data-entry/submissions',{method:'POST',body:JSON.stringify(dataToPayload(rowAsData(r),'submit'))});ok++}
+    catch(e){failed++;if(!firstError)firstError=e.message||'تعذر الإرسال'}
+  }
+  selectedAssignedRows.clear();
+  await loadRows();
+  if(btn)btn.disabled=false;
+  setNotice(failed?`تم إرسال ${ok} للاعتماد وتعذر ${failed}${firstError?' — '+firstError:''}.`:`✓ تم إرسال ${ok} مقتنى محدد للاعتماد بنجاح.`,failed?'warn':'good');
+}
 
 let DEVIEW={imgs:[],idx:0,scale:1,x:0,y:0,drag:false,px:0,py:0};
 function drawDEViewer(){const im=document.getElementById('deViewerImg');if(im)im.style.transform=`translate(${DEVIEW.x}px,${DEVIEW.y}px) scale(${DEVIEW.scale})`;const c=document.getElementById('deViewerCaption');if(c)c.textContent=DEVIEW.imgs.length?`${DEVIEW.idx+1} / ${DEVIEW.imgs.length}`:''}
@@ -665,7 +710,7 @@ function renderRows(){
     return`<article class="row ${esc(r.status||'')}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div style="display:flex;gap:8px;align-items:center">${selector}<h3>${esc(r.country||'—')} — ${esc(r.denomination||'—')}</h3></div><span class="chip">${esc(statusLabel(r.status))}</span></div>
     <div class="meta"><span class="chip store-chip">${esc(STORE_LABELS[store])}</span>${category?`<span>التصنيف: ${esc(category)}</span>`:''}<span>${esc(r.year||'')}</span><span>الكمية: ${Number(r.quantity||r.inventoryUnitCount||1)}</span><span>شراء: ${Number(r.purchase||0).toLocaleString('ar-SA')}</span><span>بيع: ${Number(r.salePrice||r.expectedPrice||0).toLocaleString('ar-SA')}</span></div>
     ${imgs.length?`<div class="thumbs">${imgs.slice(0,4).map((x,n)=>`<img src="${esc(x)}" alt="" onclick="previewRowImages('${esc(r.id)}',${n})">`).join('')}</div>`:''}${r.adminNote?`<div class="row-note"><b>ملاحظة الإدارة:</b> ${esc(r.adminNote)}</div>`:''}
-    <div class="actions">${imgs.length?`<button type="button" class="smallbtn" onclick="previewRowImages('${esc(r.id)}',0)">🔎 معاينة الصور</button>`:''}${editable?`<button type="button" class="smallbtn" onclick="editRow('${esc(r.id)}')">${r.status==='assigned'?'✎ فتح وإكمال البيانات':'✎ تعديل البيانات'}</button>`:''}${recallable?`<button type="button" class="smallbtn" onclick="withdrawPendingRows(['${esc(r.id)}'])">↩ استرجاع للتعديل</button>`:''}${['approved','rejected'].includes(r.status)?`<span class="muted">سجل نهائي للعرض فقط</span>`:''}</div></article>`
+    <div class="actions">${imgs.length?`<button type="button" class="smallbtn" onclick="previewRowImages('${esc(r.id)}',0)">🔎 معاينة الصور</button>`:''}${editable?`<button type="button" class="smallbtn" onclick="editRow('${esc(r.id)}')">${r.status==='assigned'?'✎ فتح وتعديل البيانات':'✎ تعديل البيانات'}</button>`:''}${r.status==='assigned'?`<button type="button" class="smallbtn" onclick="selectedAssignedRows=new Set(['${esc(r.id)}']);syncDraftSelection();submitAssignedSelection()">✓ إرسال للاعتماد</button>`:''}${recallable?`<button type="button" class="smallbtn" onclick="withdrawPendingRows(['${esc(r.id)}'])">↩ استرجاع للتعديل</button>`:''}${['approved','rejected'].includes(r.status)?`<span class="muted">سجل نهائي للعرض فقط</span>`:''}</div></article>`
   }).join('')||'<p class="muted">لا توجد سجلات بعد. ابدأ بإضافة أول مقتنى.</p>';
   syncDraftSelection()
 }
@@ -676,6 +721,12 @@ if($('clearAssignedSelection')) $('clearAssignedSelection').onclick=()=>{selecte
 if($('openSelectedAssigned')) $('openSelectedAssigned').onclick=()=>{const id=[...selectedAssignedRows][0];if(id)editRow(id)};
 if($('selectAllPendingRows')) $('selectAllPendingRows').onclick=()=>{selectedPendingRows=new Set(rows.filter(r=>r.status==='pending').map(r=>String(r.id)));renderRows()};
 if($('clearPendingSelection')) $('clearPendingSelection').onclick=()=>{selectedPendingRows.clear();renderRows()};
+if($('openSelectedAssigned')) $('openSelectedAssigned').onclick=()=>{
+  const id=[...selectedAssignedRows][0];
+  if(!id){setNotice('حدد مقتنى من «قيد الإدخال» أولًا.','error');return}
+  editRow(id);
+};
+if($('submitSelectedAssigned')) $('submitSelectedAssigned').onclick=submitAssignedSelection;
 $('assignSelectedDrafts').onclick=async()=>{
   const ids=[...selectedDraftRows];if(!ids.length)return;
   if(!confirm(`إرسال ${ids.length} مسودة لمسؤول إدخال البيانات؟`))return;
