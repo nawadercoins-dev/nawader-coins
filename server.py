@@ -2858,7 +2858,9 @@ class H(SimpleHTTPRequestHandler):
             person=next((x for x in load_people() if str(x.get('id'))==winner_id),{})
             due={'id':'live-due-'+secrets.token_hex(5),'itemId':closed_item,'itemTitle':item_title(item),'participantId':winner_id,'amount':float(row.get('currentPrice') or 0),'auctionRound':1}
             order=order_from_auction(due,item,person); order['source']='live_auction'; order['sourceId']=row.get('id'); order['history'][0]['note']='تم إنشاء الطلب تلقائيًا من فوز المزاد المباشر بالكاميرا' if lot else 'تم إنشاء الطلب تلقائيًا من فوز المزاد المباشر'
-            orders=load_orders(); orders.append(order); save_json(ORDERS,{'orders':orders}); hist['orderId']=order['id']
+            orders=load_orders(); orders.append(order); apply_flat_shipping_for_participant(orders,winner_id); save_json(ORDERS,{'orders':orders}); hist['orderId']=order['id']
+            order=next((o for o in orders if str(o.get('id'))==str(order.get('id'))),order)
+            hist.update({'itemTitle':item_title(item),'itemImage':item.get('frontImg') or item.get('backImg') or '', 'winnerName':person.get('name') or row.get('latestBidderName') or 'الفائز', 'orderNumber':order.get('orderNumber') or order.get('id'), 'shippingFee':float(order.get('shippingFee') or 0), 'total':float(order.get('total') or 0), 'ownerName':item.get('ownerName') or item.get('sellerName') or item.get('owner') or 'دار المقتنيات'})
             # ثبّت نتيجة المزاد على سجل المقتنى حتى يظهر البيع في الإدارة والسلة ولا تضيع النتيجة بعد إعادة التشغيل.
             items=load(); stored=next((i for i in items if str(i.get('id'))==closed_item),None)
             if stored:
@@ -2866,8 +2868,12 @@ class H(SimpleHTTPRequestHandler):
                 stored['auctionWinningAmount']=float(row.get('currentPrice') or 0); stored['auctionOrderId']=order['id']
                 stored['auctionOutcomeAt']=datetime.datetime.now().isoformat(); stored['updated']=int(time.time()*1000)
                 save(items)
-            add_notification('participant',winner_id,'orders','🏆 فوز في المزاد المباشر',f"تم إنشاء طلب بقيمة {float(row.get('currentPrice') or 0):g} ر.س للمقتنى {item_title(item)}.",closed_item,'/account')
-            add_notification('admin','','auction','🏆 تم إرساء مزاد مباشر',f"فاز {person.get('name') or 'مشارك'} بالمقتنى {item_title(item)} بقيمة {float(row.get('currentPrice') or 0):g} ر.س وتم إنشاء طلب المبيعات تلقائيًا.",closed_item,'/admin')
+            ship=float(order.get('shippingFee') or 0); total=float(order.get('total') or 0); win=float(row.get('currentPrice') or 0)
+            add_notification('participant',winner_id,'orders','🎉 مبروك الفوز بالمزاد المباشر',f"فزت بالمقتنى {item_title(item)} بسعر {win:g} ر.س. الشحن {ship:g} ر.س، وإجمالي الطلب {total:g} ر.س. تم إنشاء الطلب {order.get('orderNumber') or order.get('id')}.",closed_item,'/account')
+            seller_id=str(item.get('ownerParticipantId') or item.get('sellerParticipantId') or item.get('participantId') or '')
+            if seller_id and seller_id!=winner_id:
+                add_notification('participant',seller_id,'auction','🏆 تم بيع مقتناك في المزاد المباشر',f"تم إرساء {item_title(item)} على {person.get('name') or 'الفائز'} بسعر {win:g} ر.س.",closed_item,'/account')
+            add_notification('admin','','auction','🏆 تم إرساء مزاد مباشر',f"فاز {person.get('name') or 'مشارك'} بالمقتنى {item_title(item)} بقيمة {win:g} ر.س. الشحن {ship:g} ر.س، والإجمالي {total:g} ر.س. الطلب {order.get('orderNumber') or order.get('id')} بانتظار المتابعة.",closed_item,'/admin')
         row.setdefault('history',[]).append(hist); row['lastResult']=dict(hist); row['currentItemId']=''; row['currentLot']=None; row['currentPrice']=0; row['lotEndsAt']=''; row['latestBidderName']=''; row['latestBidderId']=''
         return hist
 
@@ -3050,6 +3056,16 @@ class H(SimpleHTTPRequestHandler):
             action=str(d.get('action') or '')
             if action=='delete':
                 sessions=[x for x in sessions if str(x.get('id'))!=sid]; save_json(LIVE_AUCTIONS,{'sessions':sessions}); self.sendj({'ok':True}); return
+            pending_result=row.get('lastResult') if isinstance(row.get('lastResult'),dict) else None
+            result_waiting=bool(pending_result and pending_result.get('sold') and not pending_result.get('clearedAt'))
+            if action=='clear-result':
+                if not pending_result: self.sendj({'error':'لا توجد نتيجة مزاد معلقة'},409); return
+                pending_result['clearedAt']=datetime.datetime.now().isoformat(); pending_result['clearedBy']='admin'; row['lastResult']=pending_result
+                row['updated']=datetime.datetime.now().isoformat(); save_json(LIVE_AUCTIONS,{'sessions':sessions}); append_operation('إقفال بطاقة فائز المزاد المباشر',{'sessionId':sid,'orderId':pending_result.get('orderId')}); self.sendj({'ok':True,'session':with_live_timer(row)}); return
+            if action in ('open-item','open-free-lot') and result_waiting:
+                self.sendj({'error':'أقفل بطاقة الفائز السابقة من سلة المزادات المباشرة قبل بدء مزايدة جديدة'},409); return
+            if action in ('end','cancel') and result_waiting:
+                self.sendj({'error':'لا يمكن إنهاء الجلسة قبل إقفال بطاقة الفائز من سلة المزادات المباشرة'},409); return
             if action in ('start','end','cancel'):
                 row['status']={'start':'live','end':'ended','cancel':'cancelled'}[action]
                 if action=='start': row['startedAt']=row.get('startedAt') or datetime.datetime.now().isoformat()
