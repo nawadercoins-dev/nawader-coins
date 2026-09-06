@@ -100,6 +100,12 @@ textarea{min-height:100px;resize:vertical}
   .vault-selected-card img{height:125px!important}
 }
 
+
+/* assignment-queue-v1 */
+.assignment-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;margin:8px 0 12px;border:1px solid #3b5067;border-radius:12px;background:#0d2034}
+.assignment-toolbar .muted{margin-inline-start:auto}.row-select{width:20px;height:20px;accent-color:#d6b15a}.row.assigned{border-color:#846f37;box-shadow:inset 0 0 0 1px #846f3733}
+@media(max-width:560px){.assignment-toolbar .btn{flex:1}.assignment-toolbar .muted{width:100%;margin:0;text-align:center}}
+
 </style>
 </head>
 <body>
@@ -243,7 +249,13 @@ textarea{min-height:100px;resize:vertical}
 
       <aside class="panel">
         <h2>سجلاتي</h2>
-        <p class="muted">السجلات المحفوظة من المتجرين تظهر هنا. في الإدخال الجماعي تظهر القائمة المؤقتة أعلى الصفحة حتى تحفظها أو ترسلها.</p>
+        <p class="muted">حدد مسودة واحدة أو عدة مسودات ثم أرسلها دفعة واحدة لمسؤول إدخال البيانات. تتحول حالتها إلى «قيد الإدخال» حتى يكمل البيانات ويرسلها للاعتماد.</p>
+        <div class="assignment-toolbar">
+          <button id="selectAllDraftRows" type="button" class="smallbtn">تحديد كل المسودات</button>
+          <button id="clearDraftSelection" type="button" class="smallbtn">إلغاء التحديد</button>
+          <button id="assignSelectedDrafts" type="button" class="btn">إرسال المحدد لمسؤول إدخال البيانات</button>
+          <span id="draftSelectionCount" class="muted">0 محدد</span>
+        </div>
         <div id="rows" class="rows"></div>
       </aside>
     </div>
@@ -275,7 +287,7 @@ const STORE_LABELS={coins:'نوادر العملات',collectibles:'نوادر �
 const CATEGORY_LABELS={other:'أخرى',fantasia:'فنتازيا',antiques:'تحف','prayer-beads':'سبح','vehicles-models':'سيارات ومجسمات','aviation-marine':'طائرات وسفن','jewelry-stones':'خواتم وأحجار',games:'ألعاب ومقتنيات'};
 const FORM_TEXT_IDS=['country','denomination','year','issueEdition','type','condition','serial','purchase','salePrice','shipping','other','warehouse','cabinet','shelf','box','album','pocket','notes'];
 
-function statusLabel(s){return({draft:'مسودة',pending:'بانتظار الاعتماد',needs_changes:'معاد للتعديل',approved:'معتمد للمستودع',rejected:'مرفوض'})[s]||s||'—'}
+function statusLabel(s){return({draft:'مسودة',assigned:'قيد الإدخال',pending:'بانتظار الاعتماد',needs_changes:'معاد للتعديل',approved:'معتمد للمستودع',rejected:'مرفوض'})[s]||s||'—'}
 async function api(url,opt={}){
   const r=await fetch(url,{credentials:'same-origin',headers:{...(opt.body?{'Content-Type':'application/json'}:{}),...(opt.headers||{})},...opt});
   let j={};try{j=await r.json()}catch{}
@@ -589,7 +601,7 @@ async function runBulk(mode,scope){
 $('saveAllDrafts').onclick=()=>runBulk('draft','all');$('submitSelectedBulk').onclick=()=>runBulk('submit','selected');$('submitCompleteBulk').onclick=()=>runBulk('submit','complete');
 
 function editRow(id){
-  const r=rows.find(x=>x.id===id);if(!r||!['draft','needs_changes'].includes(r.status))return;
+  const r=rows.find(x=>x.id===id);if(!r||!['draft','needs_changes','assigned'].includes(r.status))return;
   if(entryMode!=='single')setEntryMode('single');
   $('recordId').value=r.id;$('storeType').value=r.storeType||'coins';$('collectibleCategory').value=r.collectibleCategory||'other';
   for(const fid of ['country','denomination','year','issueEdition','type','condition','serial','cabinet','shelf','box','album','pocket','notes'])$(fid).value=r[fid]||'';
@@ -603,15 +615,33 @@ function editRow(id){
 }
 window.editRow=editRow;
 
+let selectedDraftRows=new Set();
+function syncDraftSelection(){
+  const drafts=rows.filter(r=>['draft','needs_changes'].includes(r.status));
+  selectedDraftRows=new Set([...selectedDraftRows].filter(id=>drafts.some(r=>String(r.id)===String(id))));
+  if($('draftSelectionCount'))$('draftSelectionCount').textContent=`${selectedDraftRows.size} محدد`;
+  if($('assignSelectedDrafts'))$('assignSelectedDrafts').disabled=!selectedDraftRows.size
+}
+window.toggleDraftRow=(id,checked)=>{checked?selectedDraftRows.add(String(id)):selectedDraftRows.delete(String(id));syncDraftSelection()};
 function renderRows(){
   $('rows').innerHTML=rows.map(r=>{
-    const imgs=[r.frontImage,r.backImage,...(r.additionalImages||[])].filter(Boolean),editable=['draft','needs_changes'].includes(r.status),store=r.storeType==='collectibles'?'collectibles':'coins',category=store==='collectibles'?(CATEGORY_LABELS[r.collectibleCategory]||'أخرى'):'';
-    return`<article class="row ${esc(r.status||'')}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><h3>${esc(r.country||'—')} — ${esc(r.denomination||'—')}</h3><span class="chip">${esc(statusLabel(r.status))}</span></div>
+    const imgs=[r.frontImage,r.backImage,...(r.additionalImages||[])].filter(Boolean),editable=['draft','needs_changes','assigned'].includes(r.status),assignable=['draft','needs_changes'].includes(r.status),store=r.storeType==='collectibles'?'collectibles':'coins',category=store==='collectibles'?(CATEGORY_LABELS[r.collectibleCategory]||'أخرى'):'';
+    return`<article class="row ${esc(r.status||'')}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div style="display:flex;gap:8px;align-items:center">${assignable?`<input class="row-select" type="checkbox" aria-label="تحديد المسودة" ${selectedDraftRows.has(String(r.id))?'checked':''} onchange="toggleDraftRow('${esc(r.id)}',this.checked)">`:''}<h3>${esc(r.country||'—')} — ${esc(r.denomination||'—')}</h3></div><span class="chip">${esc(statusLabel(r.status))}</span></div>
     <div class="meta"><span class="chip store-chip">${esc(STORE_LABELS[store])}</span>${category?`<span>التصنيف: ${esc(category)}</span>`:''}<span>${esc(r.year||'')}</span><span>الكمية: ${Number(r.quantity||r.inventoryUnitCount||1)}</span><span>شراء: ${Number(r.purchase||0).toLocaleString('ar-SA')}</span><span>بيع: ${Number(r.salePrice||r.expectedPrice||0).toLocaleString('ar-SA')}</span></div>
     ${imgs.length?`<div class="thumbs">${imgs.slice(0,4).map(x=>`<img src="${esc(x)}" alt="">`).join('')}</div>`:''}${r.adminNote?`<div class="row-note"><b>ملاحظة الإدارة:</b> ${esc(r.adminNote)}</div>`:''}
     <div class="actions">${editable?`<button class="smallbtn" onclick="editRow('${esc(r.id)}')">تعديل</button>`:''}</div></article>`
-  }).join('')||'<p class="muted">لا توجد سجلات بعد. ابدأ بإضافة أول مقتنى.</p>'
+  }).join('')||'<p class="muted">لا توجد سجلات بعد. ابدأ بإضافة أول مقتنى.</p>';
+  syncDraftSelection()
 }
+$('selectAllDraftRows').onclick=()=>{selectedDraftRows=new Set(rows.filter(r=>['draft','needs_changes'].includes(r.status)).map(r=>String(r.id)));renderRows()};
+$('clearDraftSelection').onclick=()=>{selectedDraftRows.clear();renderRows()};
+$('assignSelectedDrafts').onclick=async()=>{
+  const ids=[...selectedDraftRows];if(!ids.length)return;
+  if(!confirm(`إرسال ${ids.length} مسودة لمسؤول إدخال البيانات؟`))return;
+  $('assignSelectedDrafts').disabled=true;let ok=0,failed=0;
+  for(const id of ids){try{await api('/api/data-entry/submissions',{method:'POST',body:JSON.stringify({id,mode:'assign'})});ok++}catch(e){failed++}}
+  selectedDraftRows.clear();await loadRows();setNotice(failed?`تم إرسال ${ok} وتعذر ${failed}.`:`تم إرسال ${ok} مسودة لمسؤول إدخال البيانات وأصبحت «قيد الإدخال».`,failed?'warn':'good')
+};
 async function loadRows(){
   const r=await api('/api/data-entry/submissions');operator=r.operator;rows=r.submissions||[];const c=r.counts||{};
   $('cDraft').textContent=c.draft||0;$('cPending').textContent=c.pending||0;$('cNeeds').textContent=c.needsChanges||0;$('cApproved').textContent=c.approved||0;$('cRejected').textContent=c.rejected||0;renderRows()

@@ -2483,7 +2483,7 @@ class H(SimpleHTTPRequestHandler):
             pid=str(person.get('id') or '')
             if not participant_permissions(pid).get('dataEntry'):
                 self.sendj({'error':'صلاحية مسؤول إدخال البيانات غير مفعلة لهذا الحساب'},403); return
-            rows=[x for x in load_collectible_submissions() if x.get('submissionSource')=='data_entry' and str(x.get('dataEntryParticipantId') or '')==pid]
+            rows=[x for x in load_collectible_submissions() if x.get('submissionSource')=='data_entry' and (str(x.get('dataEntryParticipantId') or '')==pid or str(x.get('status') or '')=='assigned')]
             rows.sort(key=lambda x:str(x.get('updated') or x.get('created') or ''),reverse=True)
             safe=[]
             for x in rows:
@@ -3199,15 +3199,27 @@ class H(SimpleHTTPRequestHandler):
                 if not participant_permissions(pid).get('dataEntry'):
                     self.sendj({'error':'صلاحية مسؤول إدخال البيانات غير مفعلة لهذا الحساب'},403); return
                 mode=str(d.get('mode') or 'draft').strip().lower()
-                if mode not in ('draft','submit'): mode='draft'
+                if mode not in ('draft','submit','assign'): mode='draft'
                 sid=str(d.get('id') or '').strip()
                 rows=load_collectible_submissions(); row=None
                 if sid:
-                    row=next((x for x in rows if str(x.get('id'))==sid and x.get('submissionSource')=='data_entry' and str(x.get('dataEntryParticipantId') or '')==pid),None)
+                    row=next((x for x in rows if str(x.get('id'))==sid and x.get('submissionSource')=='data_entry' and (str(x.get('dataEntryParticipantId') or '')==pid or str(x.get('status') or '')=='assigned')),None)
                     if not row:
                         self.sendj({'error':'سجل الإدخال غير موجود'},404); return
-                    if row.get('status') not in ('draft','needs_changes'):
+                    if mode=='assign':
+                        if row.get('status') not in ('draft','needs_changes'):
+                            self.sendj({'error':'يمكن إرسال المسودات أو المعاد للتعديل فقط لمسؤول إدخال البيانات'},409); return
+                        now=datetime.datetime.now().isoformat()
+                        row['status']='assigned'; row['assignedAt']=now; row['assignedByParticipantId']=pid; row['updated']=now
+                        save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
+                        append_operation('إرسال مسودة لمسؤول إدخال البيانات',{'submissionId':sid,'senderId':pid},actor='مالك/مسؤول الإدخال')
+                        self.sendj({'ok':True,'submission':row}); return
+                    if row.get('status') not in ('draft','needs_changes','assigned'):
                         self.sendj({'error':'هذا السجل أُرسل بالفعل ولا يمكن تعديله قبل قرار الإدارة'},409); return
+                    if row.get('status')=='assigned' and str(row.get('dataEntryParticipantId') or '')!=pid:
+                        row['dataEntryParticipantId']=pid
+                        row['dataEntryName']=person.get('alias') or person.get('name') or 'مسؤول إدخال البيانات'
+                        row['pickedUpAt']=datetime.datetime.now().isoformat()
                 store_type=normalize_store_type(d.get('storeType'),d)
                 category=str(d.get('collectibleCategory') or '').strip().lower() if store_type=='collectibles' else ''
                 allowed_categories={'fantasia','antiques','prayer-beads','vehicles-models','aviation-marine','jewelry-stones','games','other'}
