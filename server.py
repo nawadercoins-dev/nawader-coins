@@ -181,6 +181,40 @@ def live_lot_expired(row):
     rem=live_timer_remaining(row)
     return rem is not None and rem<=0 and bool(row.get('currentItemId') or row.get('currentLot'))
 
+# live-auction-auto-settle-session-lock-v2
+def live_participant_unpaid_ended_session(participant_id,current_session_id='',sessions=None):
+    pid=str(participant_id or '')
+    current=str(current_session_id or '')
+    if not pid: return None
+    sessions=sessions if isinstance(sessions,list) else load_live_auctions()
+    ended={str(s.get('id') or '') for s in sessions if str(s.get('status') or '') in ('ended','cancelled')}
+    if not ended: return None
+    for o in load_orders():
+        if str(o.get('participantId') or '')!=pid: continue
+        if str(o.get('source') or '')!='live_auction': continue
+        sid=str(o.get('sourceId') or '')
+        if not sid or sid==current or sid not in ended: continue
+        if str(o.get('paymentStatus') or 'unpaid') in ('paid','refunded'): continue
+        if str(o.get('status') or '') in ('cancelled','refunded','completed') and str(o.get('paymentStatus') or '') in ('paid','refunded'): continue
+        return o
+    return None
+
+def notify_live_session_payment_due(row):
+    sid=str(row.get('id') or '')
+    if not sid: return 0
+    orders=[o for o in load_orders() if str(o.get('source') or '')=='live_auction' and str(o.get('sourceId') or '')==sid and str(o.get('paymentStatus') or 'unpaid') not in ('paid','refunded')]
+    by_pid={}
+    for o in orders:
+        pid=str(o.get('participantId') or '')
+        if not pid: continue
+        by_pid.setdefault(pid,[]).append(o)
+    count=0
+    for pid,rows in by_pid.items():
+        total=sum(float(o.get('total') or 0) for o in rows)
+        add_notification('participant',pid,'orders','💳 انتهى البث — مستحقات المزاد المباشر',f'انتهت جلسة البث ولديك {len(rows)} عملية فوز بإجمالي {total:g} ر.س. يلزم سداد المستحقات قبل المشاركة في بث مباشر جديد.','', '/account')
+        count+=1
+    return count
+
 def load_save_audit(): return load_json(SAVE_AUDIT,{'events':[]}).get('events',[])
 def append_save_audit(event):
     rows=load_save_audit(); rows.append(event); rows=rows[-500:]; save_json(SAVE_AUDIT,{'events':rows})
@@ -2964,6 +2998,9 @@ class H(SimpleHTTPRequestHandler):
             if not participant_can_transact(person): self.sendj({'error':'يتطلب الاشتراك في المزاد توثيقًا كاملًا للحساب'},403); return
             d=self.readj(); sid=str(d.get('id') or ''); sessions=load_live_auctions(); self._settle_expired_live_sessions(sessions); row=next((x for x in sessions if str(x.get('id'))==sid),None)
             if not row or row.get('status')!='live' or not (row.get('currentItemId') or row.get('currentLot')): self.sendj({'error':'لا يوجد مقتنى مفتوح للمزايدة الآن'},409); return
+            blocked_order=live_participant_unpaid_ended_session(person.get('id'),sid,sessions)
+            if blocked_order:
+                self.sendj({'error':'لديك مستحقات من بث مباشر سابق انتهى. يجب سدادها قبل المشاركة في بث مباشر جديد.','code':'previous_live_session_unpaid','orderId':blocked_order.get('id'),'actionUrl':'/account'},409); return
             if row.get('lotEndsAt'):
                 try:
                     if datetime.datetime.fromisoformat(str(row.get('lotEndsAt')).replace('Z','+00:00')).timestamp() <= time.time(): self.sendj({'error':'انتهى وقت المزايدة على هذه القطعة'},409); return
@@ -3057,19 +3094,16 @@ class H(SimpleHTTPRequestHandler):
             if action=='delete':
                 sessions=[x for x in sessions if str(x.get('id'))!=sid]; save_json(LIVE_AUCTIONS,{'sessions':sessions}); self.sendj({'ok':True}); return
             pending_result=row.get('lastResult') if isinstance(row.get('lastResult'),dict) else None
-            result_waiting=bool(pending_result and pending_result.get('sold') and not pending_result.get('clearedAt'))
             if action=='clear-result':
                 if not pending_result: self.sendj({'error':'لا توجد نتيجة مزاد معلقة'},409); return
                 pending_result['clearedAt']=datetime.datetime.now().isoformat(); pending_result['clearedBy']='admin'; row['lastResult']=pending_result
-                row['updated']=datetime.datetime.now().isoformat(); save_json(LIVE_AUCTIONS,{'sessions':sessions}); append_operation('إقفال بطاقة فائز المزاد المباشر',{'sessionId':sid,'orderId':pending_result.get('orderId')}); self.sendj({'ok':True,'session':with_live_timer(row)}); return
-            if action in ('open-item','open-free-lot') and result_waiting:
-                self.sendj({'error':'أقفل بطاقة الفائز السابقة من سلة المزادات المباشرة قبل بدء مزايدة جديدة'},409); return
-            if action in ('end','cancel') and result_waiting:
-                self.sendj({'error':'لا يمكن إنهاء الجلسة قبل إقفال بطاقة الفائز من سلة المزادات المباشرة'},409); return
+                row['updated']=datetime.datetime.now().isoformat(); save_json(LIVE_AUCTIONS,{'sessions':sessions}); append_operation('إخفاء بطاقة نتيجة المزاد المباشر',{'sessionId':sid,'orderId':pending_result.get('orderId')}); self.sendj({'ok':True,'session':with_live_timer(row)}); return
             if action in ('start','end','cancel'):
                 row['status']={'start':'live','end':'ended','cancel':'cancelled'}[action]
                 if action=='start': row['startedAt']=row.get('startedAt') or datetime.datetime.now().isoformat()
-                if action in ('end','cancel'): row['endedAt']=datetime.datetime.now().isoformat(); row['archivedAt']=row['endedAt']
+                if action in ('end','cancel'):
+                    row['endedAt']=datetime.datetime.now().isoformat(); row['archivedAt']=row['endedAt']
+                    notify_live_session_payment_due(row)
             if action=='open-item':
                 iid=str(d.get('itemId') or '')
                 src=next((i for i in load() if str(i.get('id'))==iid),None)
