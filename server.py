@@ -125,6 +125,30 @@ def load_collectible_submissions(): return load_json(COLLECTIBLE_SUBMISSIONS,{'s
 def load_image_vault(): return load_json(IMAGE_VAULT,{'images':[]}).get('images',[])
 def load_live_auctions(): return load_json(LIVE_AUCTIONS,{'sessions':[]}).get('sessions',[])
 
+# flat-shipping-35-v1
+FLAT_SHIPPING_FEE=35.0
+
+def apply_flat_shipping_for_participant(orders, participant_id):
+    """Apply one fixed 35 SAR shipping charge across all active unpaid orders for the participant.
+    The charge is attached to one order only; sibling orders in the same unpaid batch carry 0 shipping
+    so the customer is never charged 35 per item/order.
+    """
+    pid=str(participant_id or '')
+    active=[o for o in orders if str(o.get('participantId') or '')==pid and str(o.get('paymentStatus') or 'unpaid') not in ('paid','refunded','proof_submitted') and str(o.get('status') or '') in ('new','awaiting_payment','stalled') and not o.get('archived') and not o.get('cancellationRequestedAt')]
+    if not active:
+        return 0
+    active.sort(key=lambda o: str(o.get('created') or ''))
+    primary=active[0]
+    for o in active:
+        fee=FLAT_SHIPPING_FEE if o is primary else 0.0
+        o['shippingFee']=fee
+        o['shippingFeeConfirmed']=True
+        o['shippingFeePolicy']='flat_per_active_batch'
+        o['shippingBatchPrimary']=bool(o is primary)
+        o['total']=round(float(o.get('subtotal') or 0)+float(o.get('buyerFee') or 0)+fee,2)
+        o['updated']=datetime.datetime.now().isoformat()
+    return len(active)
+
 def live_timer_remaining(row):
     """Return authoritative remaining lot seconds from the server clock.
     The browser must never infer the auction state from a wall-clock timestamp.
@@ -2643,7 +2667,10 @@ class H(SimpleHTTPRequestHandler):
             qs=parse_qs(urlparse(self.path).query); pid=str((qs.get('participantId') or [''])[0])
             person=self.require_participant(pid)
             if not person: return
-            ensure_auction_outcomes(); reconcile_direct_market_buy_orders(pid); phone=str(person.get('phone') or '').replace(' ',''); labels={'new':'طلب جديد','awaiting_payment':'بانتظار السداد','paid':'تم السداد','preparing':'قيد التجهيز','ready_to_ship':'جاهز للشحن','shipped':'تم الشحن','received':'تم الاستلام','completed':'مكتمل','stalled':'متعثر','cancelled':'ملغي','returned':'مرتجع'}
+            ensure_auction_outcomes(); reconcile_direct_market_buy_orders(pid);
+            _orders=load_orders();
+            if apply_flat_shipping_for_participant(_orders,pid): save_json(ORDERS,{'orders':_orders})
+            phone=str(person.get('phone') or '').replace(' ',''); labels={'new':'طلب جديد','awaiting_payment':'بانتظار السداد','paid':'تم السداد','preparing':'قيد التجهيز','ready_to_ship':'جاهز للشحن','shipped':'تم الشحن','received':'تم الاستلام','completed':'مكتمل','stalled':'متعثر','cancelled':'ملغي','returned':'مرتجع'}
             rows=[]
             for o in load_orders():
                 if str(o.get('participantId') or '')!=pid and str(o.get('customerPhone') or '').replace(' ','')!=phone: continue
@@ -4051,11 +4078,10 @@ class H(SimpleHTTPRequestHandler):
                 row['shippingCompany']=str(d.get('shippingCompany') or '').strip(); row['trackingNumber']=str(d.get('trackingNumber') or '').strip()
                 if 'shippingFee' in d:
                     if str(row.get('paymentStatus') or '')=='paid': self.sendj({'error':'لا يمكن تغيير مبلغ الشحن بعد تأكيد السداد'},409); return
-                    try: fee=max(0,float(d.get('shippingFee') or 0))
-                    except Exception: self.sendj({'error':'مبلغ الشحن غير صالح'},400); return
-                    row['shippingFee']=fee; row['shippingFeeConfirmed']=True
-                    row['total']=float(row.get('subtotal') or 0)+float(row.get('buyerFee') or 0)+fee
-                row['updated']=datetime.datetime.now().isoformat(); save_json(ORDERS,{'orders':rows}); self.sendj({'ok':True,'order':row}); return
+                    # سياسة الشحن المعتمدة: 35 ريال مرة واحدة فقط لكل دفعة طلبات نشطة لنفس العميل.
+                    # حتى لو اشترى عدة منتجات، لا تتكرر رسوم الشحن على كل طلب.
+                    apply_flat_shipping_for_participant(rows,row.get('participantId'))
+                row['updated']=datetime.datetime.now().isoformat(); save_json(ORDERS,{'orders':rows}); self.sendj({'ok':True,'order':row,'flatShippingFee':FLAT_SHIPPING_FEE}); return
             if p=='/api/inventory/return-resolution':
                 iid=str(d.get('itemId') or ''); action=str(d.get('action') or '')
                 if action not in ('warehouse','damaged'): self.sendj({'error':'اختر إعادة المرتجع للمستودع أو تسجيله تالفًا'},400); return
