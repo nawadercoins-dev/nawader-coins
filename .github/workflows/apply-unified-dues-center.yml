@@ -1,0 +1,29 @@
+name: Apply unified dues center
+on:
+  push:
+    paths:
+      - 'scripts/unify_all_dues_center.py'
+      - '.github/workflows/apply-unified-dues-center.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python scripts/unify_all_dues_center.py
+      - name: Validate
+        run: |
+          python -m py_compile server.py
+          grep -q "المستحقات والسداد" admin/index.html
+          grep -q "data-order-due" admin/app.js
+          grep -q "/api/order/payment-admin" server.py
+          git diff --check
+      - name: Commit fix
+        run: |
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add server.py admin/index.html admin/app.js
+          git diff --cached --quiet || git commit -m "feat: unify auction and market dues center"
+          git push
