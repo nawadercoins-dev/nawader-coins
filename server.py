@@ -4068,6 +4068,7 @@ class H(SimpleHTTPRequestHandler):
                 if action=='paid':
                     if not bool(row.get('shippingFeeConfirmed')): self.sendj({'error':'اعتمد الشحن أولًا قبل اعتماد السداد'},409); return
                     update_order_status(row,'paid','تم اعتماد استلام المبلغ من مركز المستحقات والسداد')
+                    update_order_status(row,'preparing','انتقل تلقائيًا إلى التجهيز والشحن بعد اعتماد السداد')
                     row['manualPaymentStatus']='approved'; row['manualPaymentApprovedAt']=now
                     add_notification('participant',row.get('participantId'),'finance','✅ تم اعتماد السداد',f'تم اعتماد استلام مبلغ الطلب {number}.','', '/account')
                 elif action=='unpaid':
