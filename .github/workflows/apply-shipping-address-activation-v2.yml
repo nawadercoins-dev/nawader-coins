@@ -1,0 +1,39 @@
+name: Apply shipping address activation v2
+on:
+  push:
+    branches: [main]
+    paths:
+      - tools/patch_shipping_address_activation_v2.py
+      - .github/workflows/apply-shipping-address-activation-v2.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply patch
+        run: python tools/patch_shipping_address_activation_v2.py
+      - name: Validate
+        run: |
+          python -m py_compile server.py
+          node --check admin/app.js
+          grep -q 'admin-order-address-editor-v2' admin/app.js
+          grep -q 'admin-order-address-save-v2' server.py
+          grep -q 'admin-order-address-editor-v2' admin/styles.css
+          grep -q 'saveOrderAddress' admin/app.js
+          git diff --check
+      - name: Commit application fix
+        run: |
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add admin/app.js admin/styles.css server.py
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "fix: open address editor directly when shipping address is missing"
+            git push origin HEAD:main
+          fi
