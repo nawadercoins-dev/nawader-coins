@@ -3212,6 +3212,13 @@ class H(SimpleHTTPRequestHandler):
                         now=datetime.datetime.now().isoformat()
                         row['status']='assigned'; row['assignedAt']=now; row['assignedByParticipantId']=pid; row['updated']=now
                         save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
+                        # إشعار كل حساب مفعّل له دور مسؤول إدخال البيانات بوجود مهمة جديدة.
+                        try:
+                            for target_id,perms in load_user_permissions().items():
+                                if isinstance(perms,dict) and perms.get('dataEntry'):
+                                    add_notification('participant',str(target_id),'data-entry','📥 مهمة إدخال بيانات جديدة','تم إرسال مقتنى إلى قائمة قيد الإدخال. افتح صفحة مسؤول إدخال البيانات لإكماله.',sid,'/data-entry')
+                        except Exception:
+                            pass
                         append_operation('إرسال مسودة لمسؤول إدخال البيانات',{'submissionId':sid,'senderId':pid},actor='مالك/مسؤول الإدخال')
                         self.sendj({'ok':True,'submission':row}); return
                     if row.get('status') not in ('draft','needs_changes','assigned'):
@@ -3290,7 +3297,8 @@ class H(SimpleHTTPRequestHandler):
                 for vr in selected_vault:
                     vr.update({'status':'used','linkedSubmissionId':sid,'linkedItemId':'','reservedByParticipantId':'','reservedByName':'','reservedAt':'','usedAt':vr.get('usedAt') or now,'updatedAt':now})
                 if selected_vault or old_vault_ids: save_json(IMAGE_VAULT,{'images':vault_rows})
-                row.update(payload); row['updated']=now; row['status']='pending' if mode=='submit' else 'draft'
+                was_assigned=bool(row and str(row.get('status') or '')=='assigned')
+                row.update(payload); row['updated']=now; row['status']='pending' if mode=='submit' else ('assigned' if was_assigned else 'draft')
                 if mode=='submit':
                     row['submittedAt']=now; row['adminNote']=''
                     add_notification('admin','','approval','📥 مقتنى بانتظار الاعتماد',f"أرسل مسؤول إدخال البيانات {payload['dataEntryName']} — {country or '—'} / {denomination or '—'} — للمراجعة.",sid,'/admin')

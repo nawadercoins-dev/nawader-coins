@@ -4450,6 +4450,7 @@ async function renderCollectibleApprovals(){
   try{
     const [subRes,itemRes]=await Promise.all([api('/api/collectible-submissions/admin'),api('/api/items')]);
     const submissions=(subRes.submissions||[]).filter(x=>x.submissionSource==='data_entry');
+    const assigned=submissions.filter(x=>x.status==='assigned');
     const pending=submissions.filter(x=>x.status==='pending');
     const needs=submissions.filter(x=>x.status==='needs_changes');
     const total=submissions.length;
@@ -4459,7 +4460,10 @@ async function renderCollectibleApprovals(){
     const badge=$('collectibleApprovalsBadge'); if(badge){badge.textContent=pending.length;badge.hidden=!pending.length}
     const list=$('dataEntryApprovalsList');
     if(list){
-      const ordered=submissions.slice().sort((a,b)=>String(b.updated||b.created||'').localeCompare(String(a.updated||a.created||'')));
+      let queueNotice=$('dataEntryQueueNotice');
+      if(!queueNotice){queueNotice=document.createElement('div');queueNotice.id='dataEntryQueueNotice';queueNotice.className='admin-info-box';list.parentNode.insertBefore(queueNotice,list)}
+      queueNotice.innerHTML=assigned.length?`📥 <b>${assigned.length}</b> ${assigned.length===1?'مقتنى قيد الإدخال لدى مسؤول البيانات':'مقتنيات قيد الإدخال لدى مسؤول البيانات'} — هذه العناصر ليست جاهزة للاعتماد بعد. <a href="/data-entry" target="_blank">فتح صفحة مسؤول إدخال البيانات</a>`:'لا توجد مقتنيات قيد الإدخال حاليًا.';
+      const ordered=submissions.filter(x=>x.status!=='assigned'&&x.status!=='draft').slice().sort((a,b)=>String(b.updated||b.created||'').localeCompare(String(a.updated||a.created||'')));
       list.innerHTML=ordered.map(r=>{
         const imgs=[r.frontImage,r.backImage,...(Array.isArray(r.additionalImages)?r.additionalImages:[])].filter(Boolean);
         const statusLabel=({pending:'بانتظار الاعتماد',needs_changes:'معاد للتعديل',approved:'معتمد للمستودع',rejected:'مرفوض',draft:'مسودة'})[r.status]||r.status||'—';

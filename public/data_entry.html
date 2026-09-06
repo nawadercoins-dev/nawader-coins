@@ -117,6 +117,7 @@ textarea{min-height:100px;resize:vertical}
   <div id="gate" class="panel loginbox"><h2>جارٍ التحقق من الصلاحية…</h2><p class="muted">يجب تسجيل الدخول بحساب مُفعّل له دور «مسؤول إدخال البيانات».</p></div>
   <main id="app" class="hidden">
     <div id="notice" class="notice">هذا الدور لا ينشر ولا يحذف نهائيًا. كل مقتنى ترسله ينتقل إلى «بانتظار الاعتماد» لدى الإدارة.</div>
+    <div id="assignmentInboxNotice" class="notice hidden"></div>
 
     <div class="store-banner">
       <div><b>مسار موحّد للمتجرين</b><div class="muted">اختر المتجر أولًا، ثم أكمل نفس الخطوات: البيانات ← خزينة الصور ← الأسعار ← الإرسال للاعتماد.</div></div>
@@ -629,7 +630,7 @@ function renderRows(){
     return`<article class="row ${esc(r.status||'')}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div style="display:flex;gap:8px;align-items:center">${assignable?`<input class="row-select" type="checkbox" aria-label="تحديد المسودة" ${selectedDraftRows.has(String(r.id))?'checked':''} onchange="toggleDraftRow('${esc(r.id)}',this.checked)">`:''}<h3>${esc(r.country||'—')} — ${esc(r.denomination||'—')}</h3></div><span class="chip">${esc(statusLabel(r.status))}</span></div>
     <div class="meta"><span class="chip store-chip">${esc(STORE_LABELS[store])}</span>${category?`<span>التصنيف: ${esc(category)}</span>`:''}<span>${esc(r.year||'')}</span><span>الكمية: ${Number(r.quantity||r.inventoryUnitCount||1)}</span><span>شراء: ${Number(r.purchase||0).toLocaleString('ar-SA')}</span><span>بيع: ${Number(r.salePrice||r.expectedPrice||0).toLocaleString('ar-SA')}</span></div>
     ${imgs.length?`<div class="thumbs">${imgs.slice(0,4).map(x=>`<img src="${esc(x)}" alt="">`).join('')}</div>`:''}${r.adminNote?`<div class="row-note"><b>ملاحظة الإدارة:</b> ${esc(r.adminNote)}</div>`:''}
-    <div class="actions">${editable?`<button class="smallbtn" onclick="editRow('${esc(r.id)}')">تعديل</button>`:''}</div></article>`
+    <div class="actions">${editable?`<button class="smallbtn" onclick="editRow('${esc(r.id)}')">${r.status==='assigned'?'فتح وإكمال':'تعديل'}</button>`:''}</div></article>`
   }).join('')||'<p class="muted">لا توجد سجلات بعد. ابدأ بإضافة أول مقتنى.</p>';
   syncDraftSelection()
 }
@@ -644,7 +645,11 @@ $('assignSelectedDrafts').onclick=async()=>{
 };
 async function loadRows(){
   const r=await api('/api/data-entry/submissions');operator=r.operator;rows=r.submissions||[];const c=r.counts||{};
-  $('cDraft').textContent=c.draft||0;$('cPending').textContent=c.pending||0;$('cNeeds').textContent=c.needsChanges||0;$('cApproved').textContent=c.approved||0;$('cRejected').textContent=c.rejected||0;renderRows()
+  $('cDraft').textContent=c.draft||0;$('cPending').textContent=c.pending||0;$('cNeeds').textContent=c.needsChanges||0;$('cApproved').textContent=c.approved||0;$('cRejected').textContent=c.rejected||0;
+  const assignedCount=rows.filter(x=>x.status==='assigned').length, inbox=$('assignmentInboxNotice');
+  if(inbox){inbox.classList.toggle('hidden',!assignedCount);inbox.className='notice'+(assignedCount?' warn':' hidden');inbox.innerHTML=assignedCount?`📥 لديك <b>${assignedCount}</b> ${assignedCount===1?'مقتنى':'مقتنيات'} قيد الإدخال. افتحها من «سجلاتي» واضغط «فتح وإكمال»، ثم أرسلها للاعتماد.`:''}
+  rows.sort((a,b)=>(a.status==='assigned'?0:1)-(b.status==='assigned'?0:1)||String(b.updated||b.created||'').localeCompare(String(a.updated||a.created||'')));
+  renderRows()
 }
 function maskPhone(v){const d=String(v||'').replace(/\D/g,'');if(!d)return '—';return d.length>4?'••••'+d.slice(-4):d}
 function showGate(title,message,person=null){
