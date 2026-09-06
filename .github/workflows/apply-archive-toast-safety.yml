@@ -1,0 +1,38 @@
+name: Apply archive toast safety
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-archive-toast-safety.yml'
+      - 'tools/patch_archive_toast_safety.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch unsafe archive notifications
+        run: python tools/patch_archive_toast_safety.py
+      - name: Validate patch
+        run: |
+          git diff --check
+          ! grep -R --include='*.js' --include='*.html' -n 'window\.toast(' . --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=tools || (echo 'Unsafe window.toast call remains' && exit 1)
+          grep -R --include='*.js' --include='*.html' -q 'archive-toast-safety-v1' . --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=tools
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add '*.js' '*.html' '**/*.js' '**/*.html' || true
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "fix: allow warehouse items to archive without toast failure"
+            git push origin HEAD:main
+          fi
