@@ -3545,6 +3545,42 @@ class H(SimpleHTTPRequestHandler):
             if p=='/api/collectible-submissions/status':
                 self.sendj({'error':'تم إلغاء الاعتماد المسبق في V4.8.1. استخدم مراقبة المقتنيات للإيقاف أو الإخفاء.'},410); return
 
+            if p=='/api/data-entry/admin-edit':
+                if not self.is_admin():
+                    self.sendj({'error':'يلزم تسجيل دخول الإدارة'},401); return
+                sid=str(d.get('id') or '').strip()
+                if not sid:
+                    self.sendj({'error':'معرّف السجل مطلوب'},400); return
+                rows=load_collectible_submissions(); row=next((x for x in rows if str(x.get('id'))==sid and x.get('submissionSource')=='data_entry'),None)
+                if not row:
+                    self.sendj({'error':'السجل غير موجود'},404); return
+                if row.get('status')!='pending':
+                    self.sendj({'error':'يمكن تعديل السجل من الإدارة فقط وهو بانتظار الاعتماد'},409); return
+                text_fields=('country','denomination','year','issueEdition','type','condition','serial','notes')
+                limits={'country':120,'denomination':180,'year':80,'issueEdition':140,'type':120,'condition':120,'serial':160,'notes':3000}
+                for k in text_fields:
+                    if k in d: row[k]=str(d.get(k) or '').strip()[:limits[k]]
+                if not str(row.get('country') or '').strip() or not str(row.get('denomination') or '').strip():
+                    self.sendj({'error':'الدولة/المنشأ واسم المقتنى/الفئة مطلوبان'},400); return
+                for k in ('purchase','shipping','other','salePrice'):
+                    if k in d:
+                        try: row[k]=max(0,float(d.get(k) or 0))
+                        except Exception: row[k]=0
+                row['expectedPrice']=row.get('salePrice') or row.get('expectedPrice') or 0
+                if 'inventoryUnitCount' in d:
+                    try: row['inventoryUnitCount']=max(1,int(float(d.get('inventoryUnitCount') or 1)))
+                    except Exception: row['inventoryUnitCount']=1
+                if 'piecesPerUnit' in d:
+                    try: row['piecesPerUnit']=max(1,int(float(d.get('piecesPerUnit') or 1)))
+                    except Exception: row['piecesPerUnit']=1
+                row['quantity']=max(1,int(row.get('inventoryUnitCount') or 1))*max(1,int(row.get('piecesPerUnit') or 1))
+                now=datetime.datetime.now().isoformat(); row['updated']=now; row['adminEditedAt']=now
+                hist=row.get('reviewHistory') if isinstance(row.get('reviewHistory'),list) else []
+                hist.append({'action':'admin_edit','note':'تعديل مباشر قبل الاعتماد','at':now,'by':'الإدارة'}); row['reviewHistory']=hist[-50:]
+                save_json(COLLECTIBLE_SUBMISSIONS,{'submissions':rows})
+                append_operation('تعديل سجل مسؤول إدخال البيانات قبل الاعتماد',{'submissionId':sid},actor='الإدارة')
+                self.sendj({'ok':True,'submission':row}); return
+
             if p=='/api/data-entry/review':
                 action=str(d.get('action') or '').strip().lower()
                 ids=d.get('ids') if isinstance(d.get('ids'),list) else [d.get('id')]

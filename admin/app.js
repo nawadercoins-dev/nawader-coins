@@ -4253,7 +4253,8 @@ function lbMove(d) {
   lbDraw();
 }
 if ($("coinLightboxClose"))
-  $("coinLightboxClose").onclick = () => $("coinLightbox").close();
+  $("coinLightboxClose").onclick = (e) => { e.preventDefault(); e.stopPropagation(); $("coinLightbox").close(); };
+if ($("coinLightbox")) $("coinLightbox").addEventListener('click',e=>{ if(e.target===$("coinLightbox")) $("coinLightbox").close(); });
 document.querySelectorAll("[data-lb]").forEach(
   (b) =>
     (b.onclick = () => {
@@ -4486,7 +4487,7 @@ async function renderCollectibleApprovals(){
             ${costs?`<p><b>الأسعار:</b> ${costs}</p>`:''}
             ${r.notes?`<p><b>ملاحظات:</b> ${esc(r.notes)}</p>`:''}
             ${r.adminNote?`<p class="muted"><b>ملاحظة الإدارة:</b> ${esc(r.adminNote)}</p>`:''}
-            ${editable?`<div class="actions"><button class="approve" onclick="reviewDataEntry('${esc(r.id)}','approve')">✓ اعتماد وإرسال للمستودع</button><button class="changes" onclick="reviewDataEntry('${esc(r.id)}','needs_changes')">↩ إعادة للتعديل</button><button class="reject" onclick="reviewDataEntry('${esc(r.id)}','reject')">رفض</button></div>`:''}
+            ${editable?`<div class="actions data-entry-review-actions"><button class="changes" onclick="editPendingDataEntry('${esc(r.id)}')">✎ تعديل البيانات</button><button class="approve" onclick="reviewDataEntry('${esc(r.id)}','approve')">✓ اعتماد وإرسال للمستودع</button><button class="changes" onclick="reviewDataEntry('${esc(r.id)}','needs_changes')">↩ إرجاع لمسؤول إدخال البيانات</button><button class="reject" onclick="reviewDataEntry('${esc(r.id)}','reject')">رفض</button></div>`:''}
           </div>
         </article>`;
       }).join('')||'<p class="muted">لا توجد سجلات من مسؤول إدخال البيانات حتى الآن.</p>';
@@ -4498,6 +4499,35 @@ async function renderCollectibleApprovals(){
     }).join('')||'<p class="muted">لا توجد مقتنيات معتمدة.</p>';
   }catch(e){$('collectibleApprovalsList').textContent='تعذر تحميل الاعتمادات: '+e.message}
 }
+window.editPendingDataEntry=async(id)=>{
+  try{
+    const res=await api('/api/collectible-submissions/admin');
+    const r=(res.submissions||[]).find(x=>String(x.id)===String(id));
+    if(!r)throw new Error('السجل غير موجود');
+    if(r.status!=='pending')throw new Error('السجل لم يعد بانتظار الاعتماد');
+    let d=document.getElementById('adminDataEntryEditDialog');
+    if(!d){
+      d=document.createElement('dialog');d.id='adminDataEntryEditDialog';d.className='admin-data-entry-edit-dialog';
+      d.innerHTML=`<form method="dialog" id="adminDataEntryEditForm"><button type="button" class="admin-edit-close" aria-label="إغلاق">×</button><h2>تعديل المقتنى قبل الاعتماد</h2><p class="muted">التعديل هنا يحفظ السجل بانتظار الاعتماد ولا يرسله للمستودع حتى تضغط اعتماد.</p><div class="admin-edit-grid"><label>الدولة / المنشأ<input name="country" required></label><label>الفئة / اسم المقتنى<input name="denomination" required></label><label>السنة<input name="year"></label><label>الإصدار<input name="issueEdition"></label><label>النوع<input name="type"></label><label>الحالة<input name="condition"></label><label>الرقم التسلسلي<input name="serial"></label><label>عدد الوحدات<input name="inventoryUnitCount" type="number" min="1"></label><label>عدد القطع في الوحدة<input name="piecesPerUnit" type="number" min="1"></label><label>سعر الشراء<input name="purchase" type="number" min="0" step="0.01"></label><label>الشحن<input name="shipping" type="number" min="0" step="0.01"></label><label>تكاليف أخرى<input name="other" type="number" min="0" step="0.01"></label><label>سعر البيع<input name="salePrice" type="number" min="0" step="0.01"></label><label class="wide">ملاحظات<textarea name="notes"></textarea></label></div><div class="actions"><button type="button" class="approve" id="adminDataEntrySaveEdit">حفظ التعديل</button><button type="button" class="ghost" id="adminDataEntryCancelEdit">إلغاء</button></div></form>`;
+      document.body.appendChild(d);
+      d.querySelector('.admin-edit-close').onclick=()=>d.close();
+      d.querySelector('#adminDataEntryCancelEdit').onclick=()=>d.close();
+      d.addEventListener('click',e=>{if(e.target===d)d.close()});
+    }
+    const f=d.querySelector('form');
+    const set=(n,v)=>{if(f.elements[n])f.elements[n].value=v??''};
+    ['country','denomination','year','issueEdition','type','condition','serial','notes','purchase','shipping','other','salePrice','inventoryUnitCount','piecesPerUnit'].forEach(k=>set(k,r[k]));
+    d.dataset.recordId=String(id);d.showModal();
+    d.querySelector('#adminDataEntrySaveEdit').onclick=async()=>{
+      const body={id:d.dataset.recordId};
+      ['country','denomination','year','issueEdition','type','condition','serial','notes'].forEach(k=>body[k]=String(f.elements[k]?.value||'').trim());
+      ['purchase','shipping','other','salePrice','inventoryUnitCount','piecesPerUnit'].forEach(k=>body[k]=Number(f.elements[k]?.value||0));
+      const btn=d.querySelector('#adminDataEntrySaveEdit'),txt=btn.textContent;btn.disabled=true;btn.textContent='جارٍ الحفظ…';
+      try{await api('/api/data-entry/admin-edit',{method:'POST',body:JSON.stringify(body)});d.close();await renderCollectibleApprovals();toast('تم تعديل البيانات وبقي المقتنى بانتظار الاعتماد.')}catch(e){alert(e.message)}finally{btn.disabled=false;btn.textContent=txt}
+    };
+  }catch(e){alert(e.message)}
+};
+
 window.reviewDataEntry=async(id,action)=>{
   let note='';
   if(action==='needs_changes')note=(prompt('اكتب المطلوب تعديله:','')||'').trim();
