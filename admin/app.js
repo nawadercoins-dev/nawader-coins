@@ -4070,7 +4070,7 @@ window.resolvePaymentProof=resolvePaymentProof;
 function orderNextButtons(o) {
   if (o.archived) return "";
   let map = {
-    awaiting_payment: o.paymentStatus==="proof_submitted"||o.paymentProofStatus==="pending"?[]:[["paid", "تأكيد السداد يدويًا"]],
+    awaiting_payment: o.paymentStatus==="proof_submitted"||o.paymentProofStatus==="pending"?[]:[["paid", o.manualPaymentStatus==="claimed"?"✅ تم استلام المبلغ — مصادقة السداد":"تأكيد السداد يدويًا"]],
     paid: [["preparing", "بدء التجهيز"]],
     preparing: [["ready_to_ship", "جاهز للشحن"]],
     ready_to_ship: [["shipped", "تم الشحن"]],

@@ -3906,6 +3906,22 @@ class H(SimpleHTTPRequestHandler):
                     row['cancellationRequestedAt']=now; row['cancellationStatus']='requested'; row['updated']=now; row.setdefault('history',[]).append({'status':status,'at':now,'note':'طلب العميل إلغاء الطلب'})
                     save_json(ORDERS,{'orders':rows}); add_notification('admin','','order','طلب إلغاء',f'طلب العميل إلغاء الطلب {number}.','', '/admin'); append_operation('طلب إلغاء من العميل',{'orderId':oid,'orderNumber':number,'participantId':pid},actor='العميل')
                     self.sendj({'ok':True,'message':'تم إرسال طلب الإلغاء إلى الإدارة.'}); return
+                if action=='manual_payment_claim':
+                    stcfg=load_settings()
+                    if not bool(stcfg.get('paymentManualModeEnabled',True)):
+                        self.sendj({'error':'السداد اليدوي غير مفعّل حاليًا'},409); return
+                    if payment in ('paid','refunded','proof_submitted') or status not in ('new','awaiting_payment','stalled'):
+                        self.sendj({'error':'لا يمكن إرسال طلب مصادقة السداد في الحالة الحالية'},409); return
+                    if not bool(row.get('shippingFeeConfirmed')):
+                        self.sendj({'error':'يجب اعتماد الشحن قبل طلب مصادقة السداد'},409); return
+                    targets=[x for x in rows if str(x.get('participantId') or '')==pid and bool(x.get('shippingFeeConfirmed')) and str(x.get('paymentStatus') or 'unpaid') not in ('paid','refunded','proof_submitted') and str(x.get('status') or '') in ('new','awaiting_payment','stalled') and not x.get('archived') and not x.get('cancellationRequestedAt')]
+                    for x in targets:
+                        x['manualPaymentStatus']='claimed'; x['manualPaymentClaimedAt']=now; x['updated']=now
+                        x.setdefault('history',[]).append({'status':str(x.get('status') or ''),'at':now,'note':'أبلغ العميل بإتمام السداد اليدوي وينتظر مصادقة الإدارة'})
+                    save_json(ORDERS,{'orders':rows})
+                    add_notification('admin','','finance','💰 طلب مصادقة سداد يدوي',f'أبلغ العميل بإتمام السداد للدفعة المرتبطة بالطلب {number}. يرجى التحقق ثم الضغط على «تم استلام المبلغ».','', '/admin')
+                    append_operation('طلب مصادقة سداد يدوي',{'orderId':oid,'participantId':pid,'count':len(targets)},actor='العميل')
+                    self.sendj({'ok':True,'message':'تم إرسال طلب مصادقة السداد إلى الإدارة.','count':len(targets)}); return
                 if action=='refund_request':
                     if payment!='paid' or status not in ('paid','preparing','ready_to_ship'):
                         self.sendj({'error':'طلب الاسترداد متاح للطلب المسدد الذي لم يُشحن فقط'},409); return
@@ -4509,6 +4525,9 @@ class H(SimpleHTTPRequestHandler):
                 if 'paymentIban' in d: st['paymentIban']=''.join(ch for ch in str(d.get('paymentIban') or '').upper() if ch.isalnum())[:40]
                 if 'paymentInstructions' in d: st['paymentInstructions']=str(d.get('paymentInstructions') or '').strip()[:800]
                 if 'paymentWhatsapp' in d: st['paymentWhatsapp']=''.join(ch for ch in str(d.get('paymentWhatsapp') or '') if ch.isdigit() or ch=='+')[:24]
+                if 'paymentManualModeEnabled' in d: st['paymentManualModeEnabled']=bool(d.get('paymentManualModeEnabled'))
+                if 'paymentBankModeEnabled' in d: st['paymentBankModeEnabled']=bool(d.get('paymentBankModeEnabled'))
+                if 'paymentManualInstructions' in d: st['paymentManualInstructions']=str(d.get('paymentManualInstructions') or '').strip()[:800]
                 incoming=d.get('visitorSections')
                 if isinstance(incoming,dict):
                     current=dict(st.get('visitorSections') or {})
