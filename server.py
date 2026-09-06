@@ -4162,7 +4162,8 @@ class H(SimpleHTTPRequestHandler):
                     # سياسة الشحن المعتمدة: 35 ريال مرة واحدة فقط لكل دفعة طلبات نشطة لنفس العميل.
                     # حتى لو اشترى عدة منتجات، لا تتكرر رسوم الشحن على كل طلب.
                     apply_flat_shipping_for_participant(rows,row.get('participantId'))
-                row['updated']=datetime.datetime.now().isoformat(); save_json(ORDERS,{'orders':rows}); self.sendj({'ok':True,'order':row,'flatShippingFee':FLAT_SHIPPING_FEE}); return
+                # shipping-address-save-response-v3
+                row['updated']=datetime.datetime.now().isoformat(); save_json(ORDERS,{'orders':rows}); self.sendj({'ok':True,'order':row,'flatShippingFee':flat_shipping_fee()}); return
             if p=='/api/inventory/return-resolution':
                 iid=str(d.get('itemId') or ''); action=str(d.get('action') or '')
                 if action not in ('warehouse','damaged'): self.sendj({'error':'اختر إعادة المرتجع للمستودع أو تسجيله تالفًا'},400); return
