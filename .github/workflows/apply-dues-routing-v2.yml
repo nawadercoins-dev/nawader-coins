@@ -1,0 +1,31 @@
+name: Apply dues routing v2
+on:
+  push:
+    paths:
+      - tools/patch_dues_center_routing.py
+      - .github/workflows/apply-dues-routing-v2.yml
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python tools/patch_dues_center_routing.py
+      - name: Validate
+        run: |
+          python -m py_compile server.py
+          node --check admin/app.js
+          grep -q "unified-dues-routing-v2" admin/app.js
+          grep -q "انتقل تلقائيًا إلى التجهيز والشحن بعد اعتماد السداد" server.py
+          git diff --check
+      - name: Commit fix
+        run: |
+          if git diff --quiet; then echo "No changes"; exit 0; fi
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add admin/app.js server.py
+          git commit -m "fix: route dues by source and payment state"
+          git push origin HEAD:main
