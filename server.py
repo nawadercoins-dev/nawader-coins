@@ -2017,7 +2017,7 @@ def _send_public_bytes(handler,body,content_type,status=200,cache='public, max-a
 ADMIN_GET_API={
     '/api/negotiations','/api/backup/full','/api/items','/api/participants','/api/participants/summary',
     '/api/bids','/api/market/requests','/api/subscriptions','/api/daily-qr','/api/market-qr',
-    '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/image-vault/admin','/api/dues','/api/operations','/api/orders','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity','/api/archive/items','/api/live-auctions/admin'
+    '/api/market-qr-info','/api/daily-qr-info','/api/settings/admin','/api/ocr/status','/api/notifications/admin','/api/permissions','/api/image-vault/admin','/api/dues','/api/operations','/api/orders','/api/order/payment-admin','/api/collectible-submissions/admin','/api/inventory/summary','/api/integrity','/api/archive/items','/api/live-auctions/admin'
 }
 PUBLIC_POST_API={'/api/special/request','/api/fantasia/request','/api/market/request','/api/negotiate','/api/participant/register','/api/participant/verify','/api/google/link/start','/api/facebook/link/start','/api/participant/profile','/api/bid','/api/visitor/receive','/api/visitor/order/action','/api/visitor/payment-proof','/api/notifications/read','/api/collectible-submissions','/api/collectible-submissions/delete','/api/data-entry/submissions','/api/image-vault/pull','/api/image-vault/release','/api/visitor/upload','/api/owner/item/update','/api/owner/item/delete','/api/owner/market/update','/api/owner/auction/update','/api/owner/auction/cancel','/api/seller/order/update','/api/live-auctions/bid','/api/live-auctions/seller-save','/api/live-auctions/seller-control','/api/live-auctions/chat'}
 PUBLIC_STATIC={'/styles.css','/public_home.html','/dar_home.html','/collectibles_home.html','/public_market.html','/public_market.js','/public_auction.html','/public_auction.js','/special_numbers.html','/fantasia.html','/announcements.html','/account.html','/visitor.js','/section_visibility.js','/visitor.css','/manifest.webmanifest','/sw.js','/notifications.html','/seller_portal.html','/seller_portal.css','/seller_portal.js','/data_entry.html','/invoice.html','/live_auction.html','/live_auction.js','/live_studio.html','/live_studio.js'}
@@ -4061,6 +4061,24 @@ class H(SimpleHTTPRequestHandler):
                 save_json(ORDERS,{'orders':rows}); append_operation('تحديث طلب وشحن',{'orderId':oid,'orderNumber':row.get('orderNumber'),'status':status})
                 if row.get('participantId'): add_notification('participant',row.get('participantId'),'order','تحديث حالة الطلب',f"الطلب {row.get('orderNumber')} أصبح: {status}",'', '/account')
                 self.sendj({'ok':True,'order':row}); return
+            if p=='/api/order/payment-admin':
+                oid=str(d.get('id') or ''); action=str(d.get('action') or ''); rows=load_orders(); row=next((x for x in rows if str(x.get('id'))==oid),None)
+                if not row: self.sendj({'error':'الطلب غير موجود'},404); return
+                now=datetime.datetime.now().isoformat(); number=row.get('orderNumber') or oid
+                if action=='paid':
+                    if not bool(row.get('shippingFeeConfirmed')): self.sendj({'error':'اعتمد الشحن أولًا قبل اعتماد السداد'},409); return
+                    update_order_status(row,'paid','تم اعتماد استلام المبلغ من مركز المستحقات والسداد')
+                    row['manualPaymentStatus']='approved'; row['manualPaymentApprovedAt']=now
+                    add_notification('participant',row.get('participantId'),'finance','✅ تم اعتماد السداد',f'تم اعتماد استلام مبلغ الطلب {number}.','', '/account')
+                elif action=='unpaid':
+                    if str(row.get('status') or '') in ('shipped','received','completed'): self.sendj({'error':'لا يمكن إرجاع طلب مشحون أو مكتمل إلى غير مسدد'},409); return
+                    row['paymentStatus']='unpaid'; row['paymentProofStatus']=''; row['manualPaymentStatus']=''; row['paidAt']=''; row['status']='awaiting_payment'; row['updated']=now
+                    row.setdefault('history',[]).append({'status':'awaiting_payment','at':now,'note':'أعيد إلى غير مسدد من مركز المستحقات'})
+                elif action=='cancelled':
+                    if str(row.get('paymentStatus') or '')=='paid': self.sendj({'error':'الطلب مسدد؛ نفّذ الاسترداد بدل الإلغاء المباشر'},409); return
+                    update_order_status(row,'cancelled','أُلغي من مركز المستحقات والسداد')
+                else: self.sendj({'error':'إجراء السداد غير صالح'},400); return
+                save_json(ORDERS,{'orders':rows}); append_operation('تحديث مستحق طلب',{'orderId':oid,'orderNumber':number,'action':action}); self.sendj({'ok':True,'order':row}); return
             if p=='/api/order/request/resolve':
                 oid=str(d.get('id') or ''); action=str(d.get('action') or ''); note=str(d.get('note') or '').strip(); rows=load_orders(); row=next((x for x in rows if str(x.get('id'))==oid),None)
                 if not row: self.sendj({'error':'الطلب غير موجود'},404); return

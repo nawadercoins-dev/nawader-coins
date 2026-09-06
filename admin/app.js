@@ -3943,49 +3943,65 @@ function dueStatusLabel(x) {
 async function renderDues() {
   if (!$("duesList")) return;
   try {
-    let r = await api("/api/dues"),
-      rows = r.dues || [],
-      dueItems=await all(), dueMap=new Map(dueItems.map(i=>[String(i.id||''),i])),
-      now = Date.now();
-    rows=rows.filter(x=>adminStoreFilter==='all'||itemStoreKey(dueMap.get(String(x.itemId||''))||{})===adminStoreFilter);
-    let unpaid = rows.filter((x) => x.status === "unpaid"),
-      overdue = unpaid.filter(
-        (x) => new Date(x.paymentDeadline).getTime() <= now,
-      ),
-      paid = rows.filter((x) => x.status === "paid");
-    $("duesUnpaidCount").textContent = unpaid.length;
-    $("duesOverdueCount").textContent = overdue.length;
-    $("duesPaidCount").textContent = paid.length;
-    $("duesList").innerHTML =
-      rows
-        .map((x) => {
-          let isOver =
-            x.status === "unpaid" &&
-            new Date(x.paymentDeadline).getTime() <= now;
-          return `<article class="due-row ${isOver ? "overdue" : ""}"><div><b>${esc(x.itemTitle || "مقتنى")}</b><p>${esc(x.participantName || "مشارك")} — ${esc(x.participantPhone || "")}</p><small>قيمة الفوز: ${money(x.amount)} • مهلة السداد: ${fmtDate(x.paymentDeadline)}</small></div><span class="due-status ${x.status}">${isOver ? "متأخر +24 ساعة" : dueStatusLabel(x)}</span><div class="actions due-actions"><button class="due-paid ${x.status === "paid" ? "is-current" : ""}" data-due="${esc(x.id)}" data-status="paid" ${x.status === "paid" ? "disabled" : ""}>${x.status === "paid" ? "✓ تم السداد" : "اعتماد السداد"}</button><button class="due-cancel" data-due="${esc(x.id)}" data-status="cancelled" ${x.status === "cancelled" ? "disabled" : ""}>إلغاء المستحق</button><button class="due-unpaid" data-due="${esc(x.id)}" data-status="unpaid" ${x.status === "unpaid" ? "disabled" : ""}>↩ إرجاع لغير مسدد</button></div></article>`;
-        })
-        .join("") ||
-      '<p class="muted">لا توجد مستحقات مزادات مسجلة حتى الآن.</p>';
-    document.querySelectorAll("[data-due][data-status]").forEach(
-      (b) =>
-        (b.onclick = async () => {
-          try {
-            await api("/api/dues/status", {
-              method: "POST",
-              body: JSON.stringify({
-                id: b.dataset.due,
-                status: b.dataset.status,
-              }),
-            });
-            await renderDues();
-            await renderAdminNotifications();
-          } catch (e) {
-            alert(e.message);
-          }
-        }),
-    );
+    const [dueRes, orderRes] = await Promise.all([api("/api/dues"), api("/api/orders")]);
+    const auctionRows = (dueRes.dues || []).map(x => ({...x, _kind:"auction", _sourceLabel:"مزاد"}));
+    const allOrders = orderRes.orders || [];
+    const orderRows = allOrders
+      .filter(o => !o.archived && String(o.source||"") !== "auction")
+      .filter(o => !["completed","returned"].includes(String(o.status||"")))
+      .map(o => ({
+        ...o,
+        _kind:"order",
+        _sourceLabel: String(o.source||"")==="market" ? "السوق العام" : "مشتريات",
+        amount:Number(o.total||o.buyerTotal||0),
+        participantName:o.customerName||o.participantName||"عميل",
+        participantPhone:o.customerPhone||o.participantPhone||"",
+        itemTitle:(o.items||[]).map(i=>i.title).filter(Boolean).join(" + ") || o.itemTitle || o.orderNumber || "طلب",
+        paymentDeadline:o.paymentDeadline||o.created||o.updated||"",
+        status: String(o.paymentStatus||"unpaid")==="paid" ? "paid" : (String(o.paymentStatus||"")==="refunded" || String(o.status||"")==="cancelled" ? "cancelled" : "unpaid")
+      }));
+    let rows=[...auctionRows,...orderRows];
+    if(adminStoreFilter!=="all"){
+      const dueItems=await all(), dueMap=new Map(dueItems.map(i=>[String(i.id||''),i]));
+      rows=rows.filter(x=>{
+        if(x._kind==="auction") return itemStoreKey(dueMap.get(String(x.itemId||''))||{})===adminStoreFilter;
+        return adminOrderStoreKey(x,new Map(dueItems.map(i=>[String(i.id||''),i])))===adminStoreFilter;
+      });
+    }
+    const now=Date.now();
+    const unpaid=rows.filter(x=>x.status==="unpaid"), paid=rows.filter(x=>x.status==="paid");
+    const overdue=unpaid.filter(x=>x._kind==="auction" && x.paymentDeadline && new Date(x.paymentDeadline).getTime()<=now);
+    $("duesUnpaidCount").textContent=unpaid.length;
+    $("duesOverdueCount").textContent=overdue.length;
+    $("duesPaidCount").textContent=paid.length;
+    $("duesList").innerHTML=rows.map(x=>{
+      const isOver=x._kind==="auction"&&x.status==="unpaid"&&x.paymentDeadline&&new Date(x.paymentDeadline).getTime()<=now;
+      const source=`<span class="source-chip">${esc(x._sourceLabel)}</span>`;
+      const state=isOver?"متأخر +24 ساعة":dueStatusLabel(x);
+      let actions="";
+      if(x._kind==="auction"){
+        actions=`<button class="due-paid ${x.status==="paid"?"is-current":""}" data-due="${esc(x.id)}" data-status="paid" ${x.status==="paid"?"disabled":""}>${x.status==="paid"?"✓ تم السداد":"اعتماد السداد"}</button><button class="due-cancel" data-due="${esc(x.id)}" data-status="cancelled" ${x.status==="cancelled"?"disabled":""}>إلغاء المستحق</button><button class="due-unpaid" data-due="${esc(x.id)}" data-status="unpaid" ${x.status==="unpaid"?"disabled":""}>↩ إرجاع لغير مسدد</button>`;
+      }else{
+        const claimed=String(x.manualPaymentStatus||"")==="claimed";
+        actions=`<button class="due-paid ${x.status==="paid"?"is-current":""}" data-order-due="${esc(x.id)}" data-order-action="paid" ${x.status==="paid"?"disabled":""}>${claimed?"✅ تم استلام المبلغ — مصادقة":"اعتماد السداد"}</button><button class="due-cancel" data-order-due="${esc(x.id)}" data-order-action="cancelled" ${x.status==="cancelled"?"disabled":""}>إلغاء المستحق</button><button class="due-unpaid" data-order-due="${esc(x.id)}" data-order-action="unpaid" ${x.status==="unpaid"&&!claimed?"disabled":""}>↩ إرجاع لغير مسدد</button>`;
+      }
+      return `<article class="due-row ${isOver?"overdue":""}"><div>${source} <b>${esc(x.itemTitle||"مقتنى")}</b><p>${esc(x.participantName||"مشارك")} — ${esc(x.participantPhone||"")}</p><small>المبلغ: ${money(x.amount||0)}${x.paymentDeadline?` • التاريخ: ${fmtDate(x.paymentDeadline)}`:""}</small></div><span class="due-status ${x.status}">${state}</span><div class="actions due-actions">${actions}</div></article>`;
+    }).join("") || '<p class="muted">لا توجد مستحقات مسجلة حاليًا.</p>';
+
+    document.querySelectorAll("[data-due][data-status]").forEach(b=>b.onclick=async()=>{
+      try{await api("/api/dues/status",{method:"POST",body:JSON.stringify({id:b.dataset.due,status:b.dataset.status})});await renderDues();await renderAdminNotifications()}catch(e){alert(e.message)}
+    });
+    document.querySelectorAll("[data-order-due][data-order-action]").forEach(b=>b.onclick=async()=>{
+      const id=b.dataset.orderDue, action=b.dataset.orderAction;
+      const label=action==="paid"?"اعتماد استلام المبلغ لهذا الطلب؟":action==="unpaid"?"إرجاع الطلب إلى غير مسدد؟":"إلغاء المستحق/الطلب؟";
+      if(!confirm(label))return;
+      try{
+        await api('/api/order/payment-admin',{method:'POST',body:JSON.stringify({id,action})});
+        await renderDues(); await renderOrders(); await renderAdminNotifications();
+      }catch(e){alert(e.message)}
+    });
   } catch (e) {
-    $("duesList").textContent = "تعذر تحميل المستحقات: " + e.message;
+    $("duesList").textContent = "تعذر تحميل مركز المستحقات: " + e.message;
   }
 }
 if ($("refreshDues")) $("refreshDues").onclick = renderDues;
