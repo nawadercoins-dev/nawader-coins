@@ -1,0 +1,35 @@
+name: Apply live bid button v1
+on:
+  push:
+    paths:
+      - 'tools/patch_live_bid_button_v1.py'
+      - '.github/workflows/apply-live-bid-button-v1.yml'
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply compact bid button patch
+        run: python tools/patch_live_bid_button_v1.py
+      - name: Validate
+        run: |
+          git diff --check
+          grep -q "nextBidButton" public/live_auction.js
+          grep -q "المزايدة التالية" public/live_auction.js
+          ! grep -q "liveBidSlider" public/live_auction.js
+          ! grep -q "studioBidPreviewRange" public/live_studio.html
+          grep -q "معاينة زر المزايدة" public/live_studio.html
+      - name: Commit
+        run: |
+          if git diff --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add public/live_auction.html public/live_auction.js public/live_studio.html
+          git commit -m "fix: replace live bid slider with next-price button"
+          git push
