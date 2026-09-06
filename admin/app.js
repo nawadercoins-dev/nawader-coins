@@ -4083,6 +4083,53 @@ async function resolvePaymentProof(id,batchId,action){
   try{let d=await api('/api/order/payment-proof',{method:'POST',body:JSON.stringify({id,batchId:batchId||'',action,note})});alert(action==="approve"?`تم اعتماد السداد لعدد ${d.count||1} طلب`:`تم رفض الإثبات لعدد ${d.count||1} طلب`);await renderOrders();await renderDues();await renderAdminNotifications()}catch(e){alert(e.message)}
 }
 window.resolvePaymentProof=resolvePaymentProof;
+
+// admin-order-address-editor-v2
+function orderAddressComplete(o){
+  const a=o&&o.shippingAddress&&typeof o.shippingAddress==='object'?o.shippingAddress:{};
+  return !!(String(a.country||'').trim()&&String(a.city||'').trim()&&String(a.addressLine||'').trim());
+}
+function orderAddressEditorHtml(o){
+  const a=o&&o.shippingAddress&&typeof o.shippingAddress==='object'?o.shippingAddress:{};
+  const id=String(o.id||'');
+  return `<section class="order-address-editor" id="order-address-editor-${esc(id)}" hidden>
+    <h4>📍 إدخال / تصحيح عنوان التسليم</h4>
+    <p class="muted">أكمل العنوان هنا مباشرة ثم احفظه. بعد الحفظ يمكنك اعتماد «جاهز للشحن» بدون الرجوع لصفحة أخرى.</p>
+    <div class="order-address-grid">
+      <input id="addr-recipient-${esc(id)}" value="${esc(a.recipientName||o.customerName||'')}" placeholder="اسم المستلم">
+      <input id="addr-phone-${esc(id)}" value="${esc(a.recipientPhone||o.customerPhone||'')}" placeholder="جوال المستلم">
+      <input id="addr-country-${esc(id)}" value="${esc(a.country||'')}" placeholder="الدولة *">
+      <input id="addr-city-${esc(id)}" value="${esc(a.city||'')}" placeholder="المدينة *">
+      <input id="addr-district-${esc(id)}" value="${esc(a.district||'')}" placeholder="الحي">
+      <input id="addr-postal-${esc(id)}" value="${esc(a.postalCode||'')}" placeholder="الرمز البريدي">
+      <input class="wide" id="addr-line-${esc(id)}" value="${esc(a.addressLine||'')}" placeholder="العنوان بالتفصيل: الشارع، المبنى، الوحدة *">
+      <textarea class="wide" id="addr-notes-${esc(id)}" placeholder="ملاحظات التسليم">${esc(a.notes||'')}</textarea>
+    </div>
+    <div class="actions"><button onclick="saveOrderAddress('${esc(id)}')">✅ حفظ وتفعيل العنوان</button><button class="ghost" onclick="closeOrderAddressEditor('${esc(id)}')">إغلاق</button></div>
+  </section>`;
+}
+window.openOrderAddressEditor=(id)=>{
+  const box=document.getElementById(`order-address-editor-${id}`); if(!box)return;
+  box.hidden=false; box.classList.add('attention'); box.scrollIntoView({behavior:'smooth',block:'center'});
+  setTimeout(()=>{
+    const ids=[`addr-country-${id}`,`addr-city-${id}`,`addr-line-${id}`];
+    const first=ids.map(x=>document.getElementById(x)).find(el=>el&&!String(el.value||'').trim());
+    (first||document.getElementById(`addr-recipient-${id}`))?.focus?.();
+  },250);
+};
+window.closeOrderAddressEditor=(id)=>{const box=document.getElementById(`order-address-editor-${id}`);if(box){box.hidden=true;box.classList.remove('attention')}};
+window.saveOrderAddress=async(id)=>{
+  const get=(k)=>String(document.getElementById(`${k}-${id}`)?.value||'').trim();
+  const shippingAddress={recipientName:get('addr-recipient'),recipientPhone:get('addr-phone'),country:get('addr-country'),city:get('addr-city'),district:get('addr-district'),postalCode:get('addr-postal'),addressLine:get('addr-line'),notes:get('addr-notes')};
+  const missing=[]; if(!shippingAddress.country)missing.push('الدولة'); if(!shippingAddress.city)missing.push('المدينة'); if(!shippingAddress.addressLine)missing.push('العنوان بالتفصيل');
+  if(missing.length){adminMoveNotice('أكمل الحقول المطلوبة: '+missing.join('، '));openOrderAddressEditor(id);return;}
+  try{
+    await api('/api/order/shipping',{method:'POST',body:JSON.stringify({id,shippingAddress})});
+    adminMoveNotice('✅ تم حفظ عنوان التسليم وتفعيله للطلب.');
+    await renderOrders();
+  }catch(e){alert(e.message||'تعذر حفظ عنوان التسليم')}
+};
+
 function orderNextButtons(o) {
   if (o.archived) return "";
   let map = {
@@ -4093,7 +4140,7 @@ function orderNextButtons(o) {
     shipped: [["received", "تم الاستلام"]],
     received: [["completed", "إكمال وأرشفة"]],
   };
-  let b = (map[o.status] || []).map((x) => `<button onclick="orderStatus('${o.id}','${x[0]}')">${x[1]}</button>`).join("");
+  let b = (map[o.status] || []).map((x) => (x[0]==='ready_to_ship'&&!orderAddressComplete(o))?`<button onclick="openOrderAddressEditor('${o.id}')">${x[1]}</button>`:`<button onclick="orderStatus('${o.id}','${x[0]}')">${x[1]}</button>`).join("");
   let requests="";
   if(o.cancellationStatus==="requested")requests=`<button class="danger" onclick="processOrderRequest('${o.id}','approve_cancel')">اعتماد الإلغاء وإعادة الكمية</button><button class="ghost" onclick="processOrderRequest('${o.id}','reject')">رفض الطلب</button>`;
   if(o.refundStatus==="requested")requests=`<button class="danger" onclick="processOrderRequest('${o.id}','complete_refund')">تسجيل الاسترداد وإعادة الكمية</button><button class="ghost" onclick="processOrderRequest('${o.id}','reject')">رفض الطلب</button>`;
@@ -4107,7 +4154,7 @@ function orderCard(o) {
   let proofNotice='';
   if(o.paymentProofStatus==="pending"||o.paymentStatus==="proof_submitted")proofNotice=`<div class="notice"><b>💳 إثبات سداد جديد بانتظار المراجعة</b><div>مرجع التحويل: ${esc(o.paymentReference||'—')} ${o.paymentProofBatchAmount?`• إجمالي الدفعة: ${money(o.paymentProofBatchAmount)}`:''}</div><div class="actions">${o.paymentProofUrl?`<a class="button-link ghost" target="_blank" href="${esc(o.paymentProofUrl)}">فتح صورة التحويل</a>`:''}<button onclick="resolvePaymentProof('${esc(o.id)}','${esc(o.paymentProofBatchId||'')}','approve')">✅ اعتماد السداد${o.paymentProofBatchId?' للدفعة':''}</button><button class="danger" onclick="resolvePaymentProof('${esc(o.id)}','${esc(o.paymentProofBatchId||'')}','reject')">رفض الإثبات</button></div></div>`;
   if(o.paymentProofStatus==="rejected")proofNotice=`<div class="notice danger"><b>تم رفض إثبات السداد</b><div>${esc(o.paymentProofRejectNote||'بانتظار أن يعيد العميل رفع إثبات جديد')}</div></div>`;
-  return `<article class="order-card ${o.archived ? "archived-order" : ""}"><div class="order-head"><div><h3>${adminStoreBadge(adminOrderStoreKey(o,new Map((latestItems||[]).map(i=>[String(i.id||''),i]))))} ${esc(o.orderNumber || o.id)}</h3><small>${new Date(o.created).toLocaleString("ar-SA")}</small></div><div><span class="source-chip">${o.source === "auction" ? "مزاد" : "السوق العام"}</span> <span class="order-status">${ORDER_LABELS[o.status] || esc(o.status)}</span></div></div><div class="order-body">${requestNotice}${proofNotice}<div class="order-grid"><div class="order-info"><span>العميل</span><b>${esc(o.customerName || "—")}</b><br>${esc(o.customerPhone || "")}</div><div class="order-info"><span>السداد</span><b>${paymentOrderLabel(o)}</b></div><div class="order-info"><span>الإجمالي</span><b>${money(o.total || 0)}</b><br><small>الشحن: ${o.shippingFeeConfirmed ? money(o.shippingFee || 0) : "غير محدد"}</small></div><div class="order-info"><span>الشحن</span><b>${esc(o.shippingCompany || "لم يسجل")}</b><br>${esc(o.trackingNumber || "")}</div><div class="order-info"><span>عنوان التسليم</span><b>${esc((o.shippingAddress||{}).city || "غير مكتمل")}</b><br><small>${esc([(o.shippingAddress||{}).district,(o.shippingAddress||{}).addressLine].filter(Boolean).join(' — '))}</small></div></div>${itemHtml}<div class="order-shipping-fields"><input id="shipfee-${o.id}" type="number" min="0" step="0.01" value="${Number(o.shippingFee || 0)}" placeholder="مبلغ الشحن (0 = مجاني)" ${o.paymentStatus === "paid" ? "disabled" : ""}><input id="shipco-${o.id}" value="${esc(o.shippingCompany || "")}" placeholder="شركة الشحن"><input id="track-${o.id}" value="${esc(o.trackingNumber || "")}" placeholder="رقم التتبع"></div><div class="order-actions"><button class="ghost" onclick="saveShipping('${o.id}')">اعتماد مبلغ الشحن وحفظ بياناته</button>${orderNextButtons(o)}<button class="ghost" onclick="printOrder('${o.id}')">🖨 طباعة ملخص/فاتورة</button></div></div></article>`;
+  return `<article class="order-card ${o.archived ? "archived-order" : ""}"><div class="order-head"><div><h3>${adminStoreBadge(adminOrderStoreKey(o,new Map((latestItems||[]).map(i=>[String(i.id||''),i]))))} ${esc(o.orderNumber || o.id)}</h3><small>${new Date(o.created).toLocaleString("ar-SA")}</small></div><div><span class="source-chip">${o.source === "auction" ? "مزاد" : "السوق العام"}</span> <span class="order-status">${ORDER_LABELS[o.status] || esc(o.status)}</span></div></div><div class="order-body">${requestNotice}${proofNotice}<div class="order-grid"><div class="order-info"><span>العميل</span><b>${esc(o.customerName || "—")}</b><br>${esc(o.customerPhone || "")}</div><div class="order-info"><span>السداد</span><b>${paymentOrderLabel(o)}</b></div><div class="order-info"><span>الإجمالي</span><b>${money(o.total || 0)}</b><br><small>الشحن: ${o.shippingFeeConfirmed ? money(o.shippingFee || 0) : "غير محدد"}</small></div><div class="order-info"><span>الشحن</span><b>${esc(o.shippingCompany || "لم يسجل")}</b><br>${esc(o.trackingNumber || "")}</div><div class="order-info"><span>عنوان التسليم</span><b>${esc((o.shippingAddress||{}).city || "غير مكتمل")}</b><br><small>${esc([(o.shippingAddress||{}).district,(o.shippingAddress||{}).addressLine].filter(Boolean).join(' — '))}</small></div></div>${itemHtml}${orderAddressEditorHtml(o)}<div class="order-shipping-fields"><input id="shipfee-${o.id}" type="number" min="0" step="0.01" value="${Number(o.shippingFee || 0)}" placeholder="مبلغ الشحن (0 = مجاني)" ${o.paymentStatus === "paid" ? "disabled" : ""}><input id="shipco-${o.id}" value="${esc(o.shippingCompany || "")}" placeholder="شركة الشحن"><input id="track-${o.id}" value="${esc(o.trackingNumber || "")}" placeholder="رقم التتبع"></div><div class="order-actions"><button class="ghost" onclick="saveShipping('${o.id}')">اعتماد مبلغ الشحن وحفظ بياناته</button>${orderNextButtons(o)}<button class="ghost" onclick="printOrder('${o.id}')">🖨 طباعة ملخص/فاتورة</button></div></div></article>`;
 }
 async function renderOrders() {
   if (!$("ordersList")) return;

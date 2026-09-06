@@ -4133,6 +4133,30 @@ class H(SimpleHTTPRequestHandler):
                 oid=str(d.get('id') or ''); rows=load_orders(); row=next((x for x in rows if str(x.get('id'))==oid),None)
                 if not row: self.sendj({'error':'الطلب غير موجود'},404); return
                 row['shippingCompany']=str(d.get('shippingCompany') or '').strip(); row['trackingNumber']=str(d.get('trackingNumber') or '').strip()
+                # admin-order-address-save-v2
+                if isinstance(d.get('shippingAddress'),dict):
+                    incoming=d.get('shippingAddress') or {}
+                    shipping_address={
+                        'recipientName':str(incoming.get('recipientName') or '').strip(),
+                        'recipientPhone':str(incoming.get('recipientPhone') or '').strip(),
+                        'country':str(incoming.get('country') or '').strip(),
+                        'city':str(incoming.get('city') or '').strip(),
+                        'district':str(incoming.get('district') or '').strip(),
+                        'postalCode':str(incoming.get('postalCode') or '').strip(),
+                        'addressLine':str(incoming.get('addressLine') or '').strip(),
+                        'notes':str(incoming.get('notes') or '').strip(),
+                    }
+                    if not shipping_address['country'] or not shipping_address['city'] or not shipping_address['addressLine']:
+                        self.sendj({'error':'عنوان التسليم غير مكتمل: الدولة والمدينة والعنوان بالتفصيل مطلوبة','code':'shipping_address_incomplete'},400); return
+                    row['shippingAddress']=shipping_address
+                    row['shippingAddressUpdatedByAdminAt']=datetime.datetime.now().isoformat()
+                    pid=str(row.get('participantId') or '')
+                    if pid:
+                        people=load_people(); person=next((x for x in people if str(x.get('id') or '')==pid),None)
+                        if person is not None:
+                            person['shippingAddress']=dict(shipping_address)
+                            person['updated']=datetime.datetime.now().isoformat()
+                            save_json(PEOPLE,{'participants':people})
                 if 'shippingFee' in d:
                     if str(row.get('paymentStatus') or '')=='paid': self.sendj({'error':'لا يمكن تغيير مبلغ الشحن بعد تأكيد السداد'},409); return
                     # سياسة الشحن المعتمدة: 35 ريال مرة واحدة فقط لكل دفعة طلبات نشطة لنفس العميل.

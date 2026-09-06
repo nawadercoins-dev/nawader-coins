@@ -6426,3 +6426,7 @@ html.lightbox-open,body.lightbox-open{overflow:hidden!important}
 #coinLightbox[open],.coin-lightbox[open]{
   visibility:visible!important;
 }
+
+
+/* admin-order-address-editor-v2 */
+.order-address-editor{margin:14px 0;padding:14px;border:2px solid #d8b45b;border-radius:14px;background:#fff9e8;box-shadow:0 8px 24px #0000000d}.order-address-editor[hidden]{display:none!important}.order-address-editor.attention{box-shadow:0 0 0 4px #d8b45b35,0 12px 28px #00000012}.order-address-editor h4{margin:0 0 6px;color:#0b2a52}.order-address-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.order-address-grid .wide{grid-column:1/-1}.order-address-grid input,.order-address-grid textarea{width:100%;margin:0;padding:10px;border:1px solid #cfd8e3;border-radius:9px;background:white}.order-address-grid textarea{min-height:70px;resize:vertical}.order-address-editor .actions{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}@media(max-width:760px){.order-address-grid{grid-template-columns:1fr}.order-address-grid .wide{grid-column:1}}
