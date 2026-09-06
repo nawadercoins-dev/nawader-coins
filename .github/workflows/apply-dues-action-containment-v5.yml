@@ -1,0 +1,31 @@
+name: Apply dues action containment v5
+on:
+  push:
+    paths:
+      - tools/patch_dues_action_containment_v5.py
+      - .github/workflows/apply-dues-action-containment-v5.yml
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python tools/patch_dues_action_containment_v5.py
+      - name: Validate
+        run: |
+          node --check admin/app.js
+          grep -q "dues-action-containment-v5" admin/app.js
+          grep -q "duesActionContainmentV5" admin/app.js
+          grep -q "#dues .due-actions button:first-child" admin/app.js
+          git diff --check
+      - name: Commit fix
+        run: |
+          if git diff --quiet; then echo "No changes"; exit 0; fi
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add admin/app.js
+          git commit -m "fix: keep dues actions inside their cards"
+          git push origin HEAD:main
