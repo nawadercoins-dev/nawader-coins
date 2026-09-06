@@ -107,7 +107,7 @@ textarea{min-height:100px;resize:vertical}
 @media(max-width:560px){.assignment-toolbar .btn{flex:1}.assignment-toolbar .muted{width:100%;margin:0;text-align:center}}
 
 /* data-entry-pending-recall-v1 */
-.pending-toolbar{border-color:#655a3b;background:#182313}.pending-select{width:20px;height:20px;accent-color:#d6b15a}.row.pending{border-color:#4d6580}.row .thumbs img{cursor:zoom-in}.de-viewer{position:fixed;inset:0;z-index:3000;background:#000d;display:flex;flex-direction:column;padding:10px}.de-viewer.hidden{display:none}.de-viewer-tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:8px;background:#0a1929;border:1px solid #40566d;border-radius:12px}.de-viewer-stage{flex:1;min-height:0;overflow:hidden;display:grid;place-items:center;touch-action:none}.de-viewer-stage img{max-width:94%;max-height:94%;object-fit:contain;transform-origin:center;user-select:none;cursor:grab}.de-viewer-stage img:active{cursor:grabbing}.de-viewer-caption{text-align:center;padding:6px;color:#f0d995;font-weight:800}
+.pending-toolbar{border-color:#655a3b;background:#182313}.pending-select{width:20px;height:20px;accent-color:#d6b15a}.row.pending{border-color:#4d6580}.row .thumbs img{cursor:zoom-in}.row.assigned,.row.pending,.row.draft,.row.needs_changes{cursor:default}.row .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.row .actions .smallbtn{min-width:110px}.row.assigned{border-color:#b99647;box-shadow:inset 0 0 0 1px #b9964744}.row.assigned h3{color:#f0d995}.de-viewer{position:fixed;inset:0;z-index:3000;background:#000d;display:flex;flex-direction:column;padding:10px}.de-viewer.hidden{display:none}.de-viewer-tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:8px;background:#0a1929;border:1px solid #40566d;border-radius:12px}.de-viewer-stage{flex:1;min-height:0;overflow:hidden;display:grid;place-items:center;touch-action:none}.de-viewer-stage img{max-width:94%;max-height:94%;object-fit:contain;transform-origin:center;user-select:none;cursor:grab}.de-viewer-stage img:active{cursor:grabbing}.de-viewer-caption{text-align:center;padding:6px;color:#f0d995;font-weight:800}
 
 </style>
 </head>
@@ -646,18 +646,18 @@ window.previewRowImages=(id,idx=0)=>{const r=rows.find(x=>String(x.id)===String(
 function renderRows(){
   $('rows').innerHTML=rows.map(r=>{
     const imgs=[r.frontImage,r.backImage,...(r.additionalImages||[])].filter(Boolean),editable=['draft','needs_changes','assigned'].includes(r.status),assignable=['draft','needs_changes'].includes(r.status),recallable=r.status==='pending',store=r.storeType==='collectibles'?'collectibles':'coins',category=store==='collectibles'?(CATEGORY_LABELS[r.collectibleCategory]||'أخرى'):'';
-    const selector=assignable?`<input class="row-select" type="checkbox" aria-label="تحديد المسودة" ${selectedDraftRows.has(String(r.id))?'checked':''} onchange="toggleDraftRow('${esc(r.id)}',this.checked)">`:recallable?`<input class="pending-select" type="checkbox" aria-label="تحديد المرسل للاعتماد" ${selectedPendingRows.has(String(r.id))?'checked':''} onchange="togglePendingRow('${esc(r.id)}',this.checked)">`:'';
+    const selector=assignable?`<input class="row-select" type="checkbox" aria-label="تحديد المسودة" ${selectedDraftRows.has(String(r.id))?'checked':''} onchange="toggleDraftRow('${esc(r.id)}',this.checked)">`:recallable?`<input class="pending-select" type="checkbox" aria-label="تحديد المرسل للاعتماد" ${selectedPendingRows.has(String(r.id))?'checked':''} onchange="togglePendingRow('${esc(r.id)}',this.checked)">`:r.status==='assigned'?`<span class="chip">مهمة جاهزة للعمل</span>`:'';
     return`<article class="row ${esc(r.status||'')}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div style="display:flex;gap:8px;align-items:center">${selector}<h3>${esc(r.country||'—')} — ${esc(r.denomination||'—')}</h3></div><span class="chip">${esc(statusLabel(r.status))}</span></div>
     <div class="meta"><span class="chip store-chip">${esc(STORE_LABELS[store])}</span>${category?`<span>التصنيف: ${esc(category)}</span>`:''}<span>${esc(r.year||'')}</span><span>الكمية: ${Number(r.quantity||r.inventoryUnitCount||1)}</span><span>شراء: ${Number(r.purchase||0).toLocaleString('ar-SA')}</span><span>بيع: ${Number(r.salePrice||r.expectedPrice||0).toLocaleString('ar-SA')}</span></div>
     ${imgs.length?`<div class="thumbs">${imgs.slice(0,4).map((x,n)=>`<img src="${esc(x)}" alt="" onclick="previewRowImages('${esc(r.id)}',${n})">`).join('')}</div>`:''}${r.adminNote?`<div class="row-note"><b>ملاحظة الإدارة:</b> ${esc(r.adminNote)}</div>`:''}
-    <div class="actions">${imgs.length?`<button class="smallbtn" onclick="previewRowImages('${esc(r.id)}',0)">معاينة الصور</button>`:''}${editable?`<button class="smallbtn" onclick="editRow('${esc(r.id)}')">${r.status==='assigned'?'فتح وإكمال':'تعديل'}</button>`:''}${recallable?`<button class="smallbtn" onclick="withdrawPendingRows(['${esc(r.id)}'])">↩ استرجاع للتعديل</button>`:''}</div></article>`
+    <div class="actions">${imgs.length?`<button type="button" class="smallbtn" onclick="previewRowImages('${esc(r.id)}',0)">🔎 معاينة الصور</button>`:''}${editable?`<button type="button" class="smallbtn" onclick="editRow('${esc(r.id)}')">${r.status==='assigned'?'✎ فتح وإكمال البيانات':'✎ تعديل البيانات'}</button>`:''}${recallable?`<button type="button" class="smallbtn" onclick="withdrawPendingRows(['${esc(r.id)}'])">↩ استرجاع للتعديل</button>`:''}${['approved','rejected'].includes(r.status)?`<span class="muted">سجل نهائي للعرض فقط</span>`:''}</div></article>`
   }).join('')||'<p class="muted">لا توجد سجلات بعد. ابدأ بإضافة أول مقتنى.</p>';
   syncDraftSelection()
 }
-$('selectAllDraftRows').onclick=()=>{selectedDraftRows=new Set(rows.filter(r=>['draft','needs_changes'].includes(r.status)).map(r=>String(r.id)));renderRows()};
-$('clearDraftSelection').onclick=()=>{selectedDraftRows.clear();renderRows()};
-$('selectAllPendingRows').onclick=()=>{selectedPendingRows=new Set(rows.filter(r=>r.status==='pending').map(r=>String(r.id)));renderRows()};
-$('clearPendingSelection').onclick=()=>{selectedPendingRows.clear();renderRows()};
+if($('selectAllDraftRows')) $('selectAllDraftRows').onclick=()=>{selectedDraftRows=new Set(rows.filter(r=>['draft','needs_changes'].includes(r.status)).map(r=>String(r.id)));renderRows()};
+if($('clearDraftSelection')) $('clearDraftSelection').onclick=()=>{selectedDraftRows.clear();renderRows()};
+if($('selectAllPendingRows')) $('selectAllPendingRows').onclick=()=>{selectedPendingRows=new Set(rows.filter(r=>r.status==='pending').map(r=>String(r.id)));renderRows()};
+if($('clearPendingSelection')) $('clearPendingSelection').onclick=()=>{selectedPendingRows.clear();renderRows()};
 $('assignSelectedDrafts').onclick=async()=>{
   const ids=[...selectedDraftRows];if(!ids.length)return;
   if(!confirm(`إرسال ${ids.length} مسودة لمسؤول إدخال البيانات؟`))return;
@@ -666,14 +666,15 @@ $('assignSelectedDrafts').onclick=async()=>{
   selectedDraftRows.clear();await loadRows();setNotice(failed?`تم إرسال ${ok} وتعذر ${failed}.`:`تم إرسال ${ok} مسودة لمسؤول إدخال البيانات وأصبحت «قيد الإدخال».`,failed?'warn':'good')
 };
 window.withdrawPendingRows=async(ids)=>{ids=(ids||[]).filter(Boolean);if(!ids.length)return;if(!confirm(`استرجاع ${ids.length} مقتنى من انتظار الاعتماد إلى «قيد الإدخال» للتعديل؟`))return;let ok=0,failed=0;for(const id of ids){try{await api('/api/data-entry/submissions',{method:'POST',body:JSON.stringify({id,mode:'withdraw'})});ok++}catch(e){failed++}}selectedPendingRows.clear();await loadRows();setNotice(failed?`تم استرجاع ${ok} وتعذر ${failed}.`:`تم استرجاع ${ok} مقتنى. يمكنك الآن فتحه وتعديله ثم إرساله للاعتماد مرة أخرى.`,failed?'warn':'good')};
-$('withdrawSelectedPending').onclick=()=>withdrawPendingRows([...selectedPendingRows]);
+if($('withdrawSelectedPending')) $('withdrawSelectedPending').onclick=()=>withdrawPendingRows([...selectedPendingRows]);
 async function loadRows(){
   const r=await api('/api/data-entry/submissions');operator=r.operator;rows=r.submissions||[];const c=r.counts||{};
   $('cDraft').textContent=c.draft||0;$('cPending').textContent=c.pending||0;$('cNeeds').textContent=c.needsChanges||0;$('cApproved').textContent=c.approved||0;$('cRejected').textContent=c.rejected||0;
   const assignedCount=rows.filter(x=>x.status==='assigned').length, inbox=$('assignmentInboxNotice');
   if(inbox){inbox.classList.toggle('hidden',!assignedCount);inbox.className='notice'+(assignedCount?' warn':' hidden');inbox.innerHTML=assignedCount?`📥 لديك <b>${assignedCount}</b> ${assignedCount===1?'مقتنى':'مقتنيات'} قيد الإدخال. افتحها من «سجلاتي» واضغط «فتح وإكمال»، ثم أرسلها للاعتماد.`:''}
   rows.sort((a,b)=>(a.status==='assigned'?0:1)-(b.status==='assigned'?0:1)||String(b.updated||b.created||'').localeCompare(String(a.updated||a.created||'')));
-  renderRows()
+  renderRows();
+  if(assignedCount) setNotice(`لديك ${assignedCount} مقتنى قيد الإدخال. اضغط «فتح وإكمال البيانات» داخل البطاقة للعمل عليه، ويمكنك الضغط على الصورة أو «معاينة الصور».`,'good')
 }
 function maskPhone(v){const d=String(v||'').replace(/\D/g,'');if(!d)return '—';return d.length>4?'••••'+d.slice(-4):d}
 function showGate(title,message,person=null){
