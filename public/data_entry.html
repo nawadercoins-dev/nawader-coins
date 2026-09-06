@@ -118,6 +118,11 @@ textarea{min-height:100px;resize:vertical}
 .workflow-label{margin:10px 2px 5px;color:#f0d995;font-weight:900;font-size:.9rem}.assigned-toolbar{box-shadow:inset 0 0 0 1px #d6b15a33}.assigned-toolbar .btn{min-width:170px}.row.assigned .actions{display:flex!important;gap:8px;flex-wrap:wrap}.row.assigned .actions .smallbtn{font-weight:800}
 @media(max-width:560px){.assigned-toolbar .btn,.assigned-toolbar .smallbtn{flex:1 1 46%}.workflow-label{text-align:center}}
 
+
+/* data-entry-readiness-review-v1 */
+.readiness-board{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin:10px 0 12px}.readiness-box{border:1px solid #ffffff22;border-radius:14px;padding:12px 14px;font-weight:900;background:#0b1732;color:#fff;cursor:pointer}.readiness-box.ready{border-color:#42d39288;background:#0b2b25}.readiness-box.manual{border-color:#e0ac5788;background:#392914}.readiness-box.active{outline:2px solid #f0d995;box-shadow:0 0 0 3px #f0d99522}.readiness-box b{display:inline-grid;place-items:center;min-width:28px;height:28px;border-radius:999px;background:#ffffff18;margin-inline-start:8px}.readiness-note{margin:8px 0;padding:10px 12px;border-radius:12px;font-weight:750}.readiness-note.ready{background:#12392d;border:1px solid #42d39266}.readiness-note.manual{background:#3a2914;border:1px solid #e0ac5766}.readiness-note.manual .smallbtn{margin-inline-start:8px}.de-viewer-tools{max-height:30vh;overflow:auto}.de-viewer-stage img{transform-origin:center center;will-change:transform,filter}
+@media(max-width:700px){.readiness-board{grid-template-columns:1fr 1fr}.readiness-board>#showAllAssigned{grid-column:1/-1}.readiness-box{font-size:.9rem;padding:10px 8px}}
+
 </style>
 </head>
 <body>
@@ -270,7 +275,12 @@ textarea{min-height:100px;resize:vertical}
           <button id="assignSelectedDrafts" type="button" class="btn">إرسال المحدد لمسؤول إدخال البيانات</button>
           <span id="draftSelectionCount" class="muted">0 محدد</span>
         </div>
-        <div class="workflow-label">2) قيد الإدخال — تعديل ثم إرسال للاعتماد</div>
+        <div class="workflow-label">2) قيد الإدخال — تدقيق واستكمال ثم إرسال للاعتماد</div>
+        <div class="readiness-board" id="assignedReadinessBoard">
+          <button type="button" class="readiness-box ready" id="showReadyAssigned">✅ جاهزة للاعتماد <b id="readyAssignedCount">0</b></button>
+          <button type="button" class="readiness-box manual" id="showManualAssigned">🛠 تحتاج تدخل يدوي <b id="manualAssignedCount">0</b></button>
+          <button type="button" class="smallbtn" id="showAllAssigned">عرض الكل</button>
+        </div>
         <div class="assignment-toolbar assigned-toolbar">
           <button id="selectAllAssignedRows" type="button" class="smallbtn">تحديد كل قيد الإدخال</button>
           <button id="clearAssignedSelection" type="button" class="smallbtn">إلغاء التحديد</button>
@@ -683,10 +693,13 @@ async function submitAssignedSelection(){
   const selected=ids.map(id=>rows.find(r=>String(r.id)===String(id))).filter(Boolean);
   const incomplete=selected.map(r=>({r,missing:missingFor(rowAsData(r))})).filter(x=>x.missing.length);
   if(incomplete.length){
-    setNotice(`يوجد ${incomplete.length} مقتنى ناقص. افتح «تعديل المحدد» وأكمل: ${[...new Set(incomplete.flatMap(x=>x.missing))].join('، ')}.`,'error');
+    assignedReadinessFilter='manual';renderRows();
+    const fields=[...new Set(incomplete.flatMap(x=>x.missing))].join('، ');
+    setNotice(`⚠️ تعذر إرسال ${incomplete.length} مقتنى لأنها غير جاهزة. البيانات الناقصة: ${fields}. تم فتح خانة «تحتاج تدخل يدوي» لإكمالها الآن.`,'error');
+    document.querySelector('.row.assigned .readiness-note.manual')?.scrollIntoView({behavior:'smooth',block:'center'});
     return;
   }
-  if(!confirm(`إرسال ${selected.length} مقتنى محدد للإدارة للاعتماد؟`))return;
+  if(!confirm(`تم فحص الحقول الأساسية لـ ${selected.length} مقتنى. هل راجعت الصورة والسنة/الرقم/الفئة ودققت البيانات قبل إرسالها للإدارة؟`))return;
   const btn=$('submitSelectedAssigned'); if(btn)btn.disabled=true;
   let ok=0,failed=0,firstError='';
   for(const r of selected){
@@ -699,24 +712,45 @@ async function submitAssignedSelection(){
   setNotice(failed?`تم إرسال ${ok} للاعتماد وتعذر ${failed}${firstError?' — '+firstError:''}.`:`✓ تم إرسال ${ok} مقتنى محدد للاعتماد بنجاح.`,failed?'warn':'good');
 }
 
-let DEVIEW={imgs:[],idx:0,scale:1,x:0,y:0,drag:false,px:0,py:0};
-function drawDEViewer(){const im=document.getElementById('deViewerImg');if(im)im.style.transform=`translate(${DEVIEW.x}px,${DEVIEW.y}px) scale(${DEVIEW.scale})`;const c=document.getElementById('deViewerCaption');if(c)c.textContent=DEVIEW.imgs.length?`${DEVIEW.idx+1} / ${DEVIEW.imgs.length}`:''}
-window.previewRowImages=(id,idx=0)=>{const r=rows.find(x=>String(x.id)===String(id));if(!r)return;DEVIEW.imgs=[r.frontImage,r.backImage,...(r.additionalImages||[])].filter(Boolean);if(!DEVIEW.imgs.length)return;DEVIEW.idx=Math.max(0,Math.min(idx,DEVIEW.imgs.length-1));DEVIEW.scale=1;DEVIEW.x=DEVIEW.y=0;let v=document.getElementById('deViewer');if(!v){v=document.createElement('div');v.id='deViewer';v.className='de-viewer';v.innerHTML=`<div class="de-viewer-tools"><button class="smallbtn" data-dv="close">✕ إغلاق</button><button class="smallbtn" data-dv="prev">‹ السابق</button><button class="smallbtn" data-dv="zin">＋ تكبير</button><button class="smallbtn" data-dv="zout">− تصغير</button><button class="smallbtn" data-dv="reset">إظهار كامل</button><button class="smallbtn" data-dv="next">التالي ›</button></div><div class="de-viewer-stage"><img id="deViewerImg" alt="معاينة"></div><div id="deViewerCaption" class="de-viewer-caption"></div>`;document.body.appendChild(v);v.querySelectorAll('[data-dv]').forEach(b=>b.onclick=()=>{const a=b.dataset.dv;if(a==='close'){v.classList.add('hidden');return}if(a==='prev')DEVIEW.idx=(DEVIEW.idx-1+DEVIEW.imgs.length)%DEVIEW.imgs.length;if(a==='next')DEVIEW.idx=(DEVIEW.idx+1)%DEVIEW.imgs.length;if(a==='zin')DEVIEW.scale=Math.min(6,DEVIEW.scale+.25);if(a==='zout')DEVIEW.scale=Math.max(.35,DEVIEW.scale-.25);if(a==='reset'){DEVIEW.scale=1;DEVIEW.x=DEVIEW.y=0}document.getElementById('deViewerImg').src=DEVIEW.imgs[DEVIEW.idx];drawDEViewer()});const st=v.querySelector('.de-viewer-stage');st.onpointerdown=e=>{DEVIEW.drag=true;DEVIEW.px=e.clientX;DEVIEW.py=e.clientY;st.setPointerCapture?.(e.pointerId)};st.onpointermove=e=>{if(!DEVIEW.drag)return;DEVIEW.x+=e.clientX-DEVIEW.px;DEVIEW.y+=e.clientY-DEVIEW.py;DEVIEW.px=e.clientX;DEVIEW.py=e.clientY;drawDEViewer()};st.onpointerup=st.onpointercancel=()=>DEVIEW.drag=false;st.onwheel=e=>{e.preventDefault();DEVIEW.scale=Math.max(.35,Math.min(6,DEVIEW.scale+(e.deltaY<0?.2:-.2)));drawDEViewer()}}v.classList.remove('hidden');document.getElementById('deViewerImg').src=DEVIEW.imgs[DEVIEW.idx];drawDEViewer()};
+let DEVIEW={imgs:[],idx:0,scale:1,x:0,y:0,rot:0,enhance:false,drag:false,px:0,py:0};
+function drawDEViewer(){const im=document.getElementById('deViewerImg');if(im){im.style.transform=`translate(${DEVIEW.x}px,${DEVIEW.y}px) scale(${DEVIEW.scale}) rotate(${DEVIEW.rot}deg)`;im.style.filter=DEVIEW.enhance?'contrast(1.35) brightness(1.08) saturate(.92)':'none'}const c=document.getElementById('deViewerCaption');if(c)c.textContent=DEVIEW.imgs.length?`${DEVIEW.idx+1} / ${DEVIEW.imgs.length}`:''}
+window.previewRowImages=(id,idx=0)=>{const r=rows.find(x=>String(x.id)===String(id));if(!r)return;DEVIEW.imgs=[r.frontImage,r.backImage,...(r.additionalImages||[])].filter(Boolean);if(!DEVIEW.imgs.length)return;DEVIEW.idx=Math.max(0,Math.min(idx,DEVIEW.imgs.length-1));DEVIEW.scale=1;DEVIEW.x=DEVIEW.y=0;DEVIEW.rot=0;DEVIEW.enhance=false;let v=document.getElementById('deViewer');if(!v){v=document.createElement('div');v.id='deViewer';v.className='de-viewer';v.innerHTML=`<div class="de-viewer-tools"><button class="smallbtn" data-dv="close">✕ إغلاق</button><button class="smallbtn" data-dv="prev">‹ السابق</button><button class="smallbtn" data-dv="zin">＋ تكبير</button><button class="smallbtn" data-dv="zout">− تصغير</button><button class="smallbtn" data-dv="rleft">↺ تدوير</button><button class="smallbtn" data-dv="rright">↻ تدوير</button><button class="smallbtn" data-dv="enhance">◐ تحسين القراءة</button><button class="smallbtn" data-dv="reset">إظهار كامل</button><button class="smallbtn" data-dv="next">التالي ›</button></div><div class="de-viewer-stage"><img id="deViewerImg" alt="معاينة"></div><div id="deViewerCaption" class="de-viewer-caption"></div>`;document.body.appendChild(v);v.querySelectorAll('[data-dv]').forEach(b=>b.onclick=()=>{const a=b.dataset.dv;if(a==='close'){v.classList.add('hidden');return}if(a==='prev')DEVIEW.idx=(DEVIEW.idx-1+DEVIEW.imgs.length)%DEVIEW.imgs.length;if(a==='next')DEVIEW.idx=(DEVIEW.idx+1)%DEVIEW.imgs.length;if(a==='zin')DEVIEW.scale=Math.min(6,DEVIEW.scale+.25);if(a==='zout')DEVIEW.scale=Math.max(.35,DEVIEW.scale-.25);if(a==='rleft')DEVIEW.rot=(DEVIEW.rot-90)%360;if(a==='rright')DEVIEW.rot=(DEVIEW.rot+90)%360;if(a==='enhance')DEVIEW.enhance=!DEVIEW.enhance;if(a==='reset'){DEVIEW.scale=1;DEVIEW.x=DEVIEW.y=0;DEVIEW.rot=0;DEVIEW.enhance=false}document.getElementById('deViewerImg').src=DEVIEW.imgs[DEVIEW.idx];drawDEViewer()});const st=v.querySelector('.de-viewer-stage');st.onpointerdown=e=>{DEVIEW.drag=true;DEVIEW.px=e.clientX;DEVIEW.py=e.clientY;st.setPointerCapture?.(e.pointerId)};st.onpointermove=e=>{if(!DEVIEW.drag)return;DEVIEW.x+=e.clientX-DEVIEW.px;DEVIEW.y+=e.clientY-DEVIEW.py;DEVIEW.px=e.clientX;DEVIEW.py=e.clientY;drawDEViewer()};st.onpointerup=st.onpointercancel=()=>DEVIEW.drag=false;st.onwheel=e=>{e.preventDefault();DEVIEW.scale=Math.max(.35,Math.min(6,DEVIEW.scale+(e.deltaY<0?.2:-.2)));drawDEViewer()}}v.classList.remove('hidden');document.getElementById('deViewerImg').src=DEVIEW.imgs[DEVIEW.idx];drawDEViewer()};
+
+let assignedReadinessFilter='all';
+function assignedReadiness(r){
+  const missing=missingFor(rowAsData(r));
+  return {missing,ready:missing.length===0};
+}
+function syncAssignedReadiness(){
+  const assigned=rows.filter(r=>r.status==='assigned');
+  const ready=assigned.filter(r=>assignedReadiness(r).ready);
+  const manual=assigned.filter(r=>!assignedReadiness(r).ready);
+  if($('readyAssignedCount'))$('readyAssignedCount').textContent=ready.length;
+  if($('manualAssignedCount'))$('manualAssignedCount').textContent=manual.length;
+  if($('showReadyAssigned'))$('showReadyAssigned').classList.toggle('active',assignedReadinessFilter==='ready');
+  if($('showManualAssigned'))$('showManualAssigned').classList.toggle('active',assignedReadinessFilter==='manual');
+  if($('showAllAssigned'))$('showAllAssigned').classList.toggle('active',assignedReadinessFilter==='all');
+}
 
 function renderRows(){
-  $('rows').innerHTML=rows.map(r=>{
-    const imgs=[r.frontImage,r.backImage,...(r.additionalImages||[])].filter(Boolean),editable=['draft','needs_changes','assigned'].includes(r.status),assignable=['draft','needs_changes'].includes(r.status),assignedSelectable=r.status==='assigned',recallable=r.status==='pending',store=r.storeType==='collectibles'?'collectibles':'coins',category=store==='collectibles'?(CATEGORY_LABELS[r.collectibleCategory]||'أخرى'):'';
+  const visibleRows=rows.filter(r=>r.status!=='assigned'||assignedReadinessFilter==='all'||(assignedReadinessFilter==='ready'?assignedReadiness(r).ready:!assignedReadiness(r).ready));
+  $('rows').innerHTML=visibleRows.map(r=>{
+    const imgs=[r.frontImage,r.backImage,...(r.additionalImages||[])].filter(Boolean),editable=['draft','needs_changes','assigned'].includes(r.status),assignable=['draft','needs_changes'].includes(r.status),assignedSelectable=r.status==='assigned',recallable=r.status==='pending',store=r.storeType==='collectibles'?'collectibles':'coins',category=store==='collectibles'?(CATEGORY_LABELS[r.collectibleCategory]||'أخرى'):'',readiness=r.status==='assigned'?assignedReadiness(r):{missing:[],ready:false};
     const selector=assignable?`<input class="row-select" type="checkbox" aria-label="تحديد المسودة" ${selectedDraftRows.has(String(r.id))?'checked':''} onchange="toggleDraftRow('${esc(r.id)}',this.checked)">`:assignedSelectable?`<input class="assigned-select" type="checkbox" aria-label="تحديد قيد الإدخال" ${selectedAssignedRows.has(String(r.id))?'checked':''} onchange="toggleAssignedRow('${esc(r.id)}',this.checked)">`:recallable?`<input class="pending-select" type="checkbox" aria-label="تحديد المرسل للاعتماد" ${selectedPendingRows.has(String(r.id))?'checked':''} onchange="togglePendingRow('${esc(r.id)}',this.checked)">`:'';
     return`<article class="row ${esc(r.status||'')}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div style="display:flex;gap:8px;align-items:center">${selector}<h3>${esc(r.country||'—')} — ${esc(r.denomination||'—')}</h3></div><span class="chip">${esc(statusLabel(r.status))}</span></div>
     <div class="meta"><span class="chip store-chip">${esc(STORE_LABELS[store])}</span>${category?`<span>التصنيف: ${esc(category)}</span>`:''}<span>${esc(r.year||'')}</span><span>الكمية: ${Number(r.quantity||r.inventoryUnitCount||1)}</span><span>شراء: ${Number(r.purchase||0).toLocaleString('ar-SA')}</span><span>بيع: ${Number(r.salePrice||r.expectedPrice||0).toLocaleString('ar-SA')}</span></div>
+    ${r.status==='assigned'?(readiness.ready?`<div class="readiness-note ready">✅ جاهز للاعتماد — راجع الصورة والبيانات ثم أرسله.</div>`:`<div class="readiness-note manual"><b>🛠 يحتاج استكمال يدوي قبل الاعتماد:</b> ${readiness.missing.map(esc).join('، ')} <button type="button" class="smallbtn" onclick="editRow('${esc(r.id)}')">فتح وإكمال الآن</button></div>`):''}
     ${imgs.length?`<div class="thumbs">${imgs.slice(0,4).map((x,n)=>`<img src="${esc(x)}" alt="" onclick="previewRowImages('${esc(r.id)}',${n})">`).join('')}</div>`:''}${r.adminNote?`<div class="row-note"><b>ملاحظة الإدارة:</b> ${esc(r.adminNote)}</div>`:''}
     <div class="actions">${imgs.length?`<button type="button" class="smallbtn" onclick="previewRowImages('${esc(r.id)}',0)">🔎 معاينة الصور</button>`:''}${editable?`<button type="button" class="smallbtn" onclick="editRow('${esc(r.id)}')">${r.status==='assigned'?'✎ فتح وتعديل البيانات':'✎ تعديل البيانات'}</button>`:''}${r.status==='assigned'?`<button type="button" class="smallbtn" onclick="selectedAssignedRows=new Set(['${esc(r.id)}']);syncDraftSelection();submitAssignedSelection()">✓ إرسال للاعتماد</button>`:''}${recallable?`<button type="button" class="smallbtn" onclick="withdrawPendingRows(['${esc(r.id)}'])">↩ استرجاع للتعديل</button>`:''}${['approved','rejected'].includes(r.status)?`<span class="muted">سجل نهائي للعرض فقط</span>`:''}</div></article>`
   }).join('')||'<p class="muted">لا توجد سجلات بعد. ابدأ بإضافة أول مقتنى.</p>';
-  syncDraftSelection()
+  syncDraftSelection();syncAssignedReadiness()
 }
 if($('selectAllDraftRows')) $('selectAllDraftRows').onclick=()=>{selectedDraftRows=new Set(rows.filter(r=>['draft','needs_changes'].includes(r.status)).map(r=>String(r.id)));renderRows()};
 if($('clearDraftSelection')) $('clearDraftSelection').onclick=()=>{selectedDraftRows.clear();renderRows()};
-if($('selectAllAssignedRows')) $('selectAllAssignedRows').onclick=()=>{selectedAssignedRows=new Set(rows.filter(r=>r.status==='assigned').map(r=>String(r.id)));renderRows()};
+if($('showReadyAssigned')) $('showReadyAssigned').onclick=()=>{assignedReadinessFilter='ready';renderRows()};
+if($('showManualAssigned')) $('showManualAssigned').onclick=()=>{assignedReadinessFilter='manual';renderRows()};
+if($('showAllAssigned')) $('showAllAssigned').onclick=()=>{assignedReadinessFilter='all';renderRows()};
+if($('selectAllAssignedRows')) $('selectAllAssignedRows').onclick=()=>{selectedAssignedRows=new Set(rows.filter(r=>r.status==='assigned'&&(assignedReadinessFilter==='all'||(assignedReadinessFilter==='ready'?assignedReadiness(r).ready:!assignedReadiness(r).ready))).map(r=>String(r.id)));renderRows()};
 if($('clearAssignedSelection')) $('clearAssignedSelection').onclick=()=>{selectedAssignedRows.clear();renderRows()};
 if($('openSelectedAssigned')) $('openSelectedAssigned').onclick=()=>{const id=[...selectedAssignedRows][0];if(id)editRow(id)};
 if($('selectAllPendingRows')) $('selectAllPendingRows').onclick=()=>{selectedPendingRows=new Set(rows.filter(r=>r.status==='pending').map(r=>String(r.id)));renderRows()};
