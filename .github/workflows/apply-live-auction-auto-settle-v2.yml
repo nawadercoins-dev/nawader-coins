@@ -1,0 +1,35 @@
+name: Apply live auction auto settle v2
+on:
+  push:
+    paths:
+      - 'tools/patch_live_auction_auto_settle_v2.py'
+      - '.github/workflows/apply-live-auction-auto-settle-v2.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python tools/patch_live_auction_auto_settle_v2.py
+      - name: Validate
+        run: |
+          python -m py_compile server.py
+          node --check public/live_auction.js
+          node --check admin/app.js
+          grep -q 'previous_live_session_unpaid' server.py
+          grep -q 'winner-balloons' public/live_auction.html
+          grep -q 'winnerResultHtml(s);' public/live_auction.js
+          git diff --check
+      - name: Commit
+        run: |
+          if git diff --quiet; then
+            echo 'No changes'
+            exit 0
+          fi
+          git config user.name 'nawadercoins-dev'
+          git config user.email 'nawadercoins@gmail.com'
+          git add server.py public/live_auction.js public/live_auction.html admin/app.js
+          git commit -m 'fix: auto settle live wins and lock only after session ends'
+          git push
