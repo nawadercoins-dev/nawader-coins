@@ -1,0 +1,41 @@
+name: Apply data-entry pending recall
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-data-entry-pending-recall.yml'
+      - 'tools/patch_data_entry_pending_recall.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply pending recall patch
+        run: python tools/patch_data_entry_pending_recall.py
+      - name: Validate server and UI
+        run: |
+          python -m py_compile server.py
+          git diff --check
+          grep -q "data-entry-pending-recall-v1" public/data_entry.html
+          grep -q "withdrawSelectedPending" public/data_entry.html
+          grep -q "mode not in ('draft','submit','assign','withdraw')" server.py
+          grep -q "row\['withdrawnAt'\]" server.py
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server.py public/data_entry.html
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "fix: allow recalling pending data-entry submissions"
+            git push origin HEAD:main
+          fi
