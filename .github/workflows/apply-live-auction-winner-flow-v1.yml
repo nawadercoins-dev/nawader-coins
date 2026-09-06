@@ -1,0 +1,34 @@
+name: Apply live auction winner flow v1
+on:
+  push:
+    paths:
+      - 'tools/patch_live_auction_winner_flow_v1.py'
+      - '.github/workflows/apply-live-auction-winner-flow-v1.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply winner flow patch
+        run: python tools/patch_live_auction_winner_flow_v1.py
+      - name: Validate
+        run: |
+          python -m py_compile server.py
+          node --check admin/app.js
+          node --check public/live_auction.js
+          grep -q 'liveResultsBasket' admin/index.html
+          grep -q 'winner-card' public/live_auction.html
+          git diff --check
+      - name: Commit
+        run: |
+          git config user.name nawadercoins-dev
+          git config user.email nawadercoins@gmail.com
+          git add server.py admin/index.html admin/app.js public/live_auction.js public/live_auction.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat: connect live auction win result to basket orders and viewer celebration'
+          git push origin main
