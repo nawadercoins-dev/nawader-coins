@@ -1,0 +1,29 @@
+name: Apply shipping final send v1
+on:
+  push:
+    paths:
+      - 'tools/patch_shipping_final_send_v1.py'
+      - '.github/workflows/apply-shipping-final-send-v1.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python tools/patch_shipping_final_send_v1.py
+      - name: Validate
+        run: |
+          node --check admin/app.js
+          grep -q "shipping-final-send-v1" admin/app.js
+          grep -q "window.shipOrderNow" admin/app.js
+      - name: Commit
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name nawadercoins-dev
+          git config user.email nawadercoins@gmail.com
+          git add admin/app.js
+          git commit -m "fix: make shipping company entry the final send step"
+          git push
