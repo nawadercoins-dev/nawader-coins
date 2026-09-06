@@ -1,0 +1,39 @@
+name: Apply admin lightbox fit fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-admin-lightbox-fit.yml'
+      - 'tools/patch_admin_lightbox_fit.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply lightbox fit fix
+        run: python tools/patch_admin_lightbox_fit.py
+      - name: Validate files
+        run: |
+          git diff --check
+          grep -q "admin-lightbox-fit-v1" admin/styles.css
+          grep -q 'data-lb="fit"' admin/index.html
+          grep -q 'a === "fit"' admin/app.js
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add admin/styles.css admin/index.html admin/app.js
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "fix: show full collectible image in admin lightbox"
+            git push origin HEAD:main
+          fi
