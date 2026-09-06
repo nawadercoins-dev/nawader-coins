@@ -1,0 +1,41 @@
+name: Apply public live entry and Arabic UI guard
+on:
+  push:
+    paths:
+      - tools/patch_live_entry_and_arabic_guard.py
+      - .github/workflows/apply-live-entry-and-arabic-guard.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python tools/patch_live_entry_and_arabic_guard.py
+      - name: Validate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          for f in ['public/dar_home.html','public/public_home.html','public/collectibles_home.html']:
+              s=Path(f).read_text(encoding='utf-8')
+              assert 'globalLiveEntry' in s and 'بث مباشر' in s and '/api/public/live-auctions' in s, f
+          for p in Path('admin').glob('*.html'):
+              s=p.read_text(encoding='utf-8')
+              assert '<meta charset="utf-8"' in s.lower() or "<meta charset='utf-8'" in s.lower(), p
+              assert 'lang="ar"' in s and 'dir="rtl"' in s, p
+              assert '/arabic_ui_guard.js?v=1' in s, p
+          guard=Path('public/arabic_ui_guard.js').read_text(encoding='utf-8')
+          assert 'translateExact' in guard and 'replaceAll' not in guard
+          print('validation ok')
+          PY
+          git diff --check
+      - name: Commit
+        run: |
+          if git diff --quiet; then echo 'No changes'; exit 0; fi
+          git config user.name nawadercoins-dev
+          git config user.email nawadercoins@gmail.com
+          git add public admin ARABIC_UI_POLICY.md
+          git commit -m "feat: add live entry indicator and stabilize Arabic UI"
+          git push
