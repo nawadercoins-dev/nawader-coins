@@ -1,0 +1,43 @@
+name: Apply data-entry flow fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-data-entry-flow-fix.yml'
+      - 'tools/patch_data_entry_flow_fix.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply flow fix
+        run: python tools/patch_data_entry_flow_fix.py
+      - name: Validate server and UI
+        run: |
+          python -m py_compile server.py
+          git diff --check
+          grep -q "assignmentInboxNotice" public/data_entry.html
+          grep -q "فتح وإكمال" public/data_entry.html
+          grep -q "assignedCount=rows.filter" public/data_entry.html
+          grep -q "x.status!=='assigned'&&x.status!=='draft'" admin/app.js
+          grep -q "مقتنى قيد الإدخال لدى مسؤول البيانات" admin/app.js
+          grep -q "('assigned' if was_assigned else 'draft')" server.py
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server.py public/data_entry.html admin/app.js
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "fix: correct data-entry assignment and approval flow"
+            git push origin HEAD:main
+          fi
