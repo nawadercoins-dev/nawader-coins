@@ -5368,7 +5368,7 @@ async function renderDues(){
     'Tracking':'التتبع',
     'Profile':'الحساب',
     'Logout':'خروج الإدارة',
-    'Blackstick':'بلاستيك'
+    'Blackstick':'بلاك ستيك'
   };
   const ATTRS=['title','aria-label','placeholder'];
   function tr(v){const x=String(v||'').trim();return MAP[x]||v}
@@ -5394,4 +5394,24 @@ async function renderDues(){
     mo.observe(document.body,{childList:true,subtree:true});
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();
+
+
+// admin-arabic-first-v2
+// أسماء العلامات والأسماء الخاصة لا تُترجم ترجمة معنوية خاطئة.
+// إذا ظهر الاسم الإنجليزي Blackstick في واجهة الإدارة، نعرضه كتابةً عربية فقط.
+(function(){
+  function fixProperNames(root=document){
+    const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+    const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
+    nodes.forEach(n=>{
+      const p=n.parentElement;if(!p||['SCRIPT','STYLE','CODE','PRE'].includes(p.tagName))return;
+      const raw=String(n.nodeValue||'');
+      if(raw.trim()==='Blackstick'||raw.trim()==='بلاستيك') n.nodeValue=raw.replace(raw.trim(),'بلاك ستيك');
+    });
+  }
+  const run=()=>fixProperNames(document);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run,{once:true});else run();
+  const mo=new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===Node.ELEMENT_NODE)fixProperNames(n);else if(n.nodeType===Node.TEXT_NODE&&['Blackstick','بلاستيك'].includes(String(n.nodeValue||'').trim()))n.nodeValue='بلاك ستيك';})));
+  if(document.body)mo.observe(document.body,{childList:true,subtree:true});
 })();
