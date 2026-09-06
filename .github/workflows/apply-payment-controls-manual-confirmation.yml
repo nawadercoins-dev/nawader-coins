@@ -1,0 +1,30 @@
+name: Apply payment controls and manual confirmation
+on:
+  push:
+    paths:
+      - 'scripts/fix_payment_controls_and_manual_confirmation.py'
+      - '.github/workflows/apply-payment-controls-manual-confirmation.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python scripts/fix_payment_controls_and_manual_confirmation.py
+      - name: Validate
+        run: |
+          python -m py_compile server.py
+          grep -q "if 'paymentManualModeEnabled' in d" server.py
+          grep -q "manual_payment_claim" server.py
+          grep -q "paymentDialogX" public/account.html
+          grep -q "manualPaymentConfirm" public/account.html
+          grep -q "تم استلام المبلغ — مصادقة السداد" admin/app.js
+      - name: Commit fix
+        run: |
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add server.py admin/app.js public/account.html
+          git diff --cached --quiet || git commit -m "fix: persist payment switches and add manual payment confirmation"
+          git push
