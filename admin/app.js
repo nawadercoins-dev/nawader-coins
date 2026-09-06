@@ -4930,3 +4930,52 @@ async function liveCloseItem(id,sold){if(sold&&!confirm('اعتماد البيع
 window.liveOpenItem=liveOpenItem; window.liveCloseItem=liveCloseItem; window.editLiveSession=editLiveSession; window.liveControl=liveControl;
 $('liveAddSession')?.addEventListener('click',async()=>{await renderLiveAuctions();openLiveEditor({mode:'camera'});}); $('cancelLiveEditor')?.addEventListener('click',()=>$('liveSessionEditor').hidden=true); $('saveLiveSession')?.addEventListener('click',async()=>{const itemIds=[...$('liveItemIds').selectedOptions].map(o=>o.value); await api('/api/live-auctions/save',{method:'POST',body:JSON.stringify({id:$('liveSessionId').value,title:$('liveTitle').value,startAt:$('liveStartAt').value,description:$('liveDescription').value,bidStep:Number($('liveBidStep')?.value||1),mode:$('liveMode')?.value||'camera',marketEnabled:!!$('liveMarketEnabled')?.checked,itemIds})}); $('liveSessionEditor').hidden=true; await renderLiveAuctions();});
 document.querySelectorAll('[data-v="live-auctions"],.dashboard-go[data-go="live-auctions"]').forEach(b=>b.addEventListener('click',renderLiveAuctions));
+
+
+// admin-lightbox-controls-v2
+(function installAdminLightboxControls(){
+  const dlg=()=>document.getElementById('coinLightbox');
+  const img=()=>document.getElementById('coinLightboxImg');
+  function safeClose(){
+    const d=dlg(); if(!d)return;
+    try{ if(document.fullscreenElement) document.exitFullscreen?.().catch?.(()=>{}); }catch(_){ }
+    try{ if(typeof d.close==='function' && d.open) d.close(); else d.removeAttribute('open'); }catch(_){ try{d.removeAttribute('open')}catch(__){} }
+    document.documentElement.classList.remove('lightbox-open');
+    document.body?.classList.remove('lightbox-open');
+  }
+  function act(a){
+    if(!dlg())return;
+    if(a==='close'){safeClose();return}
+    if(a==='prev'){lbMove(-1);return}
+    if(a==='next'){lbMove(1);return}
+    if(a==='zin') LB.scale=Math.min(6,Number(LB.scale||1)+.25);
+    else if(a==='zout') LB.scale=Math.max(.35,Number(LB.scale||1)-.25);
+    else if(a==='rl') LB.rot=Number(LB.rot||0)-90;
+    else if(a==='rr') LB.rot=Number(LB.rot||0)+90;
+    else if(a==='center'){LB.x=0;LB.y=0}
+    else if(a==='fit'){LB.scale=1;LB.rot=0;LB.x=0;LB.y=0}
+    else if(a==='reset'){LB.scale=1;LB.rot=0;LB.x=0;LB.y=0}
+    else if(a==='full'){
+      const d=dlg();
+      try{ if(!document.fullscreenElement) d?.requestFullscreen?.().catch?.(()=>{}); else document.exitFullscreen?.().catch?.(()=>{}); }catch(_){ }
+    }
+    try{lbDraw()}catch(_){ }
+  }
+  document.addEventListener('click',function(e){
+    const close=e.target.closest?.('#coinLightboxClose');
+    if(close){e.preventDefault();e.stopPropagation();safeClose();return}
+    const b=e.target.closest?.('#coinLightbox [data-lb]');
+    if(b){e.preventDefault();e.stopPropagation();act(b.dataset.lb);return}
+    const d=dlg(); if(d && e.target===d){e.preventDefault();safeClose()}
+  },true);
+  document.addEventListener('keydown',function(e){
+    const d=dlg(); if(!d?.open)return;
+    if(e.key==='Escape'){e.preventDefault();safeClose()}
+    else if(e.key==='ArrowLeft')act('prev');
+    else if(e.key==='ArrowRight')act('next');
+    else if(e.key==='+'||e.key==='=')act('zin');
+    else if(e.key==='-')act('zout');
+  },true);
+  document.addEventListener('fullscreenchange',()=>{ try{lbDraw()}catch(_){ } });
+  window.__closeAdminLightbox=safeClose;
+})();
