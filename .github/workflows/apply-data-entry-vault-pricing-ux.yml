@@ -1,0 +1,43 @@
+name: Apply data-entry vault pricing UX
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-data-entry-vault-pricing-ux.yml'
+      - 'tools/patch_data_entry_vault_pricing_ux.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply V5.6.4 upgrade
+        run: python tools/patch_data_entry_vault_pricing_ux.py
+      - name: Validate upgrade
+        run: |
+          python -m py_compile server.py
+          git diff --check
+          grep -q "data-entry-ux-v1" public/data_entry.html
+          grep -q 'id="profitPercent"' public/data_entry.html
+          grep -q "data-entry-smart-pricing-v1" public/data_entry.html
+          grep -q "image-vault-purchase-price-v1" admin/app.js
+          grep -q "image-vault-purchase-price-v1" server.py
+          grep -q "purchasePrice" server.py
+      - name: Commit V5.6.4 application changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data_entry.html admin/app.js server.py V5.6.4_DATA_ENTRY_VAULT_PRICING_UX_AR.md
+          if git diff --cached --quiet; then
+            echo "No application changes needed"
+          else
+            git commit -m "upgrade: simplify data entry and link vault purchase pricing"
+            git push origin HEAD:main
+          fi
