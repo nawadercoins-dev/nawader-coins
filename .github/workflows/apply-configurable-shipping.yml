@@ -1,0 +1,36 @@
+name: Apply configurable flat shipping
+on:
+  push:
+    paths:
+      - 'scripts/patch_configurable_shipping.py'
+      - '.github/workflows/apply-configurable-shipping.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Patch configurable shipping
+        run: python scripts/patch_configurable_shipping.py
+      - name: Validate patch
+        run: |
+          python -m py_compile server.py
+          grep -q "flatShippingFee" server.py
+          grep -q "flatShippingPolicyBox" admin/app.js
+          grep -q "/api/shipping-policy" server.py
+      - name: Commit fix
+        run: |
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add server.py admin/app.js
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "feat: configurable flat shipping amount"
+            git push origin main
+          fi
