@@ -1,0 +1,54 @@
+/* R9.8 FINAL ADMIN UX — visual/order safety only. */
+:root{--r98-media:168px;--r98-gap:14px;--r98-radius:14px}
+
+/* Warehouse: actual live DOM structure. */
+.warehouse-items{display:grid;gap:12px}
+.warehouse-item{display:grid!important;grid-template-columns:230px minmax(0,1fr) auto!important;gap:var(--r98-gap)!important;align-items:center!important;padding:14px!important;min-height:190px}
+.warehouse-item>:first-child:has(img){display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:center;justify-items:center;width:230px}
+.warehouse-item img{width:108px!important;height:142px!important;min-width:108px!important;max-width:108px!important;min-height:142px!important;max-height:142px!important;object-fit:contain!important;object-position:center!important;display:block!important;border-radius:12px!important;background:#f6f8f7!important;border:1px solid #dce5e0!important;padding:4px!important}
+.warehouse-no-photo{width:230px!important;height:142px!important;display:grid!important;place-items:center!important;border-radius:12px!important;background:#f6f8f7!important;border:1px solid #dce5e0!important}
+.warehouse-item-title{align-items:center!important;gap:10px!important;flex-wrap:wrap}
+.warehouse-item-title h3{font-size:1.08rem!important;margin:0!important}
+.warehouse-item-quantities{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(105px,1fr))!important;gap:7px!important;margin:9px 0!important}
+.warehouse-item-quantities span{min-width:0!important;text-align:center!important;white-space:normal!important}
+.warehouse-item>.actions{display:flex!important;flex-direction:column!important;gap:8px!important;align-items:stretch!important;min-width:125px!important}
+.warehouse-item>.actions button,.warehouse-item>.actions a{width:100%!important;text-align:center!important}
+
+/* Records/cards: medium, consistent images; controls remain clickable. */
+#items.grid,#marketAdminItems.grid,#promotionAdminItems.grid{grid-template-columns:repeat(auto-fill,minmax(270px,1fr))!important;gap:14px!important;align-items:stretch!important}
+#items .item,#marketAdminItems .item,#promotionAdminItems .item{display:flex!important;flex-direction:column!important;height:100%!important}
+#items .item img,#marketAdminItems .item img,#promotionAdminItems .item img{height:178px!important;min-height:178px!important;max-height:178px!important;object-fit:contain!important;object-position:center!important;background:#f6f8f7!important}
+#items .item .actions,#marketAdminItems .item .actions,#promotionAdminItems .item .actions{margin-top:auto!important;flex-wrap:wrap!important}
+
+/* Live-sales cards */
+#liveSalesList,.live-sales-list{display:grid;gap:12px}
+.live-winner-admin-card{display:grid!important;grid-template-columns:130px minmax(0,1fr)!important;gap:12px!important;align-items:start!important}
+.live-winner-admin-card>img{grid-row:1/6;width:130px!important;height:130px!important;object-fit:contain!important;background:#fff!important;border:1px solid #dce5e0;border-radius:12px}
+.live-winner-admin-card .actions{grid-column:1/-1;flex-wrap:wrap}
+
+/* Shipping company selector */
+.order-shipping-fields{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important;align-items:end!important}
+.order-shipping-fields select,.order-shipping-fields input{margin-top:0!important;min-height:44px}
+
+/* Never let decorative media block controls. */
+button,input[type="checkbox"],input[type="radio"],select,summary,[role="button"],.actions,.order-actions,.photo-actions{pointer-events:auto!important;position:relative;z-index:2}
+.item img,.warehouse-item img{position:relative;z-index:0}
+
+@media(max-width:960px){
+  .warehouse-item{grid-template-columns:210px minmax(0,1fr)!important}
+  .warehouse-item>:first-child:has(img){width:210px}
+  .warehouse-item img{width:98px!important;min-width:98px!important;max-width:98px!important;height:132px!important;min-height:132px!important;max-height:132px!important}
+  .warehouse-item>.actions{grid-column:1/-1;flex-direction:row!important;flex-wrap:wrap!important}
+  .warehouse-item>.actions>*{flex:1 1 130px}
+}
+@media(max-width:700px){
+  .warehouse-item{grid-template-columns:1fr!important;padding:12px!important}
+  .warehouse-item>:first-child:has(img){width:100%!important;max-width:260px!important;justify-self:center!important}
+  .warehouse-item img{width:118px!important;min-width:118px!important;max-width:118px!important;height:148px!important;min-height:148px!important;max-height:148px!important}
+  .warehouse-item-quantities{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  #items.grid,#marketAdminItems.grid,#promotionAdminItems.grid{grid-template-columns:1fr!important}
+  #items .item img,#marketAdminItems .item img,#promotionAdminItems .item img{height:190px!important;min-height:190px!important;max-height:190px!important}
+  .live-winner-admin-card{grid-template-columns:1fr!important}
+  .live-winner-admin-card>img{grid-row:auto;width:150px!important;height:150px!important;justify-self:center}
+  .order-shipping-fields{grid-template-columns:1fr!important}
+}
