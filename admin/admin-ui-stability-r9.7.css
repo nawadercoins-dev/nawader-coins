@@ -1,0 +1,208 @@
+/* Dar Al-Muqtaniyat / Nawader Coins — R9.7 safe admin layout layer
+   CSS-only: no data, permissions, toggle handlers, routes, or task logic are changed. */
+
+:root {
+  --admin-media-size: 176px;
+  --admin-media-radius: 14px;
+  --admin-card-gap: 14px;
+}
+
+/* Keep admin lists visually ordered without changing DOM or click handlers. */
+#warehouseItems,
+#items,
+#recent,
+#archiveItems,
+#operationsList,
+#collectibleApprovalList,
+#marketAdminItems,
+#auctionAdminItems,
+#specialAdminItems,
+#transitionalAdminItems,
+#fantasiaAdminItems {
+  align-items: stretch;
+}
+
+/* Warehouse: same-size, centered, clear images beside stable content. */
+.warehouse-item {
+  display: grid;
+  grid-template-columns: var(--admin-media-size) minmax(0, 1fr) auto;
+  gap: var(--admin-card-gap);
+  align-items: center;
+  width: 100%;
+}
+
+.warehouse-item > img,
+.warehouse-item > button > img,
+.warehouse-item .warehouse-photo,
+.warehouse-item .warehouse-photo img {
+  width: var(--admin-media-size) !important;
+  height: var(--admin-media-size) !important;
+  min-width: var(--admin-media-size);
+  max-width: var(--admin-media-size);
+  object-fit: contain !important;
+  object-position: center;
+  display: block;
+  margin: 0 auto;
+  padding: 6px;
+  border-radius: var(--admin-media-radius);
+  background: #f6f8f7;
+  border: 1px solid #dce5e0;
+}
+
+.warehouse-item-main {
+  min-width: 0;
+}
+
+.warehouse-item-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.warehouse-item-quantities {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.warehouse-item-quantities > span {
+  min-width: 0;
+  text-align: center;
+}
+
+.warehouse-item > .actions {
+  align-content: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  max-width: 220px;
+}
+
+/* General admin cards: do not let images randomly change height. */
+.item > img,
+.item > a > img,
+.item > button > img,
+.market-image-button img,
+.special-admin-images img,
+.transitional-admin-images img,
+.fantasia-admin-images img,
+.auction-item img,
+#recent .item img,
+#archiveItems .item img {
+  width: 100%;
+  height: var(--admin-media-size) !important;
+  min-height: var(--admin-media-size);
+  max-height: var(--admin-media-size);
+  object-fit: contain !important;
+  object-position: center;
+  background: #f6f8f7;
+}
+
+.special-admin-images,
+.transitional-admin-images,
+.fantasia-admin-images {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: center;
+}
+
+.special-admin-images img,
+.transitional-admin-images img,
+.fantasia-admin-images img {
+  border-radius: 12px;
+  border: 1px solid #dce5e0;
+}
+
+/* Buttons/toggles: visual layer must never disable interactivity. */
+button,
+input[type="checkbox"],
+input[type="radio"],
+select,
+summary,
+[role="button"] {
+  pointer-events: auto;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  cursor: pointer;
+}
+
+.check,
+.permission-card,
+.permission-check,
+.settings-toggle,
+.toggle-row {
+  position: relative;
+  z-index: 0;
+}
+
+/* Prevent overlays/media from swallowing clicks intended for controls. */
+.item img,
+.warehouse-item img,
+.special-admin-images img,
+.transitional-admin-images img,
+.fantasia-admin-images img {
+  position: relative;
+  z-index: 0;
+}
+
+.actions,
+.photo-actions,
+.participant-approval-actions,
+.permission-actions {
+  position: relative;
+  z-index: 1;
+}
+
+/* Tablets */
+@media (max-width: 960px) {
+  :root { --admin-media-size: 156px; }
+  .warehouse-item {
+    grid-template-columns: var(--admin-media-size) minmax(0, 1fr);
+  }
+  .warehouse-item > .actions {
+    grid-column: 1 / -1;
+    max-width: none;
+  }
+}
+
+/* Mobile: image centered above data, cards remain compact and readable. */
+@media (max-width: 700px) {
+  :root { --admin-media-size: 148px; }
+
+  .warehouse-item {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .warehouse-item > img,
+  .warehouse-item > button > img,
+  .warehouse-item .warehouse-photo,
+  .warehouse-item .warehouse-photo img {
+    justify-self: center;
+  }
+
+  .warehouse-item > .actions {
+    grid-column: 1;
+    width: 100%;
+  }
+
+  .warehouse-item > .actions > button,
+  .warehouse-item > .actions > .admin-move-menu {
+    flex: 1 1 130px;
+  }
+
+  .warehouse-item-quantities {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .special-admin-images,
+  .transitional-admin-images,
+  .fantasia-admin-images {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
