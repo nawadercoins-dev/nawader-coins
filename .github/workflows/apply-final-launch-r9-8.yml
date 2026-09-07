@@ -1,0 +1,44 @@
+name: Apply final launch R9.8
+on:
+  push:
+    branches:
+      - upgrade/final-launch-r9-8
+    paths:
+      - 'tools/patch_final_launch_r9_8.py'
+      - 'admin/admin-ui-stability-r9.8.css'
+      - '.github/workflows/apply-final-launch-r9-8.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout upgrade branch
+        uses: actions/checkout@v4
+        with:
+          ref: upgrade/final-launch-r9-8
+          fetch-depth: 0
+      - name: Apply R9.8 patch
+        run: python tools/patch_final_launch_r9_8.py
+      - name: Validate Python and critical UI contracts
+        run: |
+          python -m py_compile server.py tools/patch_final_launch_r9_8.py
+          grep -q 'admin-ui-stability-r9.8.css' admin/index.html
+          grep -q 'id="live-sales"' admin/index.html
+          grep -q 'مبيعات البث المباشر' admin/index.html
+          grep -q 'sourceChannel || "") !== "live_camera"' admin/app.js
+          grep -q 'const SHIPPING_COMPANIES=' admin/app.js
+          grep -q 'shippingCompanyOptions(o.shippingCompany' admin/app.js
+          grep -q 'refreshLiveSales' admin/app.js
+          grep -q '.warehouse-item>:first-child:has(img)' admin/admin-ui-stability-r9.8.css
+      - name: Commit patched runtime files to upgrade branch
+        run: |
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add admin/index.html admin/app.js admin/admin-ui-stability-r9.8.css tools/patch_final_launch_r9_8.py .github/workflows/apply-final-launch-r9-8.yml
+          if git diff --cached --quiet; then
+            echo "No runtime changes to commit"
+          else
+            git commit -m "feat(admin): R9.8 final UX, live sales separation and shipping companies"
+            git push origin upgrade/final-launch-r9-8
+          fi
