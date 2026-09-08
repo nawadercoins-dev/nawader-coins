@@ -35,12 +35,12 @@ jobs:
         run: |
           if ! python -m py_compile server.py; then
             echo '--- numbered context around failing area ---'
-            nl -ba server.py | sed -n '2085,2195p'
+            nl -ba server.py | sed -n '2085,2215p'
             echo '--- patch diff ---'
             git diff -- server.py
             exit 1
           fi
-      - name: Verify cache rules in source
+      - name: Verify cache and HEAD rules in source
         run: |
           grep -q "public, max-age=86400, stale-while-revalidate=604800" server.py
           grep -q "private, max-age=86400, stale-while-revalidate=604800" server.py
@@ -50,6 +50,7 @@ jobs:
           grep -q "is_upload = raw_path.startswith('/uploads/')" server.py
           grep -q "is_admin_asset = raw_path.startswith('/admin/') or raw_path == '/app.js'" server.py
           grep -q "self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')" server.py
+          grep -q "def do_HEAD(self):" server.py
           python - <<'PY'
           from pathlib import Path
           s=Path('server.py').read_text(encoding='utf-8')
@@ -62,7 +63,10 @@ jobs:
           assert "self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')" in req
           policy=s[s.index('    def end_headers(self):'):s.index('    def log_message', s.index('    def end_headers(self):'))]
           assert policy.count("self.send_header('Vary','Cookie')") == 2
-          print('source cache verification passed')
+          head=s[s.index('    def do_HEAD(self):'):s.index('    def do_GET(self):')]
+          assert "self.send_response(405)" in head
+          assert "self.send_header('Content-Length','0')" in head
+          print('source cache and HEAD verification passed')
           PY
       - name: Runtime HTTP cache-header QA
         env:
@@ -102,6 +106,22 @@ jobs:
           test_response '/robots.txt' '200' 'public, max-age=3600'
           test_response '/sitemap.xml' '200' 'public, max-age=300'
           test_response '/live_auction.js' '200' 'public, max-age=86400, stale-while-revalidate=604800'
+
+          test_head_blocked() {
+            path="$1"
+            headers=$(mktemp)
+            code=$(curl -sS -I -D "$headers" -o /dev/null -w '%{http_code}' "http://127.0.0.1:8765$path")
+            echo "--- HEAD $path [$code] ---"
+            cat "$headers"
+            test "$code" = '405'
+            test "$(grep -ci '^Cache-Control:' "$headers" || true)" -eq 1
+            grep -i '^Cache-Control:' "$headers" | grep -F 'no-store, no-cache, must-revalidate, max-age=0'
+            grep -i '^Allow:' "$headers" | grep -F 'GET, POST'
+            grep -i '^Content-Length:' "$headers" | grep -E ': *0\r?$'
+          }
+          test_head_blocked '/admin/app.js'
+          test_head_blocked '/uploads/qa-cache-private.jpg'
+          test_head_blocked '/server.py'
 
           forged_headers=$(mktemp)
           forged_code=$(curl -sS -D "$forged_headers" -o /dev/null -w '%{http_code}' \
@@ -162,7 +182,7 @@ jobs:
           public_headers=$(mktemp)
           curl -sS -D "$public_headers" -o /dev/null http://127.0.0.1:8765/live_auction.js
           test "$(grep -ci '^Vary:.*Cookie' "$public_headers" || true)" -eq 0
-          echo 'runtime HTTP cache-header QA passed'
+          echo 'runtime HTTP cache-header and HEAD QA passed'
       - name: Commit patched server
         run: |
           if git diff --quiet -- server.py; then
@@ -172,5 +192,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add server.py
-          git commit -m "fix(server): vary protected private cache by cookie"
+          git commit -m "fix(server): block inherited HEAD file serving"
           git push origin HEAD:perf/static-cache-2026-09-07
