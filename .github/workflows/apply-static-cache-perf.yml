@@ -117,7 +117,7 @@ jobs:
             test "$(grep -ci '^Cache-Control:' "$headers" || true)" -eq 1
             grep -i '^Cache-Control:' "$headers" | grep -F 'no-store, no-cache, must-revalidate, max-age=0'
             grep -i '^Allow:' "$headers" | grep -F 'GET, POST'
-            grep -i '^Content-Length:' "$headers" | grep -E ': *0\r?$'
+            tr -d '\r' < "$headers" | grep -Eqi '^Content-Length: *0$'
           }
           test_head_blocked '/admin/app.js'
           test_head_blocked '/uploads/qa-cache-private.jpg'
