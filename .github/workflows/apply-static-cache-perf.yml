@@ -39,8 +39,10 @@ jobs:
       - name: Verify cache rules in source
         run: |
           grep -q "public, max-age=86400, stale-while-revalidate=604800" server.py
+          grep -q "private, max-age=86400, stale-while-revalidate=604800" server.py
           grep -q "sensitive = raw_path.startswith" server.py
           grep -q "successful = b' 200 ' in first_line" server.py
+          grep -q "is_upload = raw_path.startswith('/uploads/')" server.py
           grep -q "self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')" server.py
           python - <<'PY'
           from pathlib import Path
@@ -103,8 +105,8 @@ jobs:
           test "$(grep -ci '^Cache-Control:' "$login_headers" || true)" -eq 1
           grep -i '^Cache-Control:' "$login_headers" | grep -F 'no-store, no-cache, must-revalidate, max-age=0'
 
-          test_admin_static() {
-            path="$1"
+          test_authenticated_cache() {
+            path="$1" expected_cache="$2"
             headers=$(mktemp)
             code=$(curl -sS -D "$headers" -o /dev/null -w '%{http_code}' -b /tmp/admin-cookie "http://127.0.0.1:8765$path")
             echo "--- authenticated $path [$code] ---"
@@ -112,11 +114,11 @@ jobs:
             test "$code" = '200'
             count=$(grep -ci '^Cache-Control:' "$headers" || true)
             test "$count" -eq 1
-            grep -i '^Cache-Control:' "$headers" | grep -F 'public, max-age=86400, stale-while-revalidate=604800'
+            grep -i '^Cache-Control:' "$headers" | grep -F "$expected_cache"
           }
-          test_admin_static '/admin/styles.css'
-          test_admin_static '/admin/app.js'
-          test_admin_static '/uploads/qa-cache-private.jpg'
+          test_authenticated_cache '/admin/styles.css' 'public, max-age=86400, stale-while-revalidate=604800'
+          test_authenticated_cache '/admin/app.js' 'public, max-age=86400, stale-while-revalidate=604800'
+          test_authenticated_cache '/uploads/qa-cache-private.jpg' 'private, max-age=86400, stale-while-revalidate=604800'
           echo 'runtime HTTP cache-header QA passed'
       - name: Commit patched server
         run: |
