@@ -36,6 +36,29 @@ if old_end in text:
 elif new_end not in text:
     raise SystemExit('Expected original or patched end_headers block not found; refusing unsafe patch')
 
+old_require_admin = """    def require_admin(self,api=False):
+        if self.is_admin(): return True
+        if api: self.sendj({'error':'هذه الصفحة أو العملية خاصة بالإدارة. سجل الدخول أولًا.'},401)
+        else:
+            self.send_response(302); self.send_header('Location','/admin-login'); self.end_headers()
+        return False
+"""
+
+new_require_admin = """    def require_admin(self,api=False):
+        if self.is_admin(): return True
+        if api: self.sendj({'error':'هذه الصفحة أو العملية خاصة بالإدارة. سجل الدخول أولًا.'},401)
+        else:
+            self.send_response(302); self.send_header('Location','/admin-login')
+            self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')
+            self.send_header('Pragma','no-cache'); self.send_header('Expires','0'); self.end_headers()
+        return False
+"""
+
+if old_require_admin in text:
+    text = text.replace(old_require_admin, new_require_admin, 1)
+elif new_require_admin not in text:
+    raise SystemExit('Expected original or patched require_admin block not found; refusing unsafe patch')
+
 start = text.find('    def send_file(self,path,content_type=None):')
 if start < 0:
     raise SystemExit('send_file method not found')
