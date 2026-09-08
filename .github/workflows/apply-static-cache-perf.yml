@@ -103,6 +103,28 @@ jobs:
           test_response '/sitemap.xml' '200' 'public, max-age=300'
           test_response '/live_auction.js' '200' 'public, max-age=86400, stale-while-revalidate=604800'
 
+          forged_headers=$(mktemp)
+          forged_code=$(curl -sS -D "$forged_headers" -o /dev/null -w '%{http_code}' \
+            -H 'Cookie: KhazinaAdmin=forged-invalid-token' \
+            http://127.0.0.1:8765/admin/app.js)
+          echo "--- forged admin cookie /admin/app.js [$forged_code] ---"
+          cat "$forged_headers"
+          test "$forged_code" = '302'
+          test "$(grep -ci '^Cache-Control:' "$forged_headers" || true)" -eq 1
+          grep -i '^Cache-Control:' "$forged_headers" | grep -F 'no-store, no-cache, must-revalidate, max-age=0'
+          test "$(grep -ci '^Vary:.*Cookie' "$forged_headers" || true)" -eq 0
+
+          forged_upload_headers=$(mktemp)
+          forged_upload_code=$(curl -sS -D "$forged_upload_headers" -o /dev/null -w '%{http_code}' \
+            -H 'Cookie: KhazinaAdmin=forged-invalid-token' \
+            http://127.0.0.1:8765/uploads/qa-cache-private.jpg)
+          echo "--- forged admin cookie /uploads/qa-cache-private.jpg [$forged_upload_code] ---"
+          cat "$forged_upload_headers"
+          test "$forged_upload_code" = '403'
+          test "$(grep -ci '^Cache-Control:' "$forged_upload_headers" || true)" -eq 1
+          grep -i '^Cache-Control:' "$forged_upload_headers" | grep -F 'no-store, no-cache, must-revalidate, max-age=0'
+          test "$(grep -ci '^Vary:.*Cookie' "$forged_upload_headers" || true)" -eq 0
+
           login_headers=$(mktemp)
           login_code=$(curl -sS -D "$login_headers" -o /dev/null -w '%{http_code}' \
             -c /tmp/admin-cookie \
