@@ -2189,6 +2189,13 @@ class H(SimpleHTTPRequestHandler):
         finally:
             try: f.close()
             except Exception: pass
+    def do_HEAD(self):
+        # Do not inherit SimpleHTTPRequestHandler.do_HEAD: it bypasses this app's
+        # custom GET router and can reveal local file metadata outside routed paths.
+        self.send_response(405)
+        self.send_header('Allow','GET, POST')
+        self.send_header('Content-Length','0')
+        self.end_headers()
     def do_GET(self):
         p=urlparse(self.path).path
         if p=='/robots.txt':
