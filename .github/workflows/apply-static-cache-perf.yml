@@ -44,6 +44,7 @@ jobs:
         run: |
           grep -q "public, max-age=86400, stale-while-revalidate=604800" server.py
           grep -q "private, max-age=86400, stale-while-revalidate=604800" server.py
+          grep -q "self.send_header('Vary','Cookie')" server.py
           grep -q "sensitive = raw_path.startswith" server.py
           grep -q "successful = b' 200 ' in first_line" server.py
           grep -q "is_upload = raw_path.startswith('/uploads/')" server.py
@@ -59,6 +60,8 @@ jobs:
           assert "self.send_header('Cache-Control','no-store')" not in chunk
           req=s[s.index('    def require_admin(self,api=False):'):s.index('    def same_origin_ok(self):')]
           assert "self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')" in req
+          policy=s[s.index('    def end_headers(self):'):s.index('    def log_message', s.index('    def end_headers(self):'))]
+          assert policy.count("self.send_header('Vary','Cookie')") == 2
           print('source cache verification passed')
           PY
       - name: Runtime HTTP cache-header QA
@@ -113,7 +116,7 @@ jobs:
           grep -i '^Cache-Control:' "$login_headers" | grep -F 'no-store, no-cache, must-revalidate, max-age=0'
 
           test_authenticated_cache() {
-            path="$1" expected_cache="$2"
+            path="$1" expected_cache="$2" expected_vary="${3:-}"
             headers=$(mktemp)
             code=$(curl -sS -D "$headers" -o /dev/null -w '%{http_code}' -b /tmp/admin-cookie "http://127.0.0.1:8765$path")
             echo "--- authenticated $path [$code] ---"
@@ -122,13 +125,21 @@ jobs:
             count=$(grep -ci '^Cache-Control:' "$headers" || true)
             test "$count" -eq 1
             grep -i '^Cache-Control:' "$headers" | grep -F "$expected_cache"
+            if [ -n "$expected_vary" ]; then
+              test "$(grep -ci '^Vary:' "$headers" || true)" -eq 1
+              grep -i '^Vary:' "$headers" | grep -F "$expected_vary"
+            fi
           }
-          test_authenticated_cache '/admin/styles.css' 'private, max-age=86400, stale-while-revalidate=604800'
-          test_authenticated_cache '/admin/app.js' 'private, max-age=86400, stale-while-revalidate=604800'
-          test_authenticated_cache '/admin/app.js?v=qa' 'private, max-age=86400, stale-while-revalidate=604800'
-          test_authenticated_cache '/app.js' 'private, max-age=86400, stale-while-revalidate=604800'
+          test_authenticated_cache '/admin/styles.css' 'private, max-age=86400, stale-while-revalidate=604800' 'Cookie'
+          test_authenticated_cache '/admin/app.js' 'private, max-age=86400, stale-while-revalidate=604800' 'Cookie'
+          test_authenticated_cache '/admin/app.js?v=qa' 'private, max-age=86400, stale-while-revalidate=604800' 'Cookie'
+          test_authenticated_cache '/app.js' 'private, max-age=86400, stale-while-revalidate=604800' 'Cookie'
           test_authenticated_cache '/admin' 'no-store, no-cache, must-revalidate, max-age=0'
-          test_authenticated_cache '/uploads/qa-cache-private.jpg' 'private, max-age=86400, stale-while-revalidate=604800'
+          test_authenticated_cache '/uploads/qa-cache-private.jpg' 'private, max-age=86400, stale-while-revalidate=604800' 'Cookie'
+
+          public_headers=$(mktemp)
+          curl -sS -D "$public_headers" -o /dev/null http://127.0.0.1:8765/live_auction.js
+          test "$(grep -ci '^Vary:.*Cookie' "$public_headers" || true)" -eq 0
           echo 'runtime HTTP cache-header QA passed'
       - name: Commit patched server
         run: |
@@ -139,5 +150,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add server.py
-          git commit -m "fix(server): keep protected admin assets out of shared caches"
+          git commit -m "fix(server): vary protected private cache by cookie"
           git push origin HEAD:perf/static-cache-2026-09-07
