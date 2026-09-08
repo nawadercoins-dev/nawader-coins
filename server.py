@@ -2103,7 +2103,9 @@ class H(SimpleHTTPRequestHandler):
         if self.is_admin(): return True
         if api: self.sendj({'error':'هذه الصفحة أو العملية خاصة بالإدارة. سجل الدخول أولًا.'},401)
         else:
-            self.send_response(302); self.send_header('Location','/admin-login'); self.end_headers()
+            self.send_response(302); self.send_header('Location','/admin-login')
+            self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')
+            self.send_header('Pragma','no-cache'); self.send_header('Expires','0'); self.end_headers()
         return False
     def same_origin_ok(self):
         origin=self.headers.get('Origin')
