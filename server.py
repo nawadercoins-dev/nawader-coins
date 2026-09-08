@@ -2129,7 +2129,10 @@ class H(SimpleHTTPRequestHandler):
             successful = b' 200 ' in first_line
             is_upload = raw_path.startswith('/uploads/')
             is_static = raw_path.endswith(static_ext) and not is_upload
+            is_admin_asset = raw_path.startswith('/admin/') or raw_path == '/app.js'
             if successful and is_upload and not sensitive:
+                self.send_header('Cache-Control','private, max-age=86400, stale-while-revalidate=604800')
+            elif successful and is_static and is_admin_asset and not sensitive:
                 self.send_header('Cache-Control','private, max-age=86400, stale-while-revalidate=604800')
             elif successful and is_static and not sensitive:
                 self.send_header('Cache-Control','public, max-age=86400, stale-while-revalidate=604800')
