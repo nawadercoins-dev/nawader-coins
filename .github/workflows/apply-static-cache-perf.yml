@@ -89,6 +89,7 @@ jobs:
           }
           test_response '/admin/styles.css' '302' 'no-store, no-cache, must-revalidate, max-age=0'
           test_response '/admin/app.js' '302' 'no-store, no-cache, must-revalidate, max-age=0'
+          test_response '/app.js' '302' 'no-store, no-cache, must-revalidate, max-age=0'
           test_response '/uploads/qa-cache-private.jpg' '403' 'no-store, no-cache, must-revalidate, max-age=0'
           test_response '/assets/qa-cache-missing.css' '404' 'no-store, no-cache, must-revalidate, max-age=0'
           test_response '/home' '200' 'no-store, no-cache, must-revalidate, max-age=0'
@@ -122,6 +123,9 @@ jobs:
           }
           test_authenticated_cache '/admin/styles.css' 'public, max-age=86400, stale-while-revalidate=604800'
           test_authenticated_cache '/admin/app.js' 'public, max-age=86400, stale-while-revalidate=604800'
+          test_authenticated_cache '/admin/app.js?v=qa' 'public, max-age=86400, stale-while-revalidate=604800'
+          test_authenticated_cache '/app.js' 'public, max-age=86400, stale-while-revalidate=604800'
+          test_authenticated_cache '/admin' 'no-store, no-cache, must-revalidate, max-age=0'
           test_authenticated_cache '/uploads/qa-cache-private.jpg' 'private, max-age=86400, stale-while-revalidate=604800'
           echo 'runtime HTTP cache-header QA passed'
       - name: Commit patched server
