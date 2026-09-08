@@ -40,6 +40,7 @@ jobs:
         run: |
           grep -q "public, max-age=86400, stale-while-revalidate=604800" server.py
           grep -q "sensitive = raw_path.startswith" server.py
+          grep -q "successful = b' 200 ' in first_line" server.py
           grep -q "self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')" server.py
           python - <<'PY'
           from pathlib import Path
@@ -59,9 +60,11 @@ jobs:
           ADMIN_PASSWORD: 'qa-cache-test-only'
         run: |
           set -euo pipefail
+          mkdir -p uploads
+          printf 'qa-private-image' > uploads/qa-cache-private.jpg
           python server.py > /tmp/nawader-server.log 2>&1 &
           SERVER_PID=$!
-          cleanup() { kill "$SERVER_PID" 2>/dev/null || true; }
+          cleanup() { kill "$SERVER_PID" 2>/dev/null || true; rm -f uploads/qa-cache-private.jpg; }
           trap cleanup EXIT
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8765/home >/dev/null; then break; fi
@@ -80,6 +83,8 @@ jobs:
           }
           test_response '/admin/styles.css' '302' 'no-store, no-cache, must-revalidate, max-age=0'
           test_response '/admin/app.js' '302' 'no-store, no-cache, must-revalidate, max-age=0'
+          test_response '/uploads/qa-cache-private.jpg' '403' 'no-store, no-cache, must-revalidate, max-age=0'
+          test_response '/assets/qa-cache-missing.css' '404' 'no-store, no-cache, must-revalidate, max-age=0'
           test_response '/home' '200' 'no-store, no-cache, must-revalidate, max-age=0'
           test_response '/admin-login' '200' 'no-store, no-cache, must-revalidate, max-age=0'
           test_response '/api/auth/route' '200' 'no-store'
@@ -95,6 +100,8 @@ jobs:
           echo "--- admin login [$login_code] ---"
           cat "$login_headers"
           test "$login_code" = '302'
+          test "$(grep -ci '^Cache-Control:' "$login_headers" || true)" -eq 1
+          grep -i '^Cache-Control:' "$login_headers" | grep -F 'no-store, no-cache, must-revalidate, max-age=0'
 
           test_admin_static() {
             path="$1"
@@ -109,6 +116,7 @@ jobs:
           }
           test_admin_static '/admin/styles.css'
           test_admin_static '/admin/app.js'
+          test_admin_static '/uploads/qa-cache-private.jpg'
           echo 'runtime HTTP cache-header QA passed'
       - name: Commit patched server
         run: |
