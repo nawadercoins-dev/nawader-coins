@@ -9,6 +9,10 @@ on:
       - .github/workflows/apply-static-cache-perf.yml
   workflow_dispatch:
 
+concurrency:
+  group: static-cache-perf-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -18,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: perf/static-cache-2026-09-07
+          ref: ${{ github.sha }}
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
