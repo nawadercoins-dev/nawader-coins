@@ -36,7 +36,7 @@ jobs:
             git diff -- server.py
             exit 1
           fi
-      - name: Verify cache rules
+      - name: Verify cache rules in source
         run: |
           grep -q "public, max-age=86400, stale-while-revalidate=604800" server.py
           grep -q "sensitive = raw_path.startswith" server.py
@@ -48,8 +48,35 @@ jobs:
           if end < 0: end=len(s)
           chunk=s[start:end]
           assert "self.send_header('Cache-Control','no-store')" not in chunk
-          print('cache verification passed')
+          print('source cache verification passed')
           PY
+      - name: Runtime HTTP cache-header QA
+        env:
+          PORT: '8765'
+        run: |
+          set -euo pipefail
+          python server.py > /tmp/nawader-server.log 2>&1 &
+          SERVER_PID=$!
+          cleanup() { kill "$SERVER_PID" 2>/dev/null || true; }
+          trap cleanup EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8765/home >/dev/null; then break; fi
+            sleep 1
+          done
+          test_header() {
+            path="$1" expected="$2"
+            headers=$(mktemp)
+            curl -sS -D "$headers" -o /dev/null "http://127.0.0.1:8765$path"
+            echo "--- $path ---"
+            cat "$headers"
+            count=$(grep -ci '^Cache-Control:' "$headers" || true)
+            test "$count" -eq 1
+            grep -i '^Cache-Control:' "$headers" | grep -F "$expected"
+          }
+          test_header '/admin/styles.css' 'public, max-age=86400, stale-while-revalidate=604800'
+          test_header '/admin-login' 'no-store, no-cache, must-revalidate, max-age=0'
+          test_header '/api/auth/route' 'no-store'
+          echo 'runtime HTTP cache-header QA passed'
       - name: Commit patched server
         run: |
           if git diff --quiet -- server.py; then
