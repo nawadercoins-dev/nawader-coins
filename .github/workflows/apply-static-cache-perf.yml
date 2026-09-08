@@ -23,10 +23,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Baseline syntax check
+        run: python -m py_compile server.py
       - name: Apply guarded patch
         run: python scripts/apply_static_cache_policy.py
-      - name: Syntax check
-        run: python -m py_compile server.py
+      - name: Syntax check with diagnostics
+        run: |
+          if ! python -m py_compile server.py; then
+            echo '--- numbered context around failing area ---'
+            nl -ba server.py | sed -n '2125,2195p'
+            echo '--- patch diff ---'
+            git diff -- server.py
+            exit 1
+          fi
       - name: Verify cache rules
         run: |
           grep -q "public, max-age=86400, stale-while-revalidate=604800" server.py
