@@ -51,6 +51,20 @@ require_admin = """            self.send_header('Cache-Control','no-store, no-ca
 if require_admin not in text:
     raise SystemExit('Admin redirect cache protection missing; refusing unsafe patch')
 
+head_method = """    def do_HEAD(self):
+        # Do not inherit SimpleHTTPRequestHandler.do_HEAD: it bypasses this app's
+        # custom GET router and can reveal local file metadata outside routed paths.
+        self.send_response(405)
+        self.send_header('Allow','GET, POST')
+        self.send_header('Content-Length','0')
+        self.end_headers()
+"""
+if head_method not in text:
+    get_marker = "    def do_GET(self):\n"
+    if get_marker not in text:
+        raise SystemExit('do_GET method not found; refusing unsafe HEAD patch')
+    text = text.replace(get_marker, head_method + get_marker, 1)
+
 start = text.find('    def send_file(self,path,content_type=None):')
 if start < 0:
     raise SystemExit('send_file method not found')
@@ -64,4 +78,4 @@ if "            self.end_headers()\n" not in chunk:
     raise SystemExit('send_file end_headers call is not intact; refusing unsafe patch')
 
 path.write_text(text, encoding='utf-8')
-print('Static cache policy is applied: protected private responses vary by Cookie; public static assets remain public')
+print('Static cache policy is applied: protected private responses vary by Cookie; inherited HEAD file serving is blocked; public static assets remain public')
