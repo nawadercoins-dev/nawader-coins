@@ -5,6 +5,7 @@ on:
     branches:
       - perf/static-cache-2026-09-07
     paths:
+      - server.py
       - scripts/apply_static_cache_policy.py
       - .github/workflows/apply-static-cache-perf.yml
   workflow_dispatch:
@@ -14,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   apply-and-verify:
@@ -38,6 +39,12 @@ jobs:
             nl -ba server.py | sed -n '2085,2215p'
             echo '--- patch diff ---'
             git diff -- server.py
+            exit 1
+          fi
+      - name: Verify patch is already committed
+        run: |
+          if ! git diff --exit-code -- server.py; then
+            echo 'server.py is not synchronized with the guarded patch; commit the generated change on the development branch before considering this head verified.'
             exit 1
           fi
       - name: Verify cache and HEAD rules in source
@@ -183,14 +190,3 @@ jobs:
           curl -sS -D "$public_headers" -o /dev/null http://127.0.0.1:8765/live_auction.js
           test "$(grep -ci '^Vary:.*Cookie' "$public_headers" || true)" -eq 0
           echo 'runtime HTTP cache-header and HEAD QA passed'
-      - name: Commit patched server
-        run: |
-          if git diff --quiet -- server.py; then
-            echo "No server.py changes to commit"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add server.py
-          git commit -m "fix(server): block inherited HEAD file serving"
-          git push origin HEAD:perf/static-cache-2026-09-07
