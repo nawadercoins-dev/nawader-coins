@@ -31,9 +31,10 @@ new_end = """    def end_headers(self):
         self.send_header('X-Frame-Options','DENY')
 """
 
-if old_end not in text:
-    raise SystemExit('Expected end_headers block not found; refusing unsafe patch')
-text = text.replace(old_end, new_end, 1)
+if old_end in text:
+    text = text.replace(old_end, new_end, 1)
+elif new_end not in text:
+    raise SystemExit('Expected original or patched end_headers block not found; refusing unsafe patch')
 
 start = text.find('    def send_file(self,path,content_type=None):')
 if start < 0:
@@ -43,10 +44,11 @@ if end < 0:
     end = len(text)
 chunk = text[start:end]
 old_line = "            self.send_header('Cache-Control','no-store')\n"
-if old_line not in chunk:
-    raise SystemExit('Expected send_file no-store header not found; refusing unsafe patch')
-chunk = chunk.replace(old_line, '', 1)
-text = text[:start] + chunk + text[end:]
+if old_line in chunk:
+    chunk = chunk.replace(old_line, '', 1)
+    text = text[:start] + chunk + text[end:]
+elif "            self.end_headers()\n" not in chunk:
+    raise SystemExit('send_file cache header is absent but end_headers call is not intact; refusing unsafe patch')
 
 path.write_text(text, encoding='utf-8')
-print('Applied static cache policy safely')
+print('Static cache policy is applied and safe to rerun')
