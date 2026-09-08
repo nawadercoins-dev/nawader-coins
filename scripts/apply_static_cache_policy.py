@@ -42,7 +42,7 @@ end = text.find('\n    def ', start + 5)
 if end < 0:
     end = len(text)
 chunk = text[start:end]
-old_line = "        self.send_header('Cache-Control','no-store')\n"
+old_line = "            self.send_header('Cache-Control','no-store')\n"
 if old_line not in chunk:
     raise SystemExit('Expected send_file no-store header not found; refusing unsafe patch')
 chunk = chunk.replace(old_line, '', 1)
