@@ -47,6 +47,7 @@ jobs:
           grep -q "sensitive = raw_path.startswith" server.py
           grep -q "successful = b' 200 ' in first_line" server.py
           grep -q "is_upload = raw_path.startswith('/uploads/')" server.py
+          grep -q "is_admin_asset = raw_path.startswith('/admin/') or raw_path == '/app.js'" server.py
           grep -q "self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')" server.py
           python - <<'PY'
           from pathlib import Path
@@ -97,6 +98,7 @@ jobs:
           test_response '/api/auth/route' '200' 'no-store'
           test_response '/robots.txt' '200' 'public, max-age=3600'
           test_response '/sitemap.xml' '200' 'public, max-age=300'
+          test_response '/live_auction.js' '200' 'public, max-age=86400, stale-while-revalidate=604800'
 
           login_headers=$(mktemp)
           login_code=$(curl -sS -D "$login_headers" -o /dev/null -w '%{http_code}' \
@@ -121,10 +123,10 @@ jobs:
             test "$count" -eq 1
             grep -i '^Cache-Control:' "$headers" | grep -F "$expected_cache"
           }
-          test_authenticated_cache '/admin/styles.css' 'public, max-age=86400, stale-while-revalidate=604800'
-          test_authenticated_cache '/admin/app.js' 'public, max-age=86400, stale-while-revalidate=604800'
-          test_authenticated_cache '/admin/app.js?v=qa' 'public, max-age=86400, stale-while-revalidate=604800'
-          test_authenticated_cache '/app.js' 'public, max-age=86400, stale-while-revalidate=604800'
+          test_authenticated_cache '/admin/styles.css' 'private, max-age=86400, stale-while-revalidate=604800'
+          test_authenticated_cache '/admin/app.js' 'private, max-age=86400, stale-while-revalidate=604800'
+          test_authenticated_cache '/admin/app.js?v=qa' 'private, max-age=86400, stale-while-revalidate=604800'
+          test_authenticated_cache '/app.js' 'private, max-age=86400, stale-while-revalidate=604800'
           test_authenticated_cache '/admin' 'no-store, no-cache, must-revalidate, max-age=0'
           test_authenticated_cache '/uploads/qa-cache-private.jpg' 'private, max-age=86400, stale-while-revalidate=604800'
           echo 'runtime HTTP cache-header QA passed'
@@ -137,5 +139,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add server.py
-          git commit -m "perf(server): cache static assets and uploads safely"
+          git commit -m "fix(server): keep protected admin assets out of shared caches"
           git push origin HEAD:perf/static-cache-2026-09-07
