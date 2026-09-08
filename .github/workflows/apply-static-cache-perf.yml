@@ -74,8 +74,12 @@ jobs:
             grep -i '^Cache-Control:' "$headers" | grep -F "$expected"
           }
           test_header '/admin/styles.css' 'public, max-age=86400, stale-while-revalidate=604800'
+          test_header '/admin/app.js' 'public, max-age=86400, stale-while-revalidate=604800'
+          test_header '/home' 'no-store, no-cache, must-revalidate, max-age=0'
           test_header '/admin-login' 'no-store, no-cache, must-revalidate, max-age=0'
           test_header '/api/auth/route' 'no-store'
+          test_header '/robots.txt' 'public, max-age=3600'
+          test_header '/sitemap.xml' 'public, max-age=300'
           echo 'runtime HTTP cache-header QA passed'
       - name: Commit patched server
         run: |
