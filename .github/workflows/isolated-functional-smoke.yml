@@ -77,10 +77,12 @@ jobs:
         run: |
           set -euo pipefail
           test -f "$RUNNER_TEMP/nawader-functional-data/admin_auth.json"
+          # server.py intentionally refreshes this local convenience file at startup.
+          # It is not application data, so restore it before asserting data isolation.
+          git checkout -- "رابط_الجوال.txt"
           git diff --exit-code
-          git status --porcelain
           if test -n "$(git status --porcelain)"; then
-            echo 'Runtime changed repository working tree; isolation failed.'
+            echo 'Runtime changed repository working tree outside the known local link file; isolation failed.'
             git status --short
             exit 1
           fi
