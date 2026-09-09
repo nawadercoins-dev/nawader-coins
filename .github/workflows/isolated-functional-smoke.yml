@@ -41,9 +41,7 @@ jobs:
           nohup python server.py >"$RUNNER_TEMP/nawader-server.log" 2>&1 &
           echo $! >"$RUNNER_TEMP/nawader-server.pid"
           for i in $(seq 1 40); do
-            if curl -fsS --max-time 2 http://127.0.0.1:8876/home >/dev/null; then
-              exit 0
-            fi
+            if curl -fsS --max-time 2 http://127.0.0.1:8876/home >/dev/null; then exit 0; fi
             sleep 0.5
           done
           cat "$RUNNER_TEMP/nawader-server.log" || true
@@ -58,27 +56,56 @@ jobs:
           done
           auth_code=$(curl -sS -o "$RUNNER_TEMP/auth-route.json" -w '%{http_code}' http://127.0.0.1:8876/api/auth/route)
           test "$auth_code" = "200"
-      - name: Protected mutation stays blocked without admin session
+      - name: Public market and auction APIs are readable
         shell: bash
         run: |
           set -euo pipefail
-          code=$(curl -sS -o "$RUNNER_TEMP/clear-response.json" -w '%{http_code}' \
-            -X POST \
-            -H 'Origin: http://127.0.0.1:8876' \
-            -H 'Content-Type: application/json' \
-            --data '{}' \
-            http://127.0.0.1:8876/api/clear)
-          case "$code" in
-            401|403) ;;
-            *) echo "Expected unauthenticated mutation rejection, got HTTP $code"; cat "$RUNNER_TEMP/clear-response.json" || true; exit 1 ;;
-          esac
+          for path in /api/public/market /api/public/auctions /api/public/live-auctions; do
+            code=$(curl -sS -o "$RUNNER_TEMP/public.json" -w '%{http_code}' "http://127.0.0.1:8876$path")
+            test "$code" = "200"
+            python -m json.tool "$RUNNER_TEMP/public.json" >/dev/null
+          done
+      - name: Protected mutations stay blocked without admin session
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /api/clear /api/merge /api/shipping-policy; do
+            code=$(curl -sS -o "$RUNNER_TEMP/protected.json" -w '%{http_code}' \
+              -X POST -H 'Origin: http://127.0.0.1:8876' -H 'Content-Type: application/json' \
+              --data '{}' "http://127.0.0.1:8876$path")
+            case "$code" in 401|403) ;; *) echo "Expected $path rejection, got HTTP $code"; cat "$RUNNER_TEMP/protected.json" || true; exit 1 ;; esac
+          done
+      - name: Market purchase and visitor orders require participant session
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o "$RUNNER_TEMP/market-request.json" -w '%{http_code}' \
+            -X POST -H 'Origin: http://127.0.0.1:8876' -H 'Content-Type: application/json' \
+            --data '{"itemId":"qa-nonexistent","participantId":"qa-visitor","action":"buy","quantity":1}' \
+            http://127.0.0.1:8876/api/market/request)
+          case "$code" in 401|403) ;; *) echo "Unauthenticated market request unexpectedly reached business mutation path: HTTP $code"; cat "$RUNNER_TEMP/market-request.json" || true; exit 1 ;; esac
+          code=$(curl -sS -o "$RUNNER_TEMP/orders.json" -w '%{http_code}' \
+            'http://127.0.0.1:8876/api/visitor/orders?participantId=qa-visitor')
+          case "$code" in 401|403) ;; *) echo "Unauthenticated visitor orders unexpectedly exposed data: HTTP $code"; cat "$RUNNER_TEMP/orders.json" || true; exit 1 ;; esac
+      - name: Rejected requests create no market requests or orders
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          root=os.path.join(os.environ['RUNNER_TEMP'],'nawader-functional-data')
+          def rows(name,key):
+              p=os.path.join(root,name)
+              if not os.path.exists(p): return []
+              with open(p,encoding='utf-8') as f: return json.load(f).get(key,[])
+          assert rows('market_requests.json','requests') == [], 'rejected request wrote market data'
+          assert rows('orders_shipping.json','orders') == [], 'rejected request wrote order data'
+          PY
       - name: Verify runtime data is isolated from repository
         shell: bash
         run: |
           set -euo pipefail
           test -f "$RUNNER_TEMP/nawader-functional-data/admin_auth.json"
-          # server.py intentionally refreshes this local convenience file at startup.
-          # It is not application data, so restore it before asserting data isolation.
           git checkout -- "رابط_الجوال.txt"
           git diff --exit-code
           if test -n "$(git status --porcelain)"; then
@@ -90,8 +117,6 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if test -f "$RUNNER_TEMP/nawader-server.pid"; then
-            kill "$(cat "$RUNNER_TEMP/nawader-server.pid")" 2>/dev/null || true
-          fi
+          if test -f "$RUNNER_TEMP/nawader-server.pid"; then kill "$(cat "$RUNNER_TEMP/nawader-server.pid")" 2>/dev/null || true; fi
           echo '--- server log ---'
           cat "$RUNNER_TEMP/nawader-server.log" 2>/dev/null || true
