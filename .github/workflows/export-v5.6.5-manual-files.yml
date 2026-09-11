@@ -1,0 +1,62 @@
+name: Export V5.6.5 manual files
+
+on:
+  push:
+    branches:
+      - release/v5.6.5
+    paths:
+      - .github/workflows/export-v5.6.5-manual-files.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare individual manual-upgrade files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p package/V5.6.5/admin
+          cp server.py package/V5.6.5/server.py
+          cp admin/app.js package/V5.6.5/admin/app.js
+          if [ -f upgrades/V5.6.5/README_AR.md ]; then
+            cp upgrades/V5.6.5/README_AR.md package/V5.6.5/README_AR.md
+          fi
+          cat > package/V5.6.5/INSTALL_ORDER_AR.txt <<'EOF'
+          V5.6.5 — ترتيب التثبيت اليدوي
+
+          مهم: لا ترفع جميع الملفات دفعة واحدة.
+
+          1) server.py
+             المكان: جذر المشروع /server.py
+             الإجراء: استبدال الملف الموجود بالكامل.
+
+          2) admin/app.js
+             المكان: /admin/app.js
+             الإجراء: استبدال الملف الموجود بالكامل.
+
+          بعد كل ملف:
+          - احفظ التغيير منفردًا.
+          - تأكد أن GitHub أتم الحفظ بدون خطأ.
+          - لا تعدل أي ملف آخر.
+
+          بعد الملف الثاني:
+          - شغل/انشر النسخة يدويًا بالطريقة المعتادة.
+          - اختبر إضافة مقتنى، الحفظ، الكمية، ثم السوق.
+
+          لا تشمل هذه الترقية البث المباشر أو المزايدة.
+          EOF
+          (cd package/V5.6.5 && sha256sum server.py admin/app.js > SHA256SUMS.txt)
+
+      - name: Upload manual files
+        uses: actions/upload-artifact@v4
+        with:
+          name: V5.6.5-manual-files
+          path: package/V5.6.5
+          if-no-files-found: error
+          retention-days: 30
