@@ -1,0 +1,192 @@
+name: Apply static cache performance fix
+
+on:
+  push:
+    branches:
+      - perf/static-cache-2026-09-07
+    paths:
+      - server.py
+      - scripts/apply_static_cache_policy.py
+      - .github/workflows/apply-static-cache-perf.yml
+  workflow_dispatch:
+
+concurrency:
+  group: static-cache-perf-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Baseline syntax check
+        run: python -m py_compile server.py
+      - name: Apply guarded patch
+        run: python scripts/apply_static_cache_policy.py
+      - name: Syntax check with diagnostics
+        run: |
+          if ! python -m py_compile server.py; then
+            echo '--- numbered context around failing area ---'
+            nl -ba server.py | sed -n '2085,2215p'
+            echo '--- patch diff ---'
+            git diff -- server.py
+            exit 1
+          fi
+      - name: Verify patch is already committed
+        run: |
+          if ! git diff --exit-code -- server.py; then
+            echo 'server.py is not synchronized with the guarded patch; commit the generated change on the development branch before considering this head verified.'
+            exit 1
+          fi
+      - name: Verify cache and HEAD rules in source
+        run: |
+          grep -q "public, max-age=86400, stale-while-revalidate=604800" server.py
+          grep -q "private, max-age=86400, stale-while-revalidate=604800" server.py
+          grep -q "self.send_header('Vary','Cookie')" server.py
+          grep -q "sensitive = raw_path.startswith" server.py
+          grep -q "successful = b' 200 ' in first_line" server.py
+          grep -q "is_upload = raw_path.startswith('/uploads/')" server.py
+          grep -q "is_admin_asset = raw_path.startswith('/admin/') or raw_path == '/app.js'" server.py
+          grep -q "self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')" server.py
+          grep -q "def do_HEAD(self):" server.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('server.py').read_text(encoding='utf-8')
+          start=s.index('    def send_file(self,path,content_type=None):')
+          end=s.find('\n    def ', start+5)
+          if end < 0: end=len(s)
+          chunk=s[start:end]
+          assert "self.send_header('Cache-Control','no-store')" not in chunk
+          req=s[s.index('    def require_admin(self,api=False):'):s.index('    def same_origin_ok(self):')]
+          assert "self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')" in req
+          policy=s[s.index('    def end_headers(self):'):s.index('    def log_message', s.index('    def end_headers(self):'))]
+          assert policy.count("self.send_header('Vary','Cookie')") == 2
+          head=s[s.index('    def do_HEAD(self):'):s.index('    def do_GET(self):')]
+          assert "self.send_response(405)" in head
+          assert "self.send_header('Content-Length','0')" in head
+          print('source cache and HEAD verification passed')
+          PY
+      - name: Runtime HTTP cache-header QA
+        env:
+          PORT: '8765'
+          ADMIN_PASSWORD: 'qa-cache-test-only'
+        run: |
+          set -euo pipefail
+          mkdir -p uploads
+          printf 'qa-private-image' > uploads/qa-cache-private.jpg
+          python server.py > /tmp/nawader-server.log 2>&1 &
+          SERVER_PID=$!
+          cleanup() { kill "$SERVER_PID" 2>/dev/null || true; rm -f uploads/qa-cache-private.jpg; }
+          trap cleanup EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8765/home >/dev/null; then break; fi
+            sleep 1
+          done
+          test_response() {
+            path="$1" expected_status="$2" expected_cache="$3"
+            headers=$(mktemp)
+            code=$(curl -sS -D "$headers" -o /dev/null -w '%{http_code}' "http://127.0.0.1:8765$path")
+            echo "--- $path [$code] ---"
+            cat "$headers"
+            test "$code" = "$expected_status"
+            count=$(grep -ci '^Cache-Control:' "$headers" || true)
+            test "$count" -eq 1
+            grep -i '^Cache-Control:' "$headers" | grep -F "$expected_cache"
+          }
+          test_response '/admin/styles.css' '302' 'no-store, no-cache, must-revalidate, max-age=0'
+          test_response '/admin/app.js' '302' 'no-store, no-cache, must-revalidate, max-age=0'
+          test_response '/app.js' '302' 'no-store, no-cache, must-revalidate, max-age=0'
+          test_response '/uploads/qa-cache-private.jpg' '403' 'no-store, no-cache, must-revalidate, max-age=0'
+          test_response '/assets/qa-cache-missing.css' '404' 'no-store, no-cache, must-revalidate, max-age=0'
+          test_response '/home' '200' 'no-store, no-cache, must-revalidate, max-age=0'
+          test_response '/admin-login' '200' 'no-store, no-cache, must-revalidate, max-age=0'
+          test_response '/api/auth/route' '200' 'no-store'
+          test_response '/robots.txt' '200' 'public, max-age=3600'
+          test_response '/sitemap.xml' '200' 'public, max-age=300'
+          test_response '/live_auction.js' '200' 'public, max-age=86400, stale-while-revalidate=604800'
+
+          test_head_blocked() {
+            path="$1"
+            headers=$(mktemp)
+            code=$(curl -sS -I -D "$headers" -o /dev/null -w '%{http_code}' "http://127.0.0.1:8765$path")
+            echo "--- HEAD $path [$code] ---"
+            cat "$headers"
+            test "$code" = '405'
+            test "$(grep -ci '^Cache-Control:' "$headers" || true)" -eq 1
+            grep -i '^Cache-Control:' "$headers" | grep -F 'no-store, no-cache, must-revalidate, max-age=0'
+            grep -i '^Allow:' "$headers" | grep -F 'GET, POST'
+            tr -d '\r' < "$headers" | grep -Eqi '^Content-Length: *0$'
+          }
+          test_head_blocked '/admin/app.js'
+          test_head_blocked '/uploads/qa-cache-private.jpg'
+          test_head_blocked '/server.py'
+
+          forged_headers=$(mktemp)
+          forged_code=$(curl -sS -D "$forged_headers" -o /dev/null -w '%{http_code}' \
+            -H 'Cookie: KhazinaAdmin=forged-invalid-token' \
+            http://127.0.0.1:8765/admin/app.js)
+          echo "--- forged admin cookie /admin/app.js [$forged_code] ---"
+          cat "$forged_headers"
+          test "$forged_code" = '302'
+          test "$(grep -ci '^Cache-Control:' "$forged_headers" || true)" -eq 1
+          grep -i '^Cache-Control:' "$forged_headers" | grep -F 'no-store, no-cache, must-revalidate, max-age=0'
+          test "$(grep -ci '^Vary:.*Cookie' "$forged_headers" || true)" -eq 0
+
+          forged_upload_headers=$(mktemp)
+          forged_upload_code=$(curl -sS -D "$forged_upload_headers" -o /dev/null -w '%{http_code}' \
+            -H 'Cookie: KhazinaAdmin=forged-invalid-token' \
+            http://127.0.0.1:8765/uploads/qa-cache-private.jpg)
+          echo "--- forged admin cookie /uploads/qa-cache-private.jpg [$forged_upload_code] ---"
+          cat "$forged_upload_headers"
+          test "$forged_upload_code" = '403'
+          test "$(grep -ci '^Cache-Control:' "$forged_upload_headers" || true)" -eq 1
+          grep -i '^Cache-Control:' "$forged_upload_headers" | grep -F 'no-store, no-cache, must-revalidate, max-age=0'
+          test "$(grep -ci '^Vary:.*Cookie' "$forged_upload_headers" || true)" -eq 0
+
+          login_headers=$(mktemp)
+          login_code=$(curl -sS -D "$login_headers" -o /dev/null -w '%{http_code}' \
+            -c /tmp/admin-cookie \
+            -H 'Content-Type: application/x-www-form-urlencoded' \
+            --data 'username=admin&password=qa-cache-test-only' \
+            http://127.0.0.1:8765/admin-login)
+          echo "--- admin login [$login_code] ---"
+          cat "$login_headers"
+          test "$login_code" = '302'
+          test "$(grep -ci '^Cache-Control:' "$login_headers" || true)" -eq 1
+          grep -i '^Cache-Control:' "$login_headers" | grep -F 'no-store, no-cache, must-revalidate, max-age=0'
+
+          test_authenticated_cache() {
+            path="$1" expected_cache="$2" expected_vary="${3:-}"
+            headers=$(mktemp)
+            code=$(curl -sS -D "$headers" -o /dev/null -w '%{http_code}' -b /tmp/admin-cookie "http://127.0.0.1:8765$path")
+            echo "--- authenticated $path [$code] ---"
+            cat "$headers"
+            test "$code" = '200'
+            count=$(grep -ci '^Cache-Control:' "$headers" || true)
+            test "$count" -eq 1
+            grep -i '^Cache-Control:' "$headers" | grep -F "$expected_cache"
+            if [ -n "$expected_vary" ]; then
+              test "$(grep -ci '^Vary:' "$headers" || true)" -eq 1
+              grep -i '^Vary:' "$headers" | grep -F "$expected_vary"
+            fi
+          }
+          test_authenticated_cache '/admin/styles.css' 'private, max-age=86400, stale-while-revalidate=604800' 'Cookie'
+          test_authenticated_cache '/admin/app.js' 'private, max-age=86400, stale-while-revalidate=604800' 'Cookie'
+          test_authenticated_cache '/admin/app.js?v=qa' 'private, max-age=86400, stale-while-revalidate=604800' 'Cookie'
+          test_authenticated_cache '/app.js' 'private, max-age=86400, stale-while-revalidate=604800' 'Cookie'
+          test_authenticated_cache '/admin' 'no-store, no-cache, must-revalidate, max-age=0'
+          test_authenticated_cache '/uploads/qa-cache-private.jpg' 'private, max-age=86400, stale-while-revalidate=604800' 'Cookie'
+
+          public_headers=$(mktemp)
+          curl -sS -D "$public_headers" -o /dev/null http://127.0.0.1:8765/live_auction.js
+          test "$(grep -ci '^Vary:.*Cookie' "$public_headers" || true)" -eq 0
+          echo 'runtime HTTP cache-header and HEAD QA passed'
