@@ -1,0 +1,50 @@
+name: Validate V5.6.5 manual maintenance upgrade
+
+on:
+  push:
+    branches:
+      - specialist/maintenance
+    paths:
+      - upgrades/V5.6.5/**
+      - .github/workflows/validate-v5.6.5-maintenance.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-v5-6-5-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check upgrade anchors without writing
+        run: python upgrades/V5.6.5/upgrade_v5_6_5.py --check
+      - name: Apply upgrade in isolated CI workspace
+        run: python upgrades/V5.6.5/upgrade_v5_6_5.py
+      - name: Python syntax check
+        run: python -m py_compile server.py upgrades/V5.6.5/upgrade_v5_6_5.py
+      - name: JavaScript syntax check
+        run: node --check admin/app.js
+      - name: Scope guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only | sort > /tmp/changed.txt
+          printf 'admin/app.js\nserver.py\n' | sort > /tmp/expected.txt
+          echo 'Changed tracked files:'
+          cat /tmp/changed.txt
+          diff -u /tmp/expected.txt /tmp/changed.txt
+          if git diff --name-only | grep -E '(^|/)(live|live_auction|auction)' ; then
+            echo 'Live/auction file changed unexpectedly.'
+            exit 1
+          fi
