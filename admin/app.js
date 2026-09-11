@@ -106,18 +106,37 @@ async function api(path, opt = {}) {
     throw new Error(j?.error || "تعذر الاتصال بقاعدة البيانات المشتركة");
   return j || {};
 }
-async function all() {
-  return ((await api("/api/items")).items || []).filter(i => !['archived','removed'].includes(i.moderationStatus||'') && !i.ownerArchived);
+// V5.6.7 PERFORMANCE — coalesce repeated inventory reads while navigating admin views.
+let __itemsCacheRows = null, __itemsCacheAt = 0, __itemsInflight = null;
+function invalidateItemsCache(){ __itemsCacheRows=null; __itemsCacheAt=0; __itemsInflight=null; }
+async function all(force=false) {
+  const now=Date.now();
+  if (!force && __itemsCacheRows && (now-__itemsCacheAt)<4000) return __itemsCacheRows;
+  if (!force && __itemsInflight) return __itemsInflight;
+  const job=(async()=>((await api("/api/items")).items || []).filter(i => !['archived','removed'].includes(i.moderationStatus||'') && !i.ownerArchived))();
+  __itemsInflight=job;
+  try {
+    const rows=await job;
+    __itemsCacheRows=rows;
+    __itemsCacheAt=Date.now();
+    return rows;
+  } finally {
+    if (__itemsInflight===job) __itemsInflight=null;
+  }
 }
 async function archivedItems(){ return (await api('/api/archive/items')).items || []; }
 async function put(x) {
-  return api("/api/item", {
+  const result=await api("/api/item", {
     method: "POST",
     body: JSON.stringify({ item: x }),
   });
+  invalidateItemsCache();
+  return result;
 }
 async function del(id) {
-  return api("/api/item/" + encodeURIComponent(id), { method: "DELETE" });
+  const result=await api("/api/item/" + encodeURIComponent(id), { method: "DELETE" });
+  invalidateItemsCache();
+  return result;
 }
 
 
@@ -975,7 +994,7 @@ async function refresh(force = false) {
   if (refreshBusy) return;
   refreshBusy = true;
   try {
-    let allRows = await all();
+    let allRows = await all(force);
     latestItems = allRows.slice();
     updateStorageCatalogFromItems(allRows);
     let a = filterAdminItems(allRows);

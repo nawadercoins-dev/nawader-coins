@@ -2124,9 +2124,8 @@ class H(SimpleHTTPRequestHandler):
         html='''<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>دخول الإدارة | نوادر العملات</title><style>body{margin:0;background:#0b1224;font-family:Tahoma,Arial,sans-serif;color:#0d1b3b;min-height:100vh;display:grid;place-items:center}.box{width:min(430px,90vw);background:white;border-radius:22px;padding:28px;box-shadow:0 20px 60px #0008;border-top:5px solid #c79245}h1{margin:0 0 8px;color:#102659}p{color:#5c6470}label{display:block;font-weight:700;margin:16px 0 6px}input{box-sizing:border-box;width:100%;padding:13px;border:1px solid #ccd3df;border-radius:12px;font-size:17px}button{width:100%;margin-top:20px;padding:13px;border:0;border-radius:12px;background:#102659;color:white;font-weight:800;font-size:17px;cursor:pointer}.err{background:#fff0f0;color:#9d1b2d;padding:10px;border-radius:10px;margin:12px 0}.public{display:block;text-align:center;margin-top:16px;color:#8a642b;text-decoration:none}</style></head><body><form class="box" method="post" action="/admin-login"><h1>🔐 دخول الإدارة</h1><p>الخزينة والسجل والمالية وإدارة السوق والمزاد محمية ولا تظهر للزوار.</p>'''+err+'''<label>اسم المستخدم</label><input name="username" value="admin" autocomplete="username" required><label>كلمة المرور</label><input name="password" type="password" autocomplete="current-password" required><button type="submit">دخول الإدارة</button><a class="public" href="/">العودة إلى واجهة نوادر العملات</a></form></body></html>'''
         data=html.encode('utf-8'); self.send_response(200); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Content-Length',str(len(data))); self.end_headers(); self.wfile.write(data)
     def end_headers(self):
-        self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')
-        self.send_header('Pragma','no-cache')
-        self.send_header('Expires','0')
+        # V5.6.7 PERFORMANCE: response methods own their cache policy.
+        # Static JS/CSS/images may be cached; API/HTML responses keep explicit no-store.
         self.send_header('X-Content-Type-Options','nosniff')
         self.send_header('X-Frame-Options','DENY')
         self.send_header('Referrer-Policy','same-origin')
@@ -2160,7 +2159,13 @@ class H(SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-Type',content_type or mimetypes.guess_type(path)[0] or 'application/octet-stream')
             self.send_header('Content-Length',str(size))
-            self.send_header('Cache-Control','no-store')
+            ext=os.path.splitext(path)[1].lower()
+            if ext in ('.jpg','.jpeg','.png','.webp','.gif','.svg','.ico'):
+                self.send_header('Cache-Control','public, max-age=86400')
+            elif ext in ('.js','.css','.woff','.woff2','.ttf'):
+                self.send_header('Cache-Control','public, max-age=3600')
+            else:
+                self.send_header('Cache-Control','no-store')
             self.end_headers()
             while True:
                 chunk=f.read(256*1024)
