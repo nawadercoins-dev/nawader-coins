@@ -1,117 +1,121 @@
 name: Build V5.6.7 performance upgrade
 on:
   push:
-    branches: ["release/v5.6.7"]
-    paths: [".github/workflows/build-v5.6.7-performance.yml"]
-  workflow_dispatch:
+    branches:
+      - release/v5.6.7
+    paths:
+      - .github/workflows/build-v5.6.7-performance.yml
+  workflow_dispatch: {}
 permissions:
   contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           ref: release/v5.6.7
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Apply safe performance improvements
-        shell: python
         run: |
+          python - <<'PY'
           from pathlib import Path
           import re
 
           server = Path('server.py')
           s = server.read_text(encoding='utf-8')
-
-          old_headers = '''    def end_headers(self):
-        self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')
-        self.send_header('Pragma','no-cache')
-        self.send_header('Expires','0')
-        self.send_header('X-Content-Type-Options','nosniff')
-        self.send_header('X-Frame-Options','DENY')
-        self.send_header('Referrer-Policy','same-origin')
-        self.send_header('Permissions-Policy','camera=(self), microphone=(self), geolocation=()')
-        self.send_header('Content-Security-Policy',"frame-ancestors 'none'; base-uri 'self'; object-src 'none'")
-        super().end_headers()
-'''
-          new_headers = '''    def end_headers(self):
-        # V5.6.7 PERFORMANCE: response methods own their cache policy.
-        # Do not globally force no-store; otherwise JS/CSS/images are downloaded again on every view.
-        self.send_header('X-Content-Type-Options','nosniff')
-        self.send_header('X-Frame-Options','DENY')
-        self.send_header('Referrer-Policy','same-origin')
-        self.send_header('Permissions-Policy','camera=(self), microphone=(self), geolocation=()')
-        self.send_header('Content-Security-Policy',"frame-ancestors 'none'; base-uri 'self'; object-src 'none'")
-        super().end_headers()
-'''
+          old_headers = """    def end_headers(self):
+              self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')
+              self.send_header('Pragma','no-cache')
+              self.send_header('Expires','0')
+              self.send_header('X-Content-Type-Options','nosniff')
+              self.send_header('X-Frame-Options','DENY')
+              self.send_header('Referrer-Policy','same-origin')
+              self.send_header('Permissions-Policy','camera=(self), microphone=(self), geolocation=()')
+              self.send_header('Content-Security-Policy',\"frame-ancestors 'none'; base-uri 'self'; object-src 'none'\")
+              super().end_headers()
+          """.replace('          ', '')
+          new_headers = """    def end_headers(self):
+              # V5.6.7 PERFORMANCE: response methods own their cache policy.
+              # Do not globally force no-store; otherwise JS/CSS/images are downloaded again on every view.
+              self.send_header('X-Content-Type-Options','nosniff')
+              self.send_header('X-Frame-Options','DENY')
+              self.send_header('Referrer-Policy','same-origin')
+              self.send_header('Permissions-Policy','camera=(self), microphone=(self), geolocation=()')
+              self.send_header('Content-Security-Policy',\"frame-ancestors 'none'; base-uri 'self'; object-src 'none'\")
+              super().end_headers()
+          """.replace('          ', '')
           if old_headers not in s:
               raise SystemExit('end_headers anchor not found')
           s = s.replace(old_headers, new_headers, 1)
 
           pat = re.compile(r"(    def send_file\(self,path,content_type=None\):.*?            self\.send_header\('Content-Length',str\(size\)\)\n)            self\.send_header\('Cache-Control','no-store'\)", re.S)
           repl = r"\1            ext=os.path.splitext(path)[1].lower()\n            if ext in ('.jpg','.jpeg','.png','.webp','.gif','.svg','.ico'):\n                self.send_header('Cache-Control','public, max-age=86400')\n            elif ext in ('.js','.css','.woff','.woff2','.ttf'):\n                self.send_header('Cache-Control','public, max-age=3600')\n            else:\n                self.send_header('Cache-Control','no-store')"
-          s2, count = pat.subn(repl, s, count=1)
+          s, count = pat.subn(repl, s, count=1)
           if count != 1:
               raise SystemExit(f'send_file cache anchor count={count}')
-          server.write_text(s2, encoding='utf-8')
+          server.write_text(s, encoding='utf-8')
 
           app = Path('admin/app.js')
           a = app.read_text(encoding='utf-8')
-          old_all = '''async function all() {
-  return ((await api("/api/items")).items || []).filter(i => !['archived','removed'].includes(i.moderationStatus||'') && !i.ownerArchived);
-}
-async function archivedItems(){ return (await api('/api/archive/items')).items || []; }
-async function put(x) {
-  return api("/api/item", {
-    method: "POST",
-    body: JSON.stringify({ item: x }),
-  });
-}
-async function del(id) {
-  return api("/api/item/" + encodeURIComponent(id), { method: "DELETE" });
-}
-'''
-          new_all = '''// V5.6.7 PERFORMANCE — coalesce repeated inventory reads while navigating admin views.
-let __itemsCacheRows = null, __itemsCacheAt = 0, __itemsInflight = null;
-function invalidateItemsCache(){ __itemsCacheRows=null; __itemsCacheAt=0; __itemsInflight=null; }
-async function all(force=false) {
-  const now=Date.now();
-  if (!force && __itemsCacheRows && (now-__itemsCacheAt)<4000) return __itemsCacheRows;
-  if (!force && __itemsInflight) return __itemsInflight;
-  const job=(async()=>((await api("/api/items")).items || []).filter(i => !['archived','removed'].includes(i.moderationStatus||'') && !i.ownerArchived))();
-  __itemsInflight=job;
-  try {
-    const rows=await job;
-    __itemsCacheRows=rows;
-    __itemsCacheAt=Date.now();
-    return rows;
-  } finally {
-    if (__itemsInflight===job) __itemsInflight=null;
-  }
-}
-async function archivedItems(){ return (await api('/api/archive/items')).items || []; }
-async function put(x) {
-  const result=await api("/api/item", {
-    method: "POST",
-    body: JSON.stringify({ item: x }),
-  });
-  invalidateItemsCache();
-  return result;
-}
-async function del(id) {
-  const result=await api("/api/item/" + encodeURIComponent(id), { method: "DELETE" });
-  invalidateItemsCache();
-  return result;
-}
-'''
+          old_all = """async function all() {
+            return ((await api(\"/api/items\")).items || []).filter(i => !['archived','removed'].includes(i.moderationStatus||'') && !i.ownerArchived);
+          }
+          async function archivedItems(){ return (await api('/api/archive/items')).items || []; }
+          async function put(x) {
+            return api(\"/api/item\", {
+              method: \"POST\",
+              body: JSON.stringify({ item: x }),
+            });
+          }
+          async function del(id) {
+            return api(\"/api/item/\" + encodeURIComponent(id), { method: \"DELETE\" });
+          }
+          """.replace('          ', '')
+          new_all = """// V5.6.7 PERFORMANCE — coalesce repeated inventory reads while navigating admin views.
+          let __itemsCacheRows = null, __itemsCacheAt = 0, __itemsInflight = null;
+          function invalidateItemsCache(){ __itemsCacheRows=null; __itemsCacheAt=0; __itemsInflight=null; }
+          async function all(force=false) {
+            const now=Date.now();
+            if (!force && __itemsCacheRows && (now-__itemsCacheAt)<4000) return __itemsCacheRows;
+            if (!force && __itemsInflight) return __itemsInflight;
+            const job=(async()=>((await api(\"/api/items\")).items || []).filter(i => !['archived','removed'].includes(i.moderationStatus||'') && !i.ownerArchived))();
+            __itemsInflight=job;
+            try {
+              const rows=await job;
+              __itemsCacheRows=rows;
+              __itemsCacheAt=Date.now();
+              return rows;
+            } finally {
+              if (__itemsInflight===job) __itemsInflight=null;
+            }
+          }
+          async function archivedItems(){ return (await api('/api/archive/items')).items || []; }
+          async function put(x) {
+            const result=await api(\"/api/item\", {
+              method: \"POST\",
+              body: JSON.stringify({ item: x }),
+            });
+            invalidateItemsCache();
+            return result;
+          }
+          async function del(id) {
+            const result=await api(\"/api/item/\" + encodeURIComponent(id), { method: \"DELETE\" });
+            invalidateItemsCache();
+            return result;
+          }
+          """.replace('          ', '')
           if old_all not in a:
               raise SystemExit('all/put/del anchor not found')
           a = a.replace(old_all, new_all, 1)
           a = a.replace('    let allRows = await all();\n', '    let allRows = await all(force);\n', 1)
           app.write_text(a, encoding='utf-8')
+          PY
       - name: Python syntax check
         run: python -m py_compile server.py
       - name: JavaScript syntax check
@@ -122,14 +126,15 @@ async function del(id) {
           grep -q "public, max-age=86400" server.py
           grep -q "__itemsCacheRows" admin/app.js
           grep -q "all(force)" admin/app.js
-      - name: Commit built performance release
+      - name: Commit built release
         run: |
           git config user.name "nawadercoins-dev"
           git config user.email "nawadercoins@gmail.com"
           git add server.py admin/app.js
-          git diff --cached --quiet && exit 0
-          git commit -m "perf: apply V5.6.7 navigation and static-cache improvements"
-          git push origin HEAD:release/v5.6.7
+          if ! git diff --cached --quiet; then
+            git commit -m "perf: apply V5.6.7 navigation and static-cache improvements"
+            git push origin HEAD:release/v5.6.7
+          fi
       - name: Export server.py only
         uses: actions/upload-artifact@v4
         with:
