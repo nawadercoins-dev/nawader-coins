@@ -1887,6 +1887,8 @@ if (saveBtn) saveBtn.disabled = false;
   Object.keys(i).forEach((k) => {
     if ($(k) && !["front", "back", "year", "country"].includes(k)) $(k).value = i[k] ?? "";
   });
+  if ($("marketQuantity") && i.marketAvailableQuantity != null)
+    $("marketQuantity").value = Number(i.marketAvailableQuantity || 0);
   ensureCollectibleDetailsBox();
   if ($('storeType')) $('storeType').value = i.storeType || (i.fantasiaEnabled ? 'collectibles' : 'coins');
   if ($("collectibleCategory")) $("collectibleCategory").value = i.collectibleCategory || (i.fantasiaEnabled ? "fantasia" : "");
@@ -2239,6 +2241,7 @@ $("form").onsubmit = async (e) => {
       marketSalePrice: wantsMarket ? n("marketSalePrice") : 0,
       marketUnitPrice: wantsMarket ? n("marketUnitPrice") : 0,
       marketQuantity: wantsMarket ? n("marketQuantity") || 1 : 0,
+      _marketQuantityIsAvailable: !!(old && wantsMarket),
       marketSoldQuantity: old?.marketSoldQuantity || 0,
       marketSetPieces: wantsMarket ? n("marketSetPieces") : 0,
       marketSetSize: wantsMarket ? v("marketSetSize") : "",
@@ -3198,7 +3201,7 @@ function itemMarketCategoryKey(i){return itemStoreKey(i)==='collectibles'?(i.col
 function marketAdminCard(i) {
   let qty = Number(i.marketQuantity || i.quantity || 1),
     sold = Number(i.marketSoldQuantity || 0),
-    left = Math.max(0, qty - sold),
+    left = Number(i.marketAvailableQuantity ?? Math.max(0, qty - sold)),
     price = Number(i.marketSalePrice || i.marketUnitPrice || 0),
     pu =
       i.marketPriceUnit ||
@@ -3222,7 +3225,7 @@ function marketAdminCard(i) {
       ...(i.additionalImages || []),
     ].filter(Boolean),
     title = i.marketTitle || `${i.country} — ${i.denomination}`;
-  return `<article class="item market-admin-card">${i.frontImg ? `<button type="button" class="market-image-button" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})' title="فتح عارض الصور"><img src="${i.frontImg}" alt="${esc(title)}"><span class="market-image-hint">⛶ تكبير الصور</span></button>` : '<div class="market-image-button market-no-photo">لا توجد صورة</div>'}<div class="market-admin-body"><h3>${adminStoreBadge(itemStoreKey(i))} ${esc(title)} ${transitionalBadge(i)}</h3><p class="market-status-row"><span class="badge market-badge">${marketCategoryLabel(itemMarketCategoryKey(i))}</span> <span class="badge market-badge">${marketTypeLabel(i.marketOfferType)}</span> <span class="approval-chip ${i.marketApproved ? "ok" : "bad"}">${i.marketApproved ? "نشط" : "غير نشط"}</span></p><div class="market-admin-metrics"><b>سعر ${ul}: ${money(price)}</b><span>المتاح ${left} من ${qty} ${i.marketOfferType === "set" ? "طقم" : i.marketOfferType === "bundle" ? "حزمة" : "وحدة"}</span>${i.marketSetPieces ? `<span>داخل الوحدة ${Number(i.marketSetPieces)} قطعة/ورقة</span>` : ""}</div><p class="market-negotiation">${i.marketNegotiationEnabled ? `التفاوض حتى ${Number(i.marketNegotiationPercent || 0)}%` : "سعر ثابت"}</p><div class="actions market-admin-actions">${imgs.length ? `<button class="ghost" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})'>⛶ الصور</button>` : ""}<button onclick="editItem('${i.id}')">تعديل</button>${archiveButton(i.id)}${adminMoveButtons(i,"market")}<a class="public-link" href="/market${itemStoreQuery(i)}#${i.id}" target="_blank">عرض في السوق</a></div></div></article>`;
+  return `<article class="item market-admin-card">${i.frontImg ? `<button type="button" class="market-image-button" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})' title="فتح عارض الصور"><img src="${i.frontImg}" alt="${esc(title)}"><span class="market-image-hint">⛶ تكبير الصور</span></button>` : '<div class="market-image-button market-no-photo">لا توجد صورة</div>'}<div class="market-admin-body"><h3>${adminStoreBadge(itemStoreKey(i))} ${esc(title)} ${transitionalBadge(i)}</h3><p class="market-status-row"><span class="badge market-badge">${marketCategoryLabel(itemMarketCategoryKey(i))}</span> <span class="badge market-badge">${marketTypeLabel(i.marketOfferType)}</span> <span class="approval-chip ${i.marketApproved ? "ok" : "bad"}">${i.marketApproved ? "نشط" : "غير نشط"}</span></p><div class="market-admin-metrics"><b>سعر ${ul}: ${money(price)}</b><span>المتاح ${left} من ${qty} ${i.marketOfferType === "set" ? "طقم" : i.marketOfferType === "bundle" ? "حزمة" : "وحدة"}</span>${i.marketSetPieces ? `<span>داخل الوحدة ${Number(i.marketSetPieces)} قطعة/ورقة</span>` : ""}</div><p class="market-negotiation">${i.marketNegotiationEnabled ? `التفاوض حتى ${Number(i.marketNegotiationPercent || 0)}%` : "سعر ثابت"}</p><div class="actions market-admin-actions">${imgs.length ? `<button class="ghost" onclick='openCoinLightbox(${JSON.stringify(imgs)},0,${JSON.stringify(title)})'>⛶ الصور</button>` : ""}<button onclick="editItem('${i.id}')">تعديل</button><button class="ghost" onclick="relistMarketQuantity('${i.id}')">↻ إعادة الكمية</button>${archiveButton(i.id)}${adminMoveButtons(i,"market")}<a class="public-link" href="/market${itemStoreQuery(i)}#${i.id}" target="_blank">عرض في السوق</a></div></div></article>`;
 }
 function marketStatusLabel(st) {
   return st === "accepted"
@@ -3338,6 +3341,15 @@ function marketSmartMatch(i, query) {
   return terms.every(term => allText.includes(term));
 }
 
+window.relistMarketQuantity = async (id) => {
+  try {
+    const rows=await all(), item=rows.find(x=>String(x.id)===String(id)); if(!item)throw Error("المقتنى غير موجود");
+    const current=Number(item.marketAvailableQuantity??0), raw=prompt(`الكمية المتاحة حاليًا: ${current}\nأدخل الكمية التي تريد إتاحتها الآن:`,String(Math.max(1,current||1)));
+    if(raw===null)return; const desired=Math.max(1,Math.floor(Number(raw))); if(!Number.isFinite(desired))throw Error("أدخل كمية صحيحة");
+    const r=await api("/api/market/relist",{method:"POST",body:JSON.stringify({itemId:id,availableQuantity:desired})});
+    lastDataToken=""; await refresh(true); await renderMarketAdmin(); toast(`تمت إعادة الكمية للسوق: ${Number(r.availableQuantity||desired)}`);
+  } catch(e) { alert(e.message||"تعذر إعادة الكمية للسوق"); }
+};
 async function renderMarketAdmin(items) {
   if (!$("marketAdminItems")) return;
   let allMarketItems = Array.isArray(items) ? items : await all(),
