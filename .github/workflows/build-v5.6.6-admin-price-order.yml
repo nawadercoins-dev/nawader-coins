@@ -1,0 +1,48 @@
+name: Build V5.6.6 admin price order
+
+on:
+  push:
+    branches: ["release/v5.6.6"]
+    paths:
+      - "upgrades/V5.6.6/patch_admin_prices.py"
+      - ".github/workflows/build-v5.6.6-admin-price-order.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/v5.6.6
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Apply UI price ordering
+        run: python upgrades/V5.6.6/patch_admin_prices.py
+      - name: JavaScript syntax check
+        run: node --check admin/app.js
+      - name: Verify required labels
+        run: |
+          grep -q "سعر الشراء" admin/app.js
+          grep -q "سعر البيع المتوقع" admin/app.js
+          grep -q "record-price-stack" admin/app.js
+          grep -q "warehouse-item-prices" admin/app.js
+      - name: Commit built release file
+        run: |
+          git config user.name "nawadercoins-dev"
+          git config user.email "nawadercoins@gmail.com"
+          git add admin/app.js
+          if ! git diff --cached --quiet; then
+            git commit -m "release: apply V5.6.6 admin price ordering"
+            git push origin HEAD:release/v5.6.6
+          fi
+      - name: Export app.js only
+        uses: actions/upload-artifact@v4
+        with:
+          name: V5.6.6-app-js-only
+          path: admin/app.js
+          if-no-files-found: error
