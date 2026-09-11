@@ -29,33 +29,35 @@ jobs:
 
           server = Path('server.py')
           s = server.read_text(encoding='utf-8')
-          old_headers = """    def end_headers(self):
-              self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')
-              self.send_header('Pragma','no-cache')
-              self.send_header('Expires','0')
-              self.send_header('X-Content-Type-Options','nosniff')
-              self.send_header('X-Frame-Options','DENY')
-              self.send_header('Referrer-Policy','same-origin')
-              self.send_header('Permissions-Policy','camera=(self), microphone=(self), geolocation=()')
-              self.send_header('Content-Security-Policy',\"frame-ancestors 'none'; base-uri 'self'; object-src 'none'\")
-              super().end_headers()
-          """.replace('          ', '')
-          new_headers = """    def end_headers(self):
-              # V5.6.7 PERFORMANCE: response methods own their cache policy.
-              # Do not globally force no-store; otherwise JS/CSS/images are downloaded again on every view.
-              self.send_header('X-Content-Type-Options','nosniff')
-              self.send_header('X-Frame-Options','DENY')
-              self.send_header('Referrer-Policy','same-origin')
-              self.send_header('Permissions-Policy','camera=(self), microphone=(self), geolocation=()')
-              self.send_header('Content-Security-Policy',\"frame-ancestors 'none'; base-uri 'self'; object-src 'none'\")
-              super().end_headers()
-          """.replace('          ', '')
-          if old_headers not in s:
-              raise SystemExit('end_headers anchor not found')
-          s = s.replace(old_headers, new_headers, 1)
+          old_cache_headers = (
+              "        self.send_header('Cache-Control','no-store, no-cache, must-revalidate, max-age=0')\n"
+              "        self.send_header('Pragma','no-cache')\n"
+              "        self.send_header('Expires','0')\n"
+          )
+          new_cache_headers = (
+              "        # V5.6.7 PERFORMANCE: response methods own their cache policy.\n"
+              "        # Static JS/CSS/images may be cached; API/HTML responses keep explicit no-store.\n"
+          )
+          if s.count(old_cache_headers) != 1:
+              raise SystemExit(f'end_headers cache anchor count={s.count(old_cache_headers)}')
+          s = s.replace(old_cache_headers, new_cache_headers, 1)
 
-          pat = re.compile(r"(    def send_file\(self,path,content_type=None\):.*?            self\.send_header\('Content-Length',str\(size\)\)\n)            self\.send_header\('Cache-Control','no-store'\)", re.S)
-          repl = r"\1            ext=os.path.splitext(path)[1].lower()\n            if ext in ('.jpg','.jpeg','.png','.webp','.gif','.svg','.ico'):\n                self.send_header('Cache-Control','public, max-age=86400')\n            elif ext in ('.js','.css','.woff','.woff2','.ttf'):\n                self.send_header('Cache-Control','public, max-age=3600')\n            else:\n                self.send_header('Cache-Control','no-store')"
+          pat = re.compile(
+              r"(    def send_file\(self,path,content_type=None\):.*?"
+              r"            self\.send_header\('Content-Length',str\(size\)\)\n)"
+              r"            self\.send_header\('Cache-Control','no-store'\)",
+              re.S,
+          )
+          repl = (
+              r"\1"
+              "            ext=os.path.splitext(path)[1].lower()\n"
+              "            if ext in ('.jpg','.jpeg','.png','.webp','.gif','.svg','.ico'):\n"
+              "                self.send_header('Cache-Control','public, max-age=86400')\n"
+              "            elif ext in ('.js','.css','.woff','.woff2','.ttf'):\n"
+              "                self.send_header('Cache-Control','public, max-age=3600')\n"
+              "            else:\n"
+              "                self.send_header('Cache-Control','no-store')"
+          )
           s, count = pat.subn(repl, s, count=1)
           if count != 1:
               raise SystemExit(f'send_file cache anchor count={count}')
@@ -63,57 +65,62 @@ jobs:
 
           app = Path('admin/app.js')
           a = app.read_text(encoding='utf-8')
-          old_all = """async function all() {
-            return ((await api(\"/api/items\")).items || []).filter(i => !['archived','removed'].includes(i.moderationStatus||'') && !i.ownerArchived);
-          }
-          async function archivedItems(){ return (await api('/api/archive/items')).items || []; }
-          async function put(x) {
-            return api(\"/api/item\", {
-              method: \"POST\",
-              body: JSON.stringify({ item: x }),
-            });
-          }
-          async function del(id) {
-            return api(\"/api/item/\" + encodeURIComponent(id), { method: \"DELETE\" });
-          }
-          """.replace('          ', '')
-          new_all = """// V5.6.7 PERFORMANCE — coalesce repeated inventory reads while navigating admin views.
-          let __itemsCacheRows = null, __itemsCacheAt = 0, __itemsInflight = null;
-          function invalidateItemsCache(){ __itemsCacheRows=null; __itemsCacheAt=0; __itemsInflight=null; }
-          async function all(force=false) {
-            const now=Date.now();
-            if (!force && __itemsCacheRows && (now-__itemsCacheAt)<4000) return __itemsCacheRows;
-            if (!force && __itemsInflight) return __itemsInflight;
-            const job=(async()=>((await api(\"/api/items\")).items || []).filter(i => !['archived','removed'].includes(i.moderationStatus||'') && !i.ownerArchived))();
-            __itemsInflight=job;
-            try {
-              const rows=await job;
-              __itemsCacheRows=rows;
-              __itemsCacheAt=Date.now();
-              return rows;
-            } finally {
-              if (__itemsInflight===job) __itemsInflight=null;
-            }
-          }
-          async function archivedItems(){ return (await api('/api/archive/items')).items || []; }
-          async function put(x) {
-            const result=await api(\"/api/item\", {
-              method: \"POST\",
-              body: JSON.stringify({ item: x }),
-            });
-            invalidateItemsCache();
-            return result;
-          }
-          async function del(id) {
-            const result=await api(\"/api/item/\" + encodeURIComponent(id), { method: \"DELETE\" });
-            invalidateItemsCache();
-            return result;
-          }
-          """.replace('          ', '')
-          if old_all not in a:
-              raise SystemExit('all/put/del anchor not found')
+          old_all = (
+              'async function all() {\n'
+              '  return ((await api("/api/items")).items || []).filter(i => ![\'archived\',\'removed\'].includes(i.moderationStatus||\'\') && !i.ownerArchived);\n'
+              '}\n'
+              "async function archivedItems(){ return (await api('/api/archive/items')).items || []; }\n"
+              'async function put(x) {\n'
+              '  return api("/api/item", {\n'
+              '    method: "POST",\n'
+              '    body: JSON.stringify({ item: x }),\n'
+              '  });\n'
+              '}\n'
+              'async function del(id) {\n'
+              '  return api("/api/item/" + encodeURIComponent(id), { method: "DELETE" });\n'
+              '}\n'
+          )
+          new_all = (
+              '// V5.6.7 PERFORMANCE — coalesce repeated inventory reads while navigating admin views.\n'
+              'let __itemsCacheRows = null, __itemsCacheAt = 0, __itemsInflight = null;\n'
+              'function invalidateItemsCache(){ __itemsCacheRows=null; __itemsCacheAt=0; __itemsInflight=null; }\n'
+              'async function all(force=false) {\n'
+              '  const now=Date.now();\n'
+              '  if (!force && __itemsCacheRows && (now-__itemsCacheAt)<4000) return __itemsCacheRows;\n'
+              '  if (!force && __itemsInflight) return __itemsInflight;\n'
+              '  const job=(async()=>((await api("/api/items")).items || []).filter(i => ![\'archived\',\'removed\'].includes(i.moderationStatus||\'\') && !i.ownerArchived))();\n'
+              '  __itemsInflight=job;\n'
+              '  try {\n'
+              '    const rows=await job;\n'
+              '    __itemsCacheRows=rows;\n'
+              '    __itemsCacheAt=Date.now();\n'
+              '    return rows;\n'
+              '  } finally {\n'
+              '    if (__itemsInflight===job) __itemsInflight=null;\n'
+              '  }\n'
+              '}\n'
+              "async function archivedItems(){ return (await api('/api/archive/items')).items || []; }\n"
+              'async function put(x) {\n'
+              '  const result=await api("/api/item", {\n'
+              '    method: "POST",\n'
+              '    body: JSON.stringify({ item: x }),\n'
+              '  });\n'
+              '  invalidateItemsCache();\n'
+              '  return result;\n'
+              '}\n'
+              'async function del(id) {\n'
+              '  const result=await api("/api/item/" + encodeURIComponent(id), { method: "DELETE" });\n'
+              '  invalidateItemsCache();\n'
+              '  return result;\n'
+              '}\n'
+          )
+          if a.count(old_all) != 1:
+              raise SystemExit(f'all/put/del anchor count={a.count(old_all)}')
           a = a.replace(old_all, new_all, 1)
-          a = a.replace('    let allRows = await all();\n', '    let allRows = await all(force);\n', 1)
+          refresh_anchor = '    let allRows = await all();\n'
+          if a.count(refresh_anchor) < 1:
+              raise SystemExit('refresh all() anchor not found')
+          a = a.replace(refresh_anchor, '    let allRows = await all(force);\n', 1)
           app.write_text(a, encoding='utf-8')
           PY
       - name: Python syntax check
