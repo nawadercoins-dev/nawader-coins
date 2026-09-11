@@ -1,0 +1,48 @@
+name: Build release V5.6.5
+
+on:
+  push:
+    branches:
+      - release/v5.6.5
+    paths:
+      - .github/workflows/build-release-v5.6.5.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/v5.6.5
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify installer compatibility
+        run: python upgrades/V5.6.5/upgrade_v5_6_5.py --check
+      - name: Apply V5.6.5 to release branch workspace
+        run: python upgrades/V5.6.5/upgrade_v5_6_5.py
+      - name: Final syntax checks
+        run: |
+          python -m py_compile server.py
+          node --check admin/app.js
+      - name: Verify release scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only | sort > /tmp/changed.txt
+          printf 'admin/app.js\nserver.py\n' | sort > /tmp/expected.txt
+          diff -u /tmp/expected.txt /tmp/changed.txt
+      - name: Commit built release
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'nawadercoins-dev'
+          git config user.email 'nawadercoins@gmail.com'
+          git add server.py admin/app.js
+          git commit -m 'release: apply V5.6.5 market quantity maintenance'
+          git push origin HEAD:release/v5.6.5
