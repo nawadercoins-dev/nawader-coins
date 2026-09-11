@@ -626,6 +626,15 @@ def market_listing_physical(item):
     sold_units=max(0,inventory_int(item.get('marketSoldQuantity'),0))
     return max(0,listed-sold_units)*market_physical_per_unit(item)
 
+def market_available_units(item,orders=None):
+    if not (item.get('forMarket') and item.get('marketApproved')): return 0
+    per_unit=max(1,market_physical_per_unit(item))
+    listed=max(0,inventory_int(item.get('marketQuantity'),0))
+    sold_units=max(0,inventory_int(item.get('marketSoldQuantity'),0))
+    _,_,by_source=item_order_quantities(item.get('id'),orders,item)
+    reserved=max(0,inventory_int(by_source.get('market',0),0))
+    return max(0,listed-sold_units-((reserved+per_unit-1)//per_unit))
+
 def auction_is_active(item):
     if not (item.get('forAuction') and item.get('auctionApproved')): return False
     raw=str(item.get('auctionEnd') or '').strip()
@@ -1282,11 +1291,11 @@ def public_market_item(i):
     out={k:i.get(k) for k in keys}
     out['storeType']=item_store_type(i)
     out.update(public_seller_identity(i))
-    _,_,reserved=item_order_quantities(i.get('id'),item=i)
-    per_unit=market_physical_per_unit(i)
-    reserved_units=(reserved.get('market',0)+per_unit-1)//per_unit
-    sold_units=int(i.get('marketSoldQuantity') or 0)
-    out['availableQuantity']=max(0,int(i.get('marketQuantity') or i.get('quantity') or 1)-sold_units-reserved_units)
+    _,_,by_source=item_order_quantities(i.get('id'),item=i)
+    per_unit=max(1,market_physical_per_unit(i))
+    reserved=max(0,inventory_int(by_source.get('market',0),0))
+    reserved_units=(reserved+per_unit-1)//per_unit
+    out['availableQuantity']=market_available_units(i)
     out['availabilityStatus']='available' if out['availableQuantity']>0 else ('reserved' if reserved_units>0 else 'sold')
     return out
 
@@ -2469,7 +2478,8 @@ class H(SimpleHTTPRequestHandler):
                 ensure_auction_outcomes()
                 rows=[]
                 for i in load():
-                    x=dict(i); x['storeType']=item_store_type(i); rows.append(x)
+                    x=dict(i); x['storeType']=item_store_type(i)
+                    x['marketAvailableQuantity']=market_available_units(i); rows.append(x)
                 self.sendj({'items':rows}); return
         if p=='/api/participants':
             with LOCK:
@@ -3848,7 +3858,12 @@ class H(SimpleHTTPRequestHandler):
                 if price<=0: self.sendj({'error':'حدد سعر بيع أكبر من صفر قبل إرسال العرض للسوق'},400); return
                 qty=max(1,int(float(d.get('availableQuantity') or item.get('availableQuantity') or 1)))
                 max_qty=max(1,int(item.get('quantity') or item.get('availableQuantity') or qty))
-                item['marketSalePrice']=price; item['availableQuantity']=min(qty,max_qty)
+                desired=min(qty,max_qty)
+                _,_,src=item_order_quantities(iid,item=item); per_unit=max(1,market_physical_per_unit(item))
+                reserved=max(0,inventory_int(src.get('market',0),0))
+                item['marketSalePrice']=price
+                item['marketQuantity']=max(0,inventory_int(item.get('marketSoldQuantity'),0))+((reserved+per_unit-1)//per_unit)+desired
+                item['availableQuantity']=desired
                 item['marketNegotiationEnabled']=bool(d.get('marketNegotiationEnabled',item.get('marketNegotiationEnabled',False)))
                 item['marketNegotiationPercent']=max(0,min(50,float(d.get('marketNegotiationPercent') or item.get('marketNegotiationPercent') or 0)))
                 item['forMarket']=True
@@ -4259,7 +4274,7 @@ class H(SimpleHTTPRequestHandler):
                     if bad: self.sendj({'error':'بعض الأرقام المختارة لم تعد متاحة: '+', '.join(bad)},409); return
                     qty=len(selected)
                 else:
-                    qty=max(1,int(d.get('quantity') or 1)); avail=max(0,int(item.get('marketQuantity') or item.get('quantity') or 1)-int(item.get('marketSoldQuantity') or 0))
+                    qty=max(1,int(d.get('quantity') or 1)); avail=market_available_units(item)
                     if qty>avail: self.sendj({'error':f'الكمية المتاحة حاليًا {avail}'},409); return
                 base=round(price*qty,2); offered=float(d.get('offeredAmount') or 0)
                 if action=='offer':
@@ -4288,7 +4303,7 @@ class H(SimpleHTTPRequestHandler):
                     if bad: self.sendj({'error':'بعض الأرقام المختارة لم تعد متاحة: '+', '.join(bad)},409); return
                     qty=len(selected)
                 else:
-                    qty=max(1,int(d.get('quantity') or 1)); avail=max(0,int(item.get('marketQuantity') or item.get('quantity') or 1)-int(item.get('marketSoldQuantity') or 0))
+                    qty=max(1,int(d.get('quantity') or 1)); avail=market_available_units(item)
                     if qty>avail: self.sendj({'error':f'الكمية المتاحة حاليًا {avail}'},409); return
                 base=round(price*qty,2); offered=float(d.get('offeredAmount') or 0)
                 if action=='offer':
@@ -4310,9 +4325,7 @@ class H(SimpleHTTPRequestHandler):
                 item=next((i for i in load() if str(i.get('id'))==item_id and i.get('forMarket') and i.get('marketApproved')),None)
                 if not item: self.sendj({'error':'العرض غير متاح في السوق'},404); return
                 if not name or len(''.join(ch for ch in phone if ch.isdigit()))<7: self.sendj({'error':'الاسم ورقم الجوال الصحيح مطلوبان'},400); return
-                _,_,reserved=item_order_quantities(item.get('id'),item=item); per_unit=market_physical_per_unit(item)
-                reserved_units=(reserved.get('market',0)+per_unit-1)//per_unit
-                avail=max(0,int(item.get('marketQuantity') or item.get('quantity') or 1)-int(item.get('marketSoldQuantity') or 0)-reserved_units)
+                avail=market_available_units(item)
                 if avail<=0:
                     labels={'new':'طلب جديد','awaiting_payment':'بانتظار السداد','paid':'تم السداد','preparing':'قيد التجهيز','ready_to_ship':'جاهز للشحن','shipped':'تم الشحن','received':'تم الاستلام','stalled':'متعثر'}
                     buyer_phone=''.join(ch for ch in str(phone or '') if ch.isdigit())
@@ -5091,6 +5104,13 @@ class H(SimpleHTTPRequestHandler):
                 x=d.get('item',{}) if isinstance(d,dict) else {}
                 iid=str(x.get('id') or '').strip()
                 old_item=next((i for i in items if str(i.get('id'))==iid),None) if iid else None
+                if old_item and x.get('forMarket') and x.pop('_marketQuantityIsAvailable',False):
+                    desired=max(0,inventory_int(x.get('marketQuantity'),0))
+                    per_unit=max(1,market_physical_per_unit(x or old_item))
+                    _,_,src=item_order_quantities(iid,item=old_item)
+                    reserved=max(0,inventory_int(src.get('market',0),0))
+                    x['marketQuantity']=max(0,inventory_int(old_item.get('marketSoldQuantity'),0))+((reserved+per_unit-1)//per_unit)+desired
+                else: x.pop('_marketQuantityIsAvailable',None)
                 x['storeType']=normalize_store_type(x.get('storeType'),old_item or x)
                 x['collectibleCategory']=str(x.get('collectibleCategory') or '').strip().lower()
                 country=str(x.get('country') or '').strip()
@@ -5209,6 +5229,28 @@ class H(SimpleHTTPRequestHandler):
                     try: append_save_audit({'id':iid,'ok':False,'country':country,'denomination':denom,'created':datetime.datetime.now().isoformat(),'reason':str(e)})
                     except Exception: pass
                     self.sendj({'ok':False,'error':'فشل حفظ السجل على القرص: '+str(e)},500); return
+            if p=='/api/market/relist':
+                if not self.require_admin(api=True): return
+                iid=str(d.get('itemId') or '').strip(); desired=max(0,inventory_int(d.get('availableQuantity'),0))
+                if not iid or desired<=0: self.sendj({'error':'حدد المقتنى والكمية المراد إتاحتها'},400); return
+                with LOCK:
+                    items=load(); item=next((x for x in items if str(x.get('id'))==iid),None)
+                    if not item: self.sendj({'error':'المقتنى غير موجود'},404); return
+                    if item.get('forAuction') and item.get('auctionApproved'): self.sendj({'error':'لا يمكن إعادة كمية السوق أثناء وجود مزاد نشط'},409); return
+                    total=inventory_total(item); sold=inventory_int(item.get('soldQuantity'),0); damaged=inventory_int(item.get('damagedQuantity'),0)
+                    reserved,returned,src=item_order_quantities(iid,item=item); per_unit=max(1,market_physical_per_unit(item))
+                    max_units=max(0,total-sold-damaged-returned-reserved)//per_unit
+                    if max_units<=0: self.sendj({'error':'لا توجد كمية حرة يمكن إعادتها للسوق'},409); return
+                    desired=min(desired,max_units); market_reserved=max(0,inventory_int(src.get('market',0),0)); sold_units=max(0,inventory_int(item.get('marketSoldQuantity'),0))
+                    before=dict(item); item['marketQuantity']=sold_units+((market_reserved+per_unit-1)//per_unit)+desired
+                    item['availableQuantity']=desired; item['forMarket']=True; item['marketApproved']=True; item['adminLocation']='market'; item['updated']=int(time.time()*1000); save(items)
+                    saved=next((x for x in load() if str(x.get('id'))==iid),None); actual=market_available_units(saved or item)
+                    if actual!=desired:
+                        rows=load(); idx=next((n for n,x in enumerate(rows) if str(x.get('id'))==iid),None)
+                        if idx is not None: rows[idx]=before; save(rows)
+                        self.sendj({'error':f'فشل التحقق من الكمية بعد الحفظ: {actual}'},500); return
+                    append_operation('إعادة كمية السوق',{'itemId':iid,'availableQuantity':actual})
+                    self.sendj({'ok':True,'itemId':iid,'availableQuantity':actual,'maxAvailable':max_units}); return
             if p=='/api/shipping-policy':
                 if not self.require_admin(api=True): return
                 try: fee=max(0.0,round(float(d.get('flatShippingFee')),2))
