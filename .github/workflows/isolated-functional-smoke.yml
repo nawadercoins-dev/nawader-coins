@@ -75,6 +75,24 @@ jobs:
               --data '{}' "http://127.0.0.1:8876$path")
             case "$code" in 401|403) ;; *) echo "Expected $path rejection, got HTTP $code"; cat "$RUNNER_TEMP/protected.json" || true; exit 1 ;; esac
           done
+      - name: Snapshot seeded market and order data
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, os
+          root=os.path.join(os.environ['RUNNER_TEMP'],'nawader-functional-data')
+          baseline={}
+          for name in ('market_requests.json','orders_shipping.json'):
+              path=os.path.join(root,name)
+              if os.path.exists(path):
+                  with open(path,'rb') as f:
+                      baseline[name]=hashlib.sha256(f.read()).hexdigest()
+              else:
+                  baseline[name]=None
+          with open(os.path.join(os.environ['RUNNER_TEMP'],'mutation-baseline.json'),'w',encoding='utf-8') as f:
+              json.dump(baseline,f,ensure_ascii=False,sort_keys=True)
+          PY
       - name: Market purchase and visitor orders require participant session
         shell: bash
         run: |
@@ -87,19 +105,23 @@ jobs:
           code=$(curl -sS -o "$RUNNER_TEMP/orders.json" -w '%{http_code}' \
             'http://127.0.0.1:8876/api/visitor/orders?participantId=qa-visitor')
           case "$code" in 401|403) ;; *) echo "Unauthenticated visitor orders unexpectedly exposed data: HTTP $code"; cat "$RUNNER_TEMP/orders.json" || true; exit 1 ;; esac
-      - name: Rejected requests create no market requests or orders
+      - name: Rejected requests do not mutate seeded market or order data
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, os
+          import hashlib, json, os
           root=os.path.join(os.environ['RUNNER_TEMP'],'nawader-functional-data')
-          def rows(name,key):
-              p=os.path.join(root,name)
-              if not os.path.exists(p): return []
-              with open(p,encoding='utf-8') as f: return json.load(f).get(key,[])
-          assert rows('market_requests.json','requests') == [], 'rejected request wrote market data'
-          assert rows('orders_shipping.json','orders') == [], 'rejected request wrote order data'
+          with open(os.path.join(os.environ['RUNNER_TEMP'],'mutation-baseline.json'),encoding='utf-8') as f:
+              baseline=json.load(f)
+          for name, before in baseline.items():
+              path=os.path.join(root,name)
+              if os.path.exists(path):
+                  with open(path,'rb') as f:
+                      after=hashlib.sha256(f.read()).hexdigest()
+              else:
+                  after=None
+              assert after == before, f'rejected request mutated {name}'
           PY
       - name: Verify runtime data is isolated from repository
         shell: bash
