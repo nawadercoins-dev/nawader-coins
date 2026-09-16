@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# P0 maintenance patch: reduce repeated full item reloads during rapid admin navigation.
 PATH = Path('admin/app.js')
 text = PATH.read_text(encoding='utf-8')
 original = text
