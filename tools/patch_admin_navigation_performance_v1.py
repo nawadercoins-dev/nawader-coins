@@ -5,6 +5,11 @@ PATH = Path('admin/app.js')
 text = PATH.read_text(encoding='utf-8')
 original = text
 
+# Safe to re-run in CI after the patch has already been committed to the maintenance branch.
+if 'const ADMIN_ITEMS_CACHE_TTL_MS = 12000;' in text and 'let allRows = await all(force);' in text:
+    print('ADMIN_NAV_PERFORMANCE_PATCH_ALREADY_APPLIED')
+    raise SystemExit(0)
+
 old_all = '''async function all() {
   return ((await api("/api/items")).items || []).filter(i => !['archived','removed'].includes(i.moderationStatus||'') && !i.ownerArchived);
 }
@@ -88,4 +93,4 @@ if text == original:
     raise SystemExit('No changes produced.')
 PATH.write_text(text, encoding='utf-8')
 print('ADMIN_NAV_PERFORMANCE_PATCH_OK')
-print('cache_ttl_ms=', ADMIN_ITEMS_CACHE_TTL_MS if 'ADMIN_ITEMS_CACHE_TTL_MS' in globals() else 12000)
+print('cache_ttl_ms=12000')
