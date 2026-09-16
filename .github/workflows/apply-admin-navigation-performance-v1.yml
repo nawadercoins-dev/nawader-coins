@@ -1,0 +1,47 @@
+name: Apply admin navigation performance v1
+
+on:
+  push:
+    branches:
+      - specialist/maintenance
+    paths:
+      - tools/patch_admin_navigation_performance_v1.py
+      - .github/workflows/apply-admin-navigation-performance-v1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout maintenance branch
+        uses: actions/checkout@v4
+        with:
+          ref: specialist/maintenance
+          fetch-depth: 0
+
+      - name: Apply safe navigation performance patch
+        run: python3 tools/patch_admin_navigation_performance_v1.py
+
+      - name: Validate JavaScript syntax
+        run: node --check admin/app.js
+
+      - name: Verify required performance markers
+        run: |
+          grep -q 'ADMIN_ITEMS_CACHE_TTL_MS = 12000' admin/app.js
+          grep -q 'let allRows = await all(force);' admin/app.js
+          grep -q 'invalidateAdminItemsCache' admin/app.js
+
+      - name: Commit patched admin/app.js
+        run: |
+          if git diff --quiet -- admin/app.js; then
+            echo 'No admin/app.js changes to commit.'
+            exit 0
+          fi
+          git config user.name 'nawadercoins-maintenance-bot'
+          git config user.email 'nawadercoins@gmail.com'
+          git add admin/app.js
+          git commit -m 'perf(admin): reduce repeated item reloads during navigation'
+          git push origin HEAD:specialist/maintenance
