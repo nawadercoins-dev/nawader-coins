@@ -106,18 +106,45 @@ async function api(path, opt = {}) {
     throw new Error(j?.error || "تعذر الاتصال بقاعدة البيانات المشتركة");
   return j || {};
 }
-async function all() {
-  return ((await api("/api/items")).items || []).filter(i => !['archived','removed'].includes(i.moderationStatus||'') && !i.ownerArchived);
+const ADMIN_ITEMS_CACHE_TTL_MS = 12000;
+let adminItemsCache = { rows: null, at: 0, pending: null };
+function invalidateAdminItemsCache() {
+  adminItemsCache.rows = null;
+  adminItemsCache.at = 0;
+}
+async function all(force = false) {
+  const now = Date.now();
+  if (!force && Array.isArray(adminItemsCache.rows) && now - adminItemsCache.at < ADMIN_ITEMS_CACHE_TTL_MS)
+    return adminItemsCache.rows.slice();
+  if (!force && adminItemsCache.pending)
+    return (await adminItemsCache.pending).slice();
+  const pending = api("/api/items")
+    .then(r => ((r.items || []).filter(i => !['archived','removed'].includes(i.moderationStatus||'') && !i.ownerArchived)))
+    .then(rows => {
+      adminItemsCache.rows = rows;
+      adminItemsCache.at = Date.now();
+      return rows;
+    });
+  adminItemsCache.pending = pending;
+  try {
+    return (await pending).slice();
+  } finally {
+    if (adminItemsCache.pending === pending) adminItemsCache.pending = null;
+  }
 }
 async function archivedItems(){ return (await api('/api/archive/items')).items || []; }
 async function put(x) {
-  return api("/api/item", {
+  const result = await api("/api/item", {
     method: "POST",
     body: JSON.stringify({ item: x }),
   });
+  invalidateAdminItemsCache();
+  return result;
 }
 async function del(id) {
-  return api("/api/item/" + encodeURIComponent(id), { method: "DELETE" });
+  const result = await api("/api/item/" + encodeURIComponent(id), { method: "DELETE" });
+  invalidateAdminItemsCache();
+  return result;
 }
 
 
@@ -175,7 +202,7 @@ function installAdminStoreSwitchers(){
   syncAdminStoreSwitchers();
 }
 async function rerenderActiveStoreView(){
-  lastDataToken=''; await refresh(true);
+  lastDataToken=''; await refresh(false);
   const id=document.querySelector('.view.active')?.id||'';
   if(id==='warehouseView')await renderWarehouse();
   else if(id==='market')await renderMarketAdmin();
@@ -743,7 +770,7 @@ document.querySelectorAll("nav button").forEach(
           "participants",
         ].includes(b.dataset.v)
       )
-        await refresh(true);
+        await refresh(false);
       if (b.dataset.v === "participants") await renderParticipants();
       if (b.dataset.v === "permissions") await renderPermissions();
       if (b.dataset.v === "image-vault") await renderImageVault(true);
@@ -776,7 +803,7 @@ document.querySelectorAll(".dashboard-go").forEach((b) =>
         "participants",
       ].includes(vw)
     )
-      await refresh(true);
+      await refresh(false);
     if (vw === "participants") await renderParticipants();
     if (vw === "warehouse") await renderWarehouse();
     if (vw === "special") await renderSpecialAdmin();
@@ -975,7 +1002,7 @@ async function refresh(force = false) {
   if (refreshBusy) return;
   refreshBusy = true;
   try {
-    let allRows = await all();
+    let allRows = await all(force);
     latestItems = allRows.slice();
     updateStorageCatalogFromItems(allRows);
     let a = filterAdminItems(allRows);
