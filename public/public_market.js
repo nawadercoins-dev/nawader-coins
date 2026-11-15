@@ -223,10 +223,33 @@ window.openRequest=(id,action)=>{let i=ITEMS.find(x=>x.id===id);if(!i)return;CUR
 function updateSummary(){if(!CURRENT)return;let q=Math.max(1,Number($('requestQty').value||1)),base=totalFor(CURRENT,q),fee=base*Number(SETTINGS.buyerFeePercent||0)/100,total=base+fee;$('requestSummary').innerHTML=`<div class="cart-title">${esc(CURRENT.marketTitle||`${CURRENT.country} — ${CURRENT.denomination}`)}</div><div>الكمية: <b>${q} ${qtyUnitLabel(CURRENT,q)}</b></div><div>سعر ${priceUnitLabel(CURRENT)}: <b>${money(displayPrice(CURRENT))}</b></div><div>قيمة المشتريات: <b>${money(base)}</b></div><div>رسوم المنصة: ${money(fee)} (${Number(SETTINGS.buyerFeePercent||0)}%)</div><div class="cart-total">الإجمالي: ${money(total)}</div>${CURRENT.marketNegotiationEnabled?`<div>التفاوض المسموح حتى ${Number(CURRENT.marketNegotiationPercent||0)}%</div>`:''}`;if($('action').value==='offer'){let min=base*(1-Number(CURRENT.marketNegotiationPercent||0)/100);$('offerAmount').min=min.toFixed(2);$('offerAmount').placeholder='الحد الأدنى '+money(min)}}
 $('requestQty').oninput=()=>setQty($('requestQty').value);function closeRequestDlg(){let d=$('requestDlg');if(typeof d.close==='function')d.close();else d.removeAttribute('open')};$('closeDlg').onclick=closeRequestDlg;if($('closeDlgTop'))$('closeDlgTop').onclick=closeRequestDlg;
 $('sendRequest').onclick=async()=>{let btn=$('sendRequest'),msg=$('msg');try{btn.disabled=true;msg.textContent='جارٍ إرسال الطلب...';msg.className='';let body={itemId:$('itemId').value,action:$('action').value,name:$('buyerName').value.trim(),phone:$('buyerPhone').value.trim(),quantity:Number($('requestQty').value||1),offeredAmount:Number($('offerAmount').value||0)};let r=await fetch('/api/market/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'}),d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر إرسال الطلب');let rr=d.request||{};$('requestReceipt').hidden=false;$('requestReceipt').innerHTML=`<b>تم تسجيل الطلب بنجاح</b><br>السلعة: ${esc(rr.itemTitle||CURRENT?.marketTitle||'')}<br>المشتري: ${esc(rr.name||body.name)} — ${esc(rr.phone||body.phone)}<br>الكمية: ${Number(rr.quantity||body.quantity)} ${qtyUnitLabel(CURRENT,Number(rr.quantity||body.quantity))}<br>${body.action==='offer'?'عرض التفاوض':'قيمة الشراء'}: ${money(body.action==='offer'?(rr.offeredAmount||body.offeredAmount):(rr.listedAmount||totalFor(CURRENT,body.quantity)))}`;msg.textContent='✅ وصل الطلب إلى الإدارة.';msg.className='ok';setTimeout(()=>load(),300)}catch(e){msg.textContent='⚠️ '+e.message;msg.className='err'}finally{btn.disabled=false}};
-async function load(){try{let [m,s]=await Promise.all([get('/api/public/market'+STORE_Q),get('/api/settings/public')]);ITEMS=m.items||[];SETTINGS=s||{};applyCollectibleCategoryVisibility();populateGradingFilters();render();let hash=decodeURIComponent(location.hash.slice(1));if(hash&&!HASH_DONE){HASH_DONE=true;setTimeout(()=>document.getElementById(hash)?.scrollIntoView({behavior:'smooth',block:'center'}),100)}}catch(e){$('items').innerHTML='<div class="empty">تعذر تحميل السوق. تحقق من تشغيل البرنامج ثم حاول مرة أخرى.</div>'}}
+// Poll safely: never discard already-rendered cards on a transient request failure.
+let marketLoadBusy=false,marketHasLoaded=false,marketLastSignature='';
+async function load(){
+  if(marketLoadBusy)return;
+  marketLoadBusy=true;
+  try{
+    const [m,settings]=await Promise.all([get('/api/public/market'+STORE_Q),get('/api/settings/public')]);
+    if(!m||!Array.isArray(m.items))throw new Error('Invalid market response');
+    const nextItems=m.items,nextSettings=settings||{};
+    const signature=JSON.stringify([nextItems,nextSettings.visitorSections||{}]);
+    ITEMS=nextItems;SETTINGS=nextSettings;
+    if(!marketHasLoaded||signature!==marketLastSignature){
+      marketLastSignature=signature;
+      applyCollectibleCategoryVisibility();populateGradingFilters();render();
+    }
+    marketHasLoaded=true;
+    let hash=decodeURIComponent(location.hash.slice(1));
+    if(hash&&!HASH_DONE){HASH_DONE=true;setTimeout(()=>document.getElementById(hash)?.scrollIntoView({behavior:'smooth',block:'center'}),100)}
+  }catch(e){
+    // Keep the last successful cards and filters intact while connectivity recovers.
+    if(!marketHasLoaded)$('items').innerHTML='<div class="empty">تعذر تحميل السوق. تحقق من الاتصال ثم حاول مرة أخرى.</div>';
+    console.warn('Market refresh failed; retaining previous cards',e);
+  }finally{marketLoadBusy=false}
+}
 $('search').oninput=render;$('type').onchange=render;if($('grader'))$('grader').onchange=render;if($('grade'))$('grade').onchange=render;
 document.querySelectorAll('#marketCategoryTabs [data-category]').forEach(b=>b.onclick=()=>{CATEGORY=b.dataset.category||'all';syncCategoryTab();const qs=new URLSearchParams(location.search);qs.set('store',STORE);if(CATEGORY==='all')qs.delete('category');else qs.set('category',CATEGORY);history.replaceState({},'',location.pathname+'?'+qs.toString()+location.hash);render()});
-load();setInterval(load,12000);
+load();setInterval(()=>{if(!document.hidden)load()},12000);
 
 
 // V3.0: عارض صورة كامل مع تكبير/تدوير/سحب وتوسيط تلقائي
