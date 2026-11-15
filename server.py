@@ -1105,6 +1105,25 @@ def overdue_due_for(pid):
         except Exception: pass
     return None
 
+
+# Admin-editable display metadata. Internal category IDs remain immutable.
+COLLECTIBLE_CATEGORY_DEFAULTS={"fantasia":{"label":"فنتازيا","icon":"🎭"},"antiques":{"label":"تحف","icon":"🏺"},"prayer-beads":{"label":"سبح","icon":"📿"},"vehicles-models":{"label":"سيارات ومجسمات","icon":"🚗"},"aviation-marine":{"label":"طائرات وسفن وقطارات","icon":"✈️"},"jewelry-stones":{"label":"خواتم وأحجار","icon":"💍"},"games":{"label":"ألعاب ومقتنيات","icon":"🧸"},"other":{"label":"أخرى","icon":"🧰"}}
+def collectible_category_display(settings=None):
+    st=settings if isinstance(settings,dict) else load_settings()
+    saved=st.get('collectibleCategoryDisplay') or {}
+    if not isinstance(saved,dict): saved={}
+    out={}
+    for key,base in COLLECTIBLE_CATEGORY_DEFAULTS.items():
+        entry=saved.get(key) or {}
+        if not isinstance(entry,dict): entry={}
+        label=str(entry.get('label') or base['label']).strip()[:45]
+        icon=str(entry.get('icon') or base['icon']).strip()[:8]
+        order=entry.get('order',list(COLLECTIBLE_CATEGORY_DEFAULTS).index(key))
+        try: order=max(0,min(99,int(order)))
+        except (TypeError,ValueError): order=list(COLLECTIBLE_CATEGORY_DEFAULTS).index(key)
+        out[key]={'label':label,'icon':icon,'order':order}
+    return out
+
 def load_settings():
     defaults={'flatShippingFee':35.0,'buyerFeePercent':2.5,'charityProfitPercent':5.0,'auctionEntryFee':10.0,'entryFeeEnabled':True,'negotiationPercents':[5,10,15,20],'negotiationHours':48,'adminEmail':'','platformName':'نوادر العملات','whatsappVerificationNumber':'966551892409','duesTrackingStartedAt':'','paymentBankName':'','paymentAccountName':'','paymentIban':'','paymentInstructions':'حوّل المبلغ النهائي بعد اعتماد الشحن، ثم ارفع صورة إشعار التحويل من صفحة المستحقات.','paymentWhatsapp':'','paymentManualModeEnabled':True,'paymentBankModeEnabled':False,'paymentManualInstructions':'سيتم التواصل معك من الإدارة لإرسال تعليمات السداد المناسبة لهذا الطلب.','visitorSections':{'market':True,'auction':True,'specialNumbers':True,'transitionalIssues':True,
             'fantasia':True,'promotions':True,'announcements':True,'liveAuction':True,'collectiblesStore':True,'collectiblesAntiques':True,'collectiblesPrayerBeads':True,'collectiblesVehiclesModels':True,'collectiblesAviationMarine':True,'collectiblesJewelryStones':True,'collectiblesGames':True,'collectiblesOther':True},'fullPublicEnableV493':False}
@@ -2308,6 +2327,9 @@ class H(SimpleHTTPRequestHandler):
             if not effective_visitor_sections()['collectiblesStore']:
                 self.send_response(302); self.send_header('Location','/dar'); self.end_headers(); return
             self.send_file(os.path.join(PUBLIC_DIR,'collectibles_home.html'),'text/html; charset=utf-8'); return
+        if p=='/admin/category-editor':
+            if not self.require_admin(): return
+            self.send_file(os.path.join(ADMIN_DIR,'category_editor.html'),'text/html; charset=utf-8'); return
         if p in ('/admin','/admin/','/index.html'):
             if not self.require_admin(): return
             self.send_file(os.path.join(ADMIN_DIR,'index.html'),'text/html; charset=utf-8'); return
@@ -2319,6 +2341,8 @@ class H(SimpleHTTPRequestHandler):
         if p in ADMIN_GET_API and not self.require_admin(api=True): return
         if p=='/api/session-state':
             self.sendj({'admin':self.is_admin()}); return
+        if p=='/api/collectible-categories':
+            self.sendj({'categories':collectible_category_display()}); return
         if p=='/api/settings/public':
             st=load_settings(); self.sendj({'buyerFeePercent':st['buyerFeePercent'],'charityProfitPercent':st['charityProfitPercent'],'auctionEntryFee':st['auctionEntryFee'],'entryFeeEnabled':st['entryFeeEnabled'],'negotiationPercents':st['negotiationPercents'],'negotiationHours':st['negotiationHours'],'visitorSections':effective_visitor_sections(st),'marketFirstLaunch':MARKET_FIRST_LAUNCH,'whatsappVerificationNumber':st.get('whatsappVerificationNumber','966551892409'),'flatShippingFee':flat_shipping_fee(),'payment':{'method':'manual' if st.get('paymentManualModeEnabled',True) else 'bank_transfer','manualModeEnabled':bool(st.get('paymentManualModeEnabled',True)),'bankModeEnabled':bool(st.get('paymentBankModeEnabled',False)),'manualInstructions':st.get('paymentManualInstructions','سيتم التواصل معك من الإدارة لإرسال تعليمات السداد المناسبة لهذا الطلب.'),'bankName':st.get('paymentBankName',''),'accountName':st.get('paymentAccountName',''),'iban':st.get('paymentIban',''),'instructions':st.get('paymentInstructions',''),'whatsapp':st.get('paymentWhatsapp','')}}); return
         if p=='/api/settings/admin':
@@ -4659,6 +4683,22 @@ class H(SimpleHTTPRequestHandler):
                 if 'paymentManualModeEnabled' in d: st['paymentManualModeEnabled']=bool(d.get('paymentManualModeEnabled'))
                 if 'paymentBankModeEnabled' in d: st['paymentBankModeEnabled']=bool(d.get('paymentBankModeEnabled'))
                 if 'paymentManualInstructions' in d: st['paymentManualInstructions']=str(d.get('paymentManualInstructions') or '').strip()[:800]
+                incoming_display=d.get('collectibleCategoryDisplay')
+                if isinstance(incoming_display,dict):
+                    current_display=collectible_category_display(st)
+                    for key,entry in incoming_display.items():
+                        if key not in COLLECTIBLE_CATEGORY_DEFAULTS or not isinstance(entry,dict): continue
+                        label=str(entry.get('label') or '').strip()
+                        icon=str(entry.get('icon') or '').strip()
+                        if not (1<=len(label)<=45 and 1<=len(icon)<=8):
+                            self.sendj({'error':'اسم أو أيقونة غير صالحة'},400); return
+                        if any(ord(ch)<32 or ch in '<>{}' for ch in label+icon):
+                            self.sendj({'error':'رموز غير مسموحة'},400); return
+                        try: order=int(entry.get('order',current_display[key]['order']))
+                        except (TypeError,ValueError): self.sendj({'error':'ترتيب غير صالح'},400); return
+                        if not 0<=order<=99: self.sendj({'error':'الترتيب من 0 إلى 99'},400); return
+                        current_display[key]={'label':label,'icon':icon,'order':order}
+                    st['collectibleCategoryDisplay']=current_display
                 incoming=d.get('visitorSections')
                 if isinstance(incoming,dict):
                     current=dict(st.get('visitorSections') or {})
