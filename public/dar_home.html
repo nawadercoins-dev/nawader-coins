@@ -55,6 +55,36 @@ footer{text-align:center;color:#8fa2b8;margin-top:30px}
 .live-entry.live-active .live-dot{background:#ff263f;animation:livePulse 1.05s infinite}
 @keyframes livePulse{0%{box-shadow:0 0 0 0 #ff263f99}70%{box-shadow:0 0 0 10px #ff263f00}100%{box-shadow:0 0 0 0 #ff263f00}}
 
+
+/* White, realistic storefront redesign — visual-only, no API or product changes */
+:root{--navy:#30343a;--navy2:#52565b;--gold:#786454;--gold2:#574739;--green:#4f554e}
+body{background:#f7f7f5;color:#292929}
+.wrap{max-width:1220px}
+.top{background:#fff;border:1px solid #e1e1df;border-radius:14px;padding:14px 18px;margin-bottom:16px}
+.brand img{background:#fff;border:1px solid #d5d5d2}
+.brand h1{color:#2c2c2c}.brand small{color:#6d6d6d}
+.topnav a{color:#3a3a3a;border:1px solid #d6d6d3;border-radius:9px;background:#fff}
+.topnav a:hover{background:#f2f2f0}
+.hero{background:#fff;border:1px solid #dededb;border-radius:16px;box-shadow:0 4px 16px #0000000b;padding:26px 22px}
+.main-logo{width:min(150px,36vw);background:#fff;border:2px solid #d9d9d6;box-shadow:none}
+.eyebrow{color:#777}.hero h2{color:#292929;font-size:clamp(30px,5vw,46px)}
+.hero p{color:#565656}.badge{color:#615346;border-color:#d8cdc3;background:#f7f4f1;border-radius:8px}
+.main-nav a{color:#454545;background:#f7f7f6;border:1px solid #d8d8d5;border-radius:9px}
+.main-nav a.active{background:#5c4c40;color:#fff;border-color:#5c4c40}
+.store,.coins,.collectibles{background:#fff;border:1px solid #d4d4d1;border-radius:14px;box-shadow:0 3px 12px #0000000b;min-height:270px}
+.store:before{background:none}.store h3{color:#302d2b;font-size:clamp(25px,3vw,32px)}
+.store p{color:#626262}.art{filter:none;font-size:58px}
+.tags span{color:#555;background:#f4f4f2;border:1px solid #dededb;border-radius:7px}
+.enter{background:#635144;color:#fff;border:1px solid #635144;border-radius:9px}
+.enter:hover{background:#493a30}
+.service{background:#fff;border:1px solid #d9d9d6;border-top:3px solid #776455;border-radius:11px}
+.service b{color:#40362f}.service span{color:#666}
+footer{color:#737373}
+.live-entry{color:#484848!important;border-color:#d6d6d3!important;background:#fff!important;border-radius:9px!important}
+.live-entry.live-active{color:#fff!important}
+a:focus-visible{outline:3px solid #a58e79;outline-offset:3px}
+@media(max-width:760px){.top{padding:12px}.hero{padding:22px 12px}.store{min-height:240px}.main-logo{width:min(128px,34vw)}}
+
 </style>
 </head>
 <body>
