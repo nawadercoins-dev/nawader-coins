@@ -1701,7 +1701,12 @@ def is_public_upload_url(url):
     if not path.startswith('/uploads/'): return False
     for i in load():
         if not ((i.get('forAuction') and i.get('auctionApproved')) or (i.get('forMarket') and i.get('marketApproved'))): continue
-        if urlparse(str(i.get('frontImg') or '')).path==path or urlparse(str(i.get('backImg') or '')).path==path: return True
+        # Approved market/auction cards also display certification and gallery images.
+        # Authorize only URLs referenced by a publicly approved item, never arbitrary uploads.
+        image_urls=[i.get('frontImg'),i.get('backImg'),i.get('gradingCertImage')]
+        extras=i.get('additionalImages') or []
+        if isinstance(extras,list): image_urls.extend(extras)
+        if any(urlparse(str(image or '')).path==path for image in image_urls): return True
     # صور طلبات المقتنيات تُحفظ بأسماء عشوائية على القرص الدائم، وتحتاجها
     # صفحة صاحب الطلب للمعاينة والتعديل قبل اعتماد الإدارة.
     for row in load_collectible_submissions():
