@@ -1695,19 +1695,35 @@ def clean_sessions():
     for token,meta in list(ADMIN_SESSIONS.items()):
         if now-float(meta.get('last',0))>SESSION_TTL_SECONDS: ADMIN_SESSIONS.pop(token,None)
 
+def _upload_image_matches(url, image_urls):
+    path=urlparse(str(url or '')).path
+    return bool(path and any(urlparse(str(image or '')).path==path for image in image_urls))
+
+
 def is_public_upload_url(url):
     if not url: return False
     path=urlparse(str(url)).path
     if not path.startswith('/uploads/'): return False
-    for i in load():
-        if not ((i.get('forAuction') and i.get('auctionApproved')) or (i.get('forMarket') and i.get('marketApproved'))): continue
-        if urlparse(str(i.get('frontImg') or '')).path==path or urlparse(str(i.get('backImg') or '')).path==path: return True
-    # صور طلبات المقتنيات تُحفظ بأسماء عشوائية على القرص الدائم، وتحتاجها
-    # صفحة صاحب الطلب للمعاينة والتعديل قبل اعتماد الإدارة.
-    for row in load_collectible_submissions():
-        if urlparse(str(row.get('frontImage') or '')).path==path or urlparse(str(row.get('backImage') or '')).path==path: return True
-        for extra in (row.get('additionalImages') or []):
-            if urlparse(str(extra or '')).path==path: return True
+    for item in load():
+        if not ((item.get('forAuction') and item.get('auctionApproved')) or
+                (item.get('forMarket') and item.get('marketApproved'))):
+            continue
+        images=[item.get('frontImg'),item.get('backImg'),item.get('gradingCertImage')]
+        extras=item.get('additionalImages') or []
+        if isinstance(extras,list): images.extend(extras)
+        if _upload_image_matches(url,images): return True
+    # Pending submissions are private, even when their upload URL is known.
+    return False
+
+
+def is_owner_submission_upload_url(url, participant_id):
+    if not participant_id: return False
+    for submission in load_collectible_submissions():
+        if str(submission.get('participantId') or '') != str(participant_id): continue
+        images=[submission.get('frontImage'),submission.get('backImage')]
+        extras=submission.get('additionalImages') or []
+        if isinstance(extras,list): images.extend(extras)
+        if _upload_image_matches(url,images): return True
     return False
 
 
@@ -2886,7 +2902,11 @@ class H(SimpleHTTPRequestHandler):
             allowed=self.is_admin() or is_public_upload_url(p)
             if not allowed:
                 person=self.participant_person()
-                if person and participant_permissions(person.get('id')).get('dataEntry') and image_vault_record_by_url(p): allowed=True
+                if person:
+                    allowed=is_owner_submission_upload_url(p,person.get('id'))
+                    # Preserve existing data-entry image-vault access for authorized staff.
+                    if not allowed and participant_permissions(person.get('id')).get('dataEntry') and image_vault_record_by_url(p):
+                        allowed=True
             if allowed:
                 self.send_file(full); return
             self.send_error(403,'Private image'); return
